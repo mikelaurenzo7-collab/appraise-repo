@@ -70,9 +70,11 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 export default function AnalysisResults() {
+  const [pdfGenerating, setPdfGenerating] = useState(false);
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const submissionId = params.get("id") ? parseInt(params.get("id")!, 10) : null;
+  const generateReportMutation = trpc.properties.generateReport.useMutation();
 
   const { data, isLoading, error } = trpc.properties.getAnalysis.useQuery(
     { submissionId: submissionId! },
@@ -409,6 +411,50 @@ export default function AnalysisResults() {
           </div>
         </section>
       )}
+
+      {/* Download Report & CTA */}
+      <section className="py-12">
+        <div className="container">
+          <div className="p-8 rounded-xl bg-[oklch(0.18_0.06_255)] text-center">
+            <FileText size={32} className="text-[oklch(0.72_0.12_75)] mx-auto mb-4" />
+            <h2 className="font-display text-2xl font-bold text-white mb-2">Download Your Appraisal Report</h2>
+            <p className="text-white/70 mb-6 max-w-md mx-auto">
+              Get a professional, certified PDF report ready for your appeal filing or personal records.
+            </p>
+            <button
+              onClick={async () => {
+                setPdfGenerating(true);
+                try {
+                  await generateReportMutation.mutateAsync({ submissionId: submissionId! });
+                } catch (err) {
+                  console.error("PDF generation failed:", err);
+                } finally {
+                  setPdfGenerating(false);
+                }
+              }}
+              disabled={pdfGenerating || generateReportMutation.isPending}
+              className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pdfGenerating || generateReportMutation.isPending ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <FileText size={16} />
+                  Download PDF Report
+                </>
+              )}
+            </button>
+            {generateReportMutation.data?.url && (
+              <div className="mt-4 text-sm text-green-300">
+                ✓ PDF ready! Check your downloads folder.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* CTA */}
       <section className="bg-[oklch(0.18_0.06_255)] py-16">

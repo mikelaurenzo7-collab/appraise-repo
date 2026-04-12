@@ -112,3 +112,10 @@
 - [x] Add cache TTL read/write test for propertyDataAggregator
 - [x] Add test for RecordOutcomeModal -> admin.recordOutcome -> dashboard refresh
 - [x] DeadlineCalendar verified: all 50 states with sort/search/filter
+
+## PDF Skill Integration
+- [ ] Build real ReportLab PDF generator for certified appraisal reports
+- [ ] Wire PDF generation to tRPC endpoint (generateReport)
+- [ ] Upload generated PDF to S3 and return download URL
+- [ ] Add download button to AnalysisResults page
+- [ ] Add test for PDF generation pipeline

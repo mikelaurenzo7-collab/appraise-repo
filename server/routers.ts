@@ -24,6 +24,7 @@ import {
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
+import { generateAppraisalPDF } from "./services/pdfGenerator";
 
 // Admin-only middleware
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -133,6 +134,62 @@ export const appRouter = router({
         } catch (error) {
           if (error instanceof TRPCError) throw error;
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve analysis." });
+        }
+      }),
+    generateReport: publicProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .mutation(async ({ input }) => {
+        try {
+          const submission = await getPropertySubmissionById(input.submissionId);
+          if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+          const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+
+          // Build report data from submission + analysis
+          const reportData = {
+            submissionId: submission.id,
+            address: submission.address,
+            city: submission.city || undefined,
+            state: submission.state || undefined,
+            zipCode: submission.zipCode || undefined,
+            county: submission.county || undefined,
+            propertyType: submission.propertyType || "residential",
+            ownerName: undefined as string | undefined,
+            ownerEmail: submission.email || undefined,
+            assessedValue: submission.assessedValue ?? null,
+            marketValueEstimate: analysis?.marketValueEstimate ?? null,
+            assessmentGap: analysis?.assessmentGap ?? null,
+            potentialSavings: submission.potentialSavings ?? null,
+            appealStrengthScore: submission.appealStrengthScore ?? null,
+            executiveSummary: analysis?.executiveSummary || undefined,
+            valuationJustification: analysis?.valuationJustification || undefined,
+            recommendedApproach: analysis?.recommendedApproach || undefined,
+            filingMethod: submission.filingMethod || "poa",
+            reportType: "instant" as const,
+            comparableSales: analysis?.comparableSales ? JSON.parse(analysis.comparableSales) : [],
+            squareFeet: submission.squareFeet ?? null,
+            yearBuilt: submission.yearBuilt ?? null,
+            bedrooms: submission.bedrooms ?? null,
+            bathrooms: submission.bathrooms ?? null,
+            lotSize: submission.lotSize ?? null,
+            parcelNumber: undefined,
+          };
+
+          const { url, sizeBytes } = await generateAppraisalPDF(reportData);
+
+          await persistActivityLog({
+            submissionId: submission.id,
+            type: "report_generated",
+            actor: "system",
+            description: `PDF report generated (${Math.round(sizeBytes / 1024)}KB)`,
+            metadata: JSON.stringify({ pdfUrl: url }),
+            status: "success",
+          });
+
+          return { success: true, url, sizeBytes };
+        } catch (error) {
+          console.error("[PDF] Generation failed:", error);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate PDF report. Please try again." });
         }
       }),
   }),
