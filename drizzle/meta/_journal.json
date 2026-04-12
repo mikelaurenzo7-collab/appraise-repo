@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1775951384641,
+      "tag": "0000_thankful_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1775951422100,
+      "tag": "0001_complex_tombstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775954219536,
+      "tag": "0002_mixed_doctor_spectrum",
+      "breakpoints": true
+    }
+  ]
+}

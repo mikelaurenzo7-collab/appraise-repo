@@ -10,8 +10,10 @@ import Pricing from "./pages/Pricing";
 import TaxAppeals from "./pages/TaxAppeals";
 import About from "./pages/About";
 import GetStarted from "./pages/GetStarted";
+import AnalysisResults from "./pages/AnalysisResults";
 
 function Router() {
+  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -20,6 +22,7 @@ function Router() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/about" component={About} />
       <Route path="/get-started" component={GetStarted} />
+      <Route path="/analysis" component={AnalysisResults} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
