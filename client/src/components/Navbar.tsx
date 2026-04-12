@@ -74,10 +74,16 @@ export default function Navbar() {
         {/* Desktop CTA */}
         <div className="hidden lg:flex items-center gap-3">
           <Link
+            href="/portfolio"
+            className="text-sm font-medium text-white/70 hover:text-white transition-colors"
+          >
+            Portfolio
+          </Link>
+          <Link
             href="/dashboard"
             className="text-sm font-medium text-white/70 hover:text-white transition-colors"
           >
-            My Dashboard
+            Dashboard
           </Link>
           <Link
             href="/get-started"

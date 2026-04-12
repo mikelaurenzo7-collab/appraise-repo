@@ -1,4 +1,5 @@
 import { useState } from "react";
+import RecordOutcomeModal from "@/components/RecordOutcomeModal";
 import { Link } from "wouter";
 import {
   BarChart3, TrendingDown, FileText, Clock, CheckCircle2, AlertTriangle,
@@ -76,6 +77,8 @@ export default function AdminDashboard() {
     { limit: PAGE_SIZE, offset: 0 },
     { enabled: isAuthenticated && user?.role === "admin" && tab === "outcomes" }
   );
+
+  const [outcomeModal, setOutcomeModal] = useState<{ submissionId: number; address: string; assessedValue?: number | null } | null>(null);
 
   const retriggerMutation = trpc.admin.retriggerAnalysis.useMutation({
     onSuccess: () => {
@@ -258,6 +261,13 @@ export default function AdminDashboard() {
                             <Link href={`/analysis?id=${sub.id}`} className="inline-flex items-center gap-1 text-xs text-[oklch(0.18_0.06_255)] hover:text-[oklch(0.72_0.12_75)] transition-colors">
                               <Eye size={12} />View
                             </Link>
+                            <button
+                              onClick={() => setOutcomeModal({ submissionId: sub.id, address: sub.address, assessedValue: sub.assessedValue })}
+                              className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 transition-colors font-medium"
+                              title="Record outcome"
+                            >
+                              <Trophy size={11} />Outcome
+                            </button>
                             {(sub.status === "pending" || sub.status === "analyzed") && (
                               <button
                                 onClick={() => retriggerMutation.mutate({ submissionId: sub.id })}
@@ -394,6 +404,22 @@ export default function AdminDashboard() {
         )}
 
       </div>
+
+      {/* Record Outcome Modal */}
+      {outcomeModal && (
+        <RecordOutcomeModal
+          submissionId={outcomeModal.submissionId}
+          address={outcomeModal.address}
+          assessedValue={outcomeModal.assessedValue}
+          onClose={() => setOutcomeModal(null)}
+          onSuccess={() => {
+            setOutcomeModal(null);
+            submissionsQuery.refetch();
+            outcomesQuery.refetch();
+            dashboardQuery.refetch();
+          }}
+        />
+      )}
     </div>
   );
 }

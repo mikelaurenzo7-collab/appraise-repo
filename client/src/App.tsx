@@ -14,6 +14,7 @@ import AnalysisResults from "./pages/AnalysisResults";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import DeadlineCalendar from "./pages/DeadlineCalendar";
+import Portfolio from "./pages/Portfolio";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/dashboard" component={UserDashboard} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
+      <Route path="/portfolio" component={Portfolio} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

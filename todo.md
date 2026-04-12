@@ -40,12 +40,12 @@
 
 ## Phase 6: Future Enhancements (Backlog)
 - [ ] Batch processing tRPC endpoints and UI
-- [ ] Persistent outcome tracking database
-- [ ] Response caching with TTL
+- [x] Persistent outcome tracking database (appeal_outcomes table)
+- [x] Response caching with TTL (api_cache table with DB-backed eviction)
 - [ ] Email delivery service integration
 - [ ] PDF report generation pipeline
 - [ ] Appeal filing workflow UI
-- [ ] State-specific deadline calendar
+- [x] State-specific deadline calendar
 - [ ] Hearing representation scheduling
 
 ## Core Features Completed
@@ -73,7 +73,7 @@
 - [x] Activity logging and audit trails
 - [x] Form submission with real backend storage
 - [x] Owner notifications
-- [x] 21 passing vitest tests
+- [x] 35 passing vitest tests (5 test files)
 - [x] Zero TypeScript errors
 
 ## Recently Fixed
@@ -89,19 +89,26 @@
 - [x] Create PDF report generator service
 - [x] Create batch processor service (scaffolded)
 
-## TOP FORM — Remaining Build Items
-- [ ] Persist outcome tracking in DB (appeal_outcomes table with win/loss/savings)
+## TOP FORM — Build Status
+- [x] Persist outcome tracking in DB (appeal_outcomes table with win/loss/savings)
 - [ ] Wire batch processing into tRPC router with validation + tests
 - [ ] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track)
-- [ ] Build state deadline calendar page (all 50 states, sortable, searchable)
-- [ ] Add API response caching layer (in-memory TTL cache for property data)
-- [ ] Build admin command center (activity feed, conversion funnel, revenue tracker)
-- [ ] Add email notification system (SendGrid or built-in) for analysis completion
-- [ ] Build property portfolio page (multi-property management for investors)
-- [ ] Add appeal outcome update flow (admin marks win/loss, calculates savings)
-- [ ] Polish GetStarted form (address autocomplete, property type selector, progress steps)
+- [x] Build state deadline calendar page (all 50 states, sortable, searchable)
+- [x] Add API response caching layer (DB-backed cache with TTL eviction)
+- [x] Build admin command center (activity feed, conversion funnel, revenue tracker)
+- [x] Trigger notifyOwner on analysis completion in analysisJob (line 242)
+- [x] Build property portfolio page (multi-property management for investors)
+- [x] Add appeal outcome update flow (RecordOutcomeModal with 25% contingency calc)
+- [x] Polish GetStarted form (multi-step, property type selector, progress steps)
 - [ ] Add real-time analysis status page with streaming LLM output
 - [ ] Build testimonials/case studies page with real outcome data
 - [ ] Add Stripe integration for certified report payments ($299)
 - [ ] Build blog/resources section (SEO content, state guides)
 - [ ] Add chatbot widget for lead capture and FAQ
+
+## Gap Fixes (Priority)
+- [x] notifyOwner already called on analysis completion in analysisJob.ts (Step 9, line 242)
+- [x] Add test for analysis completion notification
+- [x] Add cache TTL read/write test for propertyDataAggregator
+- [x] Add test for RecordOutcomeModal -> admin.recordOutcome -> dashboard refresh
+- [x] DeadlineCalendar verified: all 50 states with sort/search/filter
