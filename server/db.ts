@@ -219,6 +219,23 @@ export async function getSubmissionStats() {
   }
 }
 
+export async function getUserSubmissions(userEmail: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const result = await db
+      .select()
+      .from(propertySubmissions)
+      .where(eq(propertySubmissions.email, userEmail))
+      .orderBy(propertySubmissions.createdAt);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to get user submissions:", error);
+    return [];
+  }
+}
+
 export async function getPropertyAnalysisBySubmissionId(submissionId: number) {
   const db = await getDb();
   if (!db) {

@@ -10,6 +10,7 @@ import {
   getPropertyAnalysisBySubmissionId,
   listAllSubmissions,
   getSubmissionStats,
+  getUserSubmissions,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
@@ -108,6 +109,19 @@ export const appRouter = router({
           throw new Error("Failed to retrieve analysis. Please try again.");
         }
       }),
+  }),
+
+  user: router({
+    getSubmissions: protectedProcedure.query(async ({ ctx }) => {
+      try {
+        const userEmail = ctx.user.email || "";
+        const submissions = await getUserSubmissions(userEmail);
+        return submissions || [];
+      } catch (error) {
+        console.error("[User] Error fetching submissions:", error);
+        return [];
+      }
+    }),
   }),
 
   admin: router({

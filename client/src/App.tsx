@@ -12,6 +12,7 @@ import About from "./pages/About";
 import GetStarted from "./pages/GetStarted";
 import AnalysisResults from "./pages/AnalysisResults";
 import AdminDashboard from "./pages/AdminDashboard";
+import UserDashboard from "./pages/UserDashboard";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/about" component={About} />
       <Route path="/get-started" component={GetStarted} />
       <Route path="/analysis" component={AnalysisResults} />
+      <Route path="/dashboard" component={UserDashboard} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
