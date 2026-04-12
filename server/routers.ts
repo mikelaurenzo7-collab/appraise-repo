@@ -1,23 +1,36 @@
 import { COOKIE_NAME } from "@shared/const";
+import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { createPropertySubmission, getPropertySubmissionById, getPropertyAnalysisBySubmissionId } from "./db";
+import {
+  createPropertySubmission,
+  getPropertySubmissionById,
+  getPropertyAnalysisBySubmissionId,
+  listAllSubmissions,
+  getSubmissionStats,
+} from "./db";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 
+// Admin-only middleware
+const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  }
+  return next({ ctx });
+});
+
 export const appRouter = router({
-  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
 
@@ -32,7 +45,6 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         try {
-          // Parse address into components
           const addressParts = input.address.split(",").map((p) => p.trim());
           const fullAddress = addressParts[0] || input.address;
           const city = addressParts[1] || "";
@@ -41,7 +53,6 @@ export const appRouter = router({
           const state = stateParts[0] || "";
           const zipCode = stateParts[1] || "";
 
-          // Create submission in database
           const submission = await createPropertySubmission({
             address: fullAddress,
             city,
@@ -52,14 +63,12 @@ export const appRouter = router({
             status: "pending",
           });
 
-          // Notify owner of new submission
           if (submission) {
             await notifyOwner({
               title: "New Property Analysis Request",
               content: `New submission from ${input.email}\n\nAddress: ${input.address}\nPhone: ${input.phone || "Not provided"}\n\nStatus: Pending analysis`,
             }).catch((err: unknown) => console.error("[Notification] Failed to notify owner:", err));
 
-            // Queue background analysis job
             queueAnalysisJob(submission.id, 2000);
           }
 
@@ -79,9 +88,7 @@ export const appRouter = router({
       .query(async ({ input }) => {
         try {
           const submission = await getPropertySubmissionById(input.submissionId);
-          if (!submission) {
-            throw new Error("Submission not found");
-          }
+          if (!submission) throw new Error("Submission not found");
 
           const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
 
@@ -100,6 +107,16 @@ export const appRouter = router({
           console.error("[Properties] Error getting analysis:", error);
           throw new Error("Failed to retrieve analysis. Please try again.");
         }
+      }),
+  }),
+
+  admin: router({
+    listSubmissions: adminProcedure
+      .input(z.object({ limit: z.number().default(20), offset: z.number().default(0) }))
+      .query(async ({ input }) => {
+        const { submissions, total } = await listAllSubmissions(input.limit, input.offset);
+        const stats = await getSubmissionStats();
+        return { submissions, total, stats };
       }),
   }),
 });

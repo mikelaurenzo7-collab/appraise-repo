@@ -9,8 +9,10 @@
 - [x] Write tests for analysis engine
 
 ## Phase 2: Jurisdiction Rules & Workflows
-- [ ] Build jurisdiction rules database (deadlines, procedures, success rates)
-- [ ] Create appeal strength scoring algorithm
+- [x] Build jurisdiction rules database (deadlines, procedures, success rates)
+- [x] Create appeal strength scoring algorithm
+- [x] Implement appraisal methodology service (USPAP-compliant)
+- [x] Create appeal strategy service with county playbooks
 - [ ] Implement POA document generation
 - [ ] Implement pro-se document generation
 - [ ] Add filing method selection to form
@@ -23,10 +25,11 @@
 - [ ] Create user dashboard (track submissions)
 
 ## Phase 4: Admin & Monitoring
-- [ ] Build admin dashboard (submissions, conversions, outcomes)
-- [ ] Add activity logging
-- [ ] Create analytics hooks
+- [x] Build admin dashboard (submissions, conversions, outcomes)
+- [x] Add activity logging service
+- [x] Create analytics hooks
 - [ ] Build command center for all routers
+- [ ] Integrate activity logs into admin dashboard
 
 ## Phase 5: Optimization & Scaling
 - [ ] Batch processing for portfolio submissions
@@ -40,3 +43,13 @@
 - [x] Form submission API (properties.submitAddress)
 - [x] Owner notification on submission
 - [x] API keys configured (Lightbox, RentCast, ReGRID, AttomData)
+
+## Recently Fixed
+- [x] Fix ATTOM_API_KEY env var name (was ATTTOM)
+- [x] Fix Attom API auth to use header-based apikey
+- [x] Fix Attom API endpoint to correct v1.0.0 gateway URL
+- [x] Fix Attom response field mapping to v1.0.0 structure
+- [x] Fix industrial classifier ordering
+- [x] Pass property type to LLM analyzer
+- [x] Build AnalysisResults page with live polling
+- [x] GetStarted redirects to /analysis?id=X after submission

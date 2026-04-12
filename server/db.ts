@@ -176,6 +176,49 @@ export async function createPropertyAnalysis(analysis: InsertPropertyAnalysis) {
   }
 }
 
+export async function listAllSubmissions(limit: number, offset: number) {
+  const db = await getDb();
+  if (!db) return { submissions: [], total: 0 };
+
+  try {
+    const submissions = await db
+      .select()
+      .from(propertySubmissions)
+      .limit(limit)
+      .offset(offset)
+      .orderBy(propertySubmissions.createdAt);
+    
+    const allRecords = await db.select().from(propertySubmissions);
+    const total = allRecords.length;
+    
+    return { submissions, total };
+  } catch (error) {
+    console.error("[Database] Failed to list submissions:", error);
+    return { submissions: [], total: 0 };
+  }
+}
+
+export async function getSubmissionStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, pending: 0, analyzing: 0, analyzed: 0, avgSavings: null };
+
+  try {
+    const all = await db.select().from(propertySubmissions);
+    const total = all.length;
+    const pending = all.filter((s) => s.status === "pending").length;
+    const analyzing = all.filter((s) => s.status === "analyzing").length;
+    const analyzed = all.filter((s) => s.status === "analyzed").length;
+    const savings = all
+      .filter((s) => s.potentialSavings != null && typeof s.potentialSavings === "number")
+      .map((s) => s.potentialSavings as number);
+    const avgSavings = savings.length ? Math.round(savings.reduce((a, b) => a + b, 0) / savings.length) : null;
+    return { total, pending, analyzing, analyzed, avgSavings };
+  } catch (error) {
+    console.error("[Database] Failed to get stats:", error);
+    return { total: 0, pending: 0, analyzing: 0, analyzed: 0, avgSavings: null };
+  }
+}
+
 export async function getPropertyAnalysisBySubmissionId(submissionId: number) {
   const db = await getDb();
   if (!db) {
