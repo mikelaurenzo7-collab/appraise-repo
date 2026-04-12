@@ -16,6 +16,9 @@ import {
   MapPin,
   Calendar,
   Building2,
+  Activity,
+  Zap,
+  RefreshCw,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -316,6 +319,91 @@ export default function AnalysisResults() {
                     <span className="text-sm text-[oklch(0.3_0.04_255)]">{step}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Appeal Deadline Alert */}
+      {submission?.appealDeadline && (
+        <section className="pb-12">
+          <div className="container">
+            <div className={`p-5 rounded-xl border-2 flex items-start gap-4 ${
+              new Date(submission.appealDeadline).getTime() - Date.now() < 14 * 24 * 60 * 60 * 1000
+                ? "border-red-300 bg-red-50"
+                : new Date(submission.appealDeadline).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000
+                ? "border-yellow-300 bg-yellow-50"
+                : "border-[oklch(0.72_0.12_75)]/30 bg-[oklch(0.72_0.12_75)]/5"
+            }`}>
+              <AlertTriangle size={20} className={`shrink-0 mt-0.5 ${
+                new Date(submission.appealDeadline).getTime() - Date.now() < 14 * 24 * 60 * 60 * 1000
+                  ? "text-red-600" : "text-[oklch(0.72_0.12_75)]"
+              }`} />
+              <div>
+                <div className="font-semibold text-[oklch(0.18_0.06_255)] mb-1">
+                  Appeal Deadline: {new Date(submission.appealDeadline).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                </div>
+                <div className="text-sm text-[oklch(0.45_0.04_255)]">
+                  {Math.ceil((new Date(submission.appealDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days remaining to file your appeal.
+                  {new Date(submission.appealDeadline).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000 && " Act now to protect your rights."}
+                </div>
+              </div>
+              <Link
+                href="/get-started"
+                className="ml-auto shrink-0 btn-gold px-4 py-2 rounded text-sm font-semibold"
+              >
+                File Now
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Activity Log Timeline */}
+      {data?.activityLogs && data.activityLogs.length > 0 && (
+        <section className="pb-12">
+          <div className="container">
+            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
+              <div className="flex items-center gap-2 mb-5">
+                <Activity size={16} className="text-[oklch(0.72_0.12_75)]" />
+                <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest">Analysis Pipeline Log</div>
+              </div>
+              <div className="relative">
+                <div className="absolute left-[11px] top-0 bottom-0 w-px bg-[oklch(0.92_0.01_255)]" />
+                <div className="space-y-4">
+                  {data.activityLogs.map((log: any, i: number) => (
+                    <div key={i} className="flex items-start gap-4 pl-1">
+                      <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                        log.status === "error" ? "bg-red-100" :
+                        log.type === "analysis_complete" ? "bg-green-100" :
+                        "bg-[oklch(0.18_0.06_255)]"
+                      }`}>
+                        {log.status === "error" ? (
+                          <AlertTriangle size={12} className="text-red-600" />
+                        ) : log.type === "analysis_complete" ? (
+                          <CheckCircle2 size={12} className="text-green-600" />
+                        ) : (
+                          <Zap size={10} className="text-[oklch(0.72_0.12_75)]" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-semibold text-[oklch(0.18_0.06_255)] capitalize">
+                            {log.type.replace(/_/g, " ")}
+                          </span>
+                          {log.durationMs && (
+                            <span className="text-xs text-[oklch(0.65_0.02_255)]">{(log.durationMs / 1000).toFixed(1)}s</span>
+                          )}
+                          <span className="text-xs text-[oklch(0.75_0.01_255)] ml-auto">
+                            {new Date(log.createdAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[oklch(0.45_0.04_255)] mt-0.5 leading-relaxed">{log.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

@@ -7,10 +7,20 @@ import { z } from "zod";
 import {
   createPropertySubmission,
   getPropertySubmissionById,
+  updatePropertySubmission,
   getPropertyAnalysisBySubmissionId,
   listAllSubmissions,
   getSubmissionStats,
   getUserSubmissions,
+  createAppealOutcome,
+  updateAppealOutcome,
+  getAppealOutcomeBySubmissionId,
+  listAppealOutcomes,
+  getOutcomeStats,
+  getRecentActivityLogs,
+  getActivityLogsBySubmission,
+  persistActivityLog,
+  evictExpiredCache,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
@@ -26,6 +36,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 export const appRouter = router({
   system: systemRouter,
 
+  // ─── AUTH ────────────────────────────────────────────────────────────────
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -35,22 +46,21 @@ export const appRouter = router({
     }),
   }),
 
+  // ─── PROPERTIES ──────────────────────────────────────────────────────────
   properties: router({
     submitAddress: publicProcedure
-      .input(
-        z.object({
-          address: z.string().min(5, "Please enter a valid address"),
-          email: z.string().email("Please enter a valid email"),
-          phone: z.string().optional(),
-          filingMethod: z.enum(["poa", "pro-se"]).default("poa"),
-        })
-      )
+      .input(z.object({
+        address: z.string().min(5, "Please enter a valid address"),
+        email: z.string().email("Please enter a valid email"),
+        phone: z.string().optional(),
+        filingMethod: z.enum(["poa", "pro-se", "none"]).default("poa"),
+      }))
       .mutation(async ({ input }) => {
         try {
           const addressParts = input.address.split(",").map((p) => p.trim());
           const fullAddress = addressParts[0] || input.address;
           const city = addressParts[1] || "";
-          const stateZip = addressParts[2] || "";
+          const stateZip = (addressParts[2] || "").trim();
           const stateParts = stateZip.split(/\s+/);
           const state = stateParts[0] || "";
           const zipCode = stateParts[1] || "";
@@ -67,22 +77,34 @@ export const appRouter = router({
           });
 
           if (submission) {
+            // Persist activity log
+            await persistActivityLog({
+              submissionId: submission.id,
+              type: "submission_received",
+              actor: "user",
+              description: `New submission from ${input.email} — ${input.address}`,
+              metadata: JSON.stringify({ filingMethod: input.filingMethod }),
+              status: "success",
+            });
+
+            // Notify owner
             await notifyOwner({
-              title: "New Property Analysis Request",
-              content: `New submission from ${input.email}\n\nAddress: ${input.address}\nPhone: ${input.phone || "Not provided"}\n\nStatus: Pending analysis`,
+              title: `🏠 New Appeal Request — ${fullAddress}`,
+              content: `**From:** ${input.email}\n**Phone:** ${input.phone || "Not provided"}\n**Address:** ${input.address}\n**Filing Method:** ${input.filingMethod.toUpperCase()}\n\nAnalysis queued and will complete within 24 hours.`,
             }).catch((err: unknown) => console.error("[Notification] Failed to notify owner:", err));
 
+            // Queue analysis
             queueAnalysisJob(submission.id, 2000);
           }
 
           return {
             success: true,
             submissionId: submission?.id,
-            message: "Your address has been received. We'll analyze it and send results to your email within 24 hours.",
+            message: "Your address has been received. AI analysis is running now.",
           };
         } catch (error) {
           console.error("[Properties] Error submitting address:", error);
-          throw new Error("Failed to submit your address. Please try again.");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to submit your address. Please try again." });
         }
       }),
 
@@ -91,48 +113,263 @@ export const appRouter = router({
       .query(async ({ input }) => {
         try {
           const submission = await getPropertySubmissionById(input.submissionId);
-          if (!submission) throw new Error("Submission not found");
+          if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
           const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+          const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
+          const activityLogs = await getActivityLogsBySubmission(input.submissionId);
 
           return {
             submission,
-            analysis: analysis
-              ? {
-                  ...analysis,
-                  comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-                  appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
-                  nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
-                }
-              : null,
+            analysis: analysis ? {
+              ...analysis,
+              comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
+              appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
+              nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+            } : null,
+            outcome: outcome || null,
+            activityLogs: activityLogs || [],
           };
         } catch (error) {
-          console.error("[Properties] Error getting analysis:", error);
-          throw new Error("Failed to retrieve analysis. Please try again.");
+          if (error instanceof TRPCError) throw error;
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve analysis." });
         }
       }),
   }),
 
+  // ─── USER ────────────────────────────────────────────────────────────────
   user: router({
     getSubmissions: protectedProcedure.query(async ({ ctx }) => {
       try {
         const userEmail = ctx.user.email || "";
         const submissions = await getUserSubmissions(userEmail);
-        return submissions || [];
+        // Attach outcomes to each submission
+        const withOutcomes = await Promise.all(
+          (submissions || []).map(async (s) => {
+            const outcome = await getAppealOutcomeBySubmissionId(s.id);
+            return { ...s, outcome: outcome || null };
+          })
+        );
+        return withOutcomes;
       } catch (error) {
         console.error("[User] Error fetching submissions:", error);
         return [];
       }
     }),
+
+    getSubmissionDetail: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        // Ensure user owns this submission
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
+        const logs = await getActivityLogsBySubmission(input.submissionId);
+        return {
+          submission,
+          analysis: analysis ? {
+            ...analysis,
+            comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
+            appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
+            nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+          } : null,
+          outcome: outcome || null,
+          activityLogs: logs,
+        };
+      }),
   }),
 
+  // ─── ADMIN COMMAND CENTER ────────────────────────────────────────────────
   admin: router({
+    // Dashboard overview
+    getDashboard: adminProcedure.query(async () => {
+      const [submissionStats, outcomeStats, recentActivity] = await Promise.all([
+        getSubmissionStats(),
+        getOutcomeStats(),
+        getRecentActivityLogs(20),
+      ]);
+      return { submissionStats, outcomeStats, recentActivity };
+    }),
+
+    // Submissions management
     listSubmissions: adminProcedure
-      .input(z.object({ limit: z.number().default(20), offset: z.number().default(0) }))
+      .input(z.object({
+        limit: z.number().default(25),
+        offset: z.number().default(0),
+      }))
       .query(async ({ input }) => {
         const { submissions, total } = await listAllSubmissions(input.limit, input.offset);
-        const stats = await getSubmissionStats();
-        return { submissions, total, stats };
+        return { submissions, total };
+      }),
+
+    getSubmissionDetail: adminProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .query(async ({ input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
+        const logs = await getActivityLogsBySubmission(input.submissionId);
+        return {
+          submission,
+          analysis: analysis ? {
+            ...analysis,
+            comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
+            appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
+            nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+          } : null,
+          outcome: outcome || null,
+          activityLogs: logs,
+        };
+      }),
+
+    updateSubmissionStatus: adminProcedure
+      .input(z.object({
+        submissionId: z.number(),
+        status: z.enum(["pending", "analyzing", "analyzed", "contacted", "appeal-filed", "hearing-scheduled", "won", "lost", "withdrawn", "archived"]),
+        adminNote: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const updated = await updatePropertySubmission(input.submissionId, { status: input.status });
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "admin_action",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Status updated to "${input.status}"${input.adminNote ? ` — ${input.adminNote}` : ""}`,
+          metadata: JSON.stringify({ newStatus: input.status, note: input.adminNote }),
+          status: "success",
+        });
+        return updated;
+      }),
+
+    // Appeal outcomes
+    recordOutcome: adminProcedure
+      .input(z.object({
+        submissionId: z.number(),
+        outcome: z.enum(["won", "lost", "settled", "withdrawn", "pending-hearing"]),
+        originalAssessedValue: z.number().optional(),
+        finalAssessedValue: z.number().optional(),
+        annualTaxSavings: z.number().optional(),
+        filingMethod: z.enum(["poa", "pro-se"]).optional(),
+        filedAt: z.string().optional(),
+        resolvedAt: z.string().optional(),
+        groundsForAppeal: z.string().optional(),
+        adminNotes: z.string().optional(),
+        hearingNotes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const existing = await getAppealOutcomeBySubmissionId(input.submissionId);
+
+        let reductionAmount: number | undefined;
+        let contingencyFee: string | undefined;
+
+        if (input.originalAssessedValue && input.finalAssessedValue) {
+          reductionAmount = input.originalAssessedValue - input.finalAssessedValue;
+        }
+        if (input.annualTaxSavings && input.outcome === "won") {
+          // 25% contingency of first-year savings
+          contingencyFee = (input.annualTaxSavings * 0.25).toFixed(2);
+        }
+
+        let resolutionDays: number | undefined;
+        if (input.filedAt && input.resolvedAt) {
+          const filed = new Date(input.filedAt);
+          const resolved = new Date(input.resolvedAt);
+          resolutionDays = Math.round((resolved.getTime() - filed.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        const outcomeData = {
+          submissionId: input.submissionId,
+          outcome: input.outcome,
+          originalAssessedValue: input.originalAssessedValue,
+          finalAssessedValue: input.finalAssessedValue,
+          reductionAmount,
+          annualTaxSavings: input.annualTaxSavings,
+          contingencyFeeEarned: contingencyFee,
+          filingMethod: input.filingMethod,
+          filedAt: input.filedAt ? new Date(input.filedAt) : undefined,
+          resolvedAt: input.resolvedAt ? new Date(input.resolvedAt) : undefined,
+          resolutionDays,
+          groundsForAppeal: input.groundsForAppeal,
+          adminNotes: input.adminNotes,
+          hearingNotes: input.hearingNotes,
+        };
+
+        let result;
+        if (existing) {
+          result = await updateAppealOutcome(existing.id, outcomeData);
+        } else {
+          result = await createAppealOutcome(outcomeData);
+        }
+
+        // Update submission status to match outcome
+        const statusMap: Record<string, "won" | "lost" | "withdrawn" | "hearing-scheduled"> = {
+          won: "won", lost: "lost", settled: "won", withdrawn: "withdrawn", "pending-hearing": "hearing-scheduled",
+        };
+        await updatePropertySubmission(input.submissionId, { status: statusMap[input.outcome] || "appeal-filed" });
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: input.outcome === "won" ? "appeal_won" : input.outcome === "lost" ? "appeal_lost" : "admin_action",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Appeal outcome recorded: ${input.outcome.toUpperCase()}${input.annualTaxSavings ? ` — $${input.annualTaxSavings.toLocaleString()}/yr savings` : ""}`,
+          metadata: JSON.stringify(outcomeData),
+          status: "success",
+        });
+
+        return result;
+      }),
+
+    listOutcomes: adminProcedure
+      .input(z.object({ limit: z.number().default(25), offset: z.number().default(0) }))
+      .query(async ({ input }) => {
+        return listAppealOutcomes(input.limit, input.offset);
+      }),
+
+    getOutcomeStats: adminProcedure.query(async () => {
+      return getOutcomeStats();
+    }),
+
+    // Activity feed
+    getActivityFeed: adminProcedure
+      .input(z.object({ limit: z.number().default(50) }))
+      .query(async ({ input }) => {
+        return getRecentActivityLogs(input.limit);
+      }),
+
+    // Cache management
+    evictCache: adminProcedure.mutation(async () => {
+      const evicted = await evictExpiredCache();
+      return { evicted, message: `Evicted ${evicted} expired cache entries` };
+    }),
+
+    // Re-trigger analysis for a submission
+    retriggerAnalysis: adminProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+        await updatePropertySubmission(input.submissionId, { status: "pending" });
+        queueAnalysisJob(input.submissionId, 500);
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "analysis_started",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Analysis re-triggered by admin`,
+          metadata: JSON.stringify({}),
+          status: "success",
+        });
+
+        return { success: true, message: "Analysis re-triggered" };
       }),
   }),
 });

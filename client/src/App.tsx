@@ -13,6 +13,7 @@ import GetStarted from "./pages/GetStarted";
 import AnalysisResults from "./pages/AnalysisResults";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
+import DeadlineCalendar from "./pages/DeadlineCalendar";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/analysis" component={AnalysisResults} />
       <Route path="/dashboard" component={UserDashboard} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/deadlines" component={DeadlineCalendar} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

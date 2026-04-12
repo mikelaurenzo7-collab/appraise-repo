@@ -22,6 +22,13 @@
       "when": 1775954219536,
       "tag": "0002_mixed_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1775955682875,
+      "tag": "0003_odd_pyro",
+      "breakpoints": true
     }
   ]
 }

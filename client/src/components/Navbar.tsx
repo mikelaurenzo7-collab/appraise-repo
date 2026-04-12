@@ -10,6 +10,7 @@ import { Menu, X, ChevronDown } from "lucide-react";
 const navLinks = [
   { label: "How It Works", href: "/how-it-works" },
   { label: "Tax Appeals", href: "/tax-appeals" },
+  { label: "Deadlines", href: "/deadlines" },
   { label: "Pricing", href: "/pricing" },
   { label: "About", href: "/about" },
 ];
@@ -72,6 +73,12 @@ export default function Navbar() {
 
         {/* Desktop CTA */}
         <div className="hidden lg:flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className="text-sm font-medium text-white/70 hover:text-white transition-colors"
+          >
+            My Dashboard
+          </Link>
           <Link
             href="/get-started"
             className="btn-gold px-5 py-2.5 rounded text-sm font-semibold"

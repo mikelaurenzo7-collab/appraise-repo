@@ -88,3 +88,20 @@
 - [x] Add filing method selection UI to GetStarted
 - [x] Create PDF report generator service
 - [x] Create batch processor service (scaffolded)
+
+## TOP FORM — Remaining Build Items
+- [ ] Persist outcome tracking in DB (appeal_outcomes table with win/loss/savings)
+- [ ] Wire batch processing into tRPC router with validation + tests
+- [ ] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track)
+- [ ] Build state deadline calendar page (all 50 states, sortable, searchable)
+- [ ] Add API response caching layer (in-memory TTL cache for property data)
+- [ ] Build admin command center (activity feed, conversion funnel, revenue tracker)
+- [ ] Add email notification system (SendGrid or built-in) for analysis completion
+- [ ] Build property portfolio page (multi-property management for investors)
+- [ ] Add appeal outcome update flow (admin marks win/loss, calculates savings)
+- [ ] Polish GetStarted form (address autocomplete, property type selector, progress steps)
+- [ ] Add real-time analysis status page with streaming LLM output
+- [ ] Build testimonials/case studies page with real outcome data
+- [ ] Add Stripe integration for certified report payments ($299)
+- [ ] Build blog/resources section (SEO content, state guides)
+- [ ] Add chatbot widget for lead capture and FAQ
