@@ -44,7 +44,7 @@ const FILING_METHODS = [
     icon: <Scale size={20} />,
     desc: "We act as your legal representative. Full service — we prepare, file, and attend hearings on your behalf.",
     badge: "Most Popular",
-    badgeColor: "bg-[oklch(0.72_0.12_75)] text-[oklch(0.12_0.055_255)]",
+    badgeColor: "bg-[#7C3AED] text-[#020617]",
   },
   {
     value: "pro-se",
@@ -52,7 +52,7 @@ const FILING_METHODS = [
     icon: <FileText size={20} />,
     desc: "You file yourself. We prepare all documents, coach you through the process, and support you at the hearing.",
     badge: "DIY + Support",
-    badgeColor: "bg-[oklch(0.18_0.06_255)] text-white",
+    badgeColor: "bg-[#0F172A] text-white",
   },
   {
     value: "none",
@@ -71,19 +71,19 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
         <div key={i} className="flex items-center gap-2">
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
             i + 1 < current
-              ? "bg-[oklch(0.72_0.12_75)] text-[oklch(0.12_0.055_255)]"
+              ? "bg-[#7C3AED] text-[#020617]"
               : i + 1 === current
-              ? "bg-[oklch(0.18_0.06_255)] text-white ring-2 ring-[oklch(0.72_0.12_75)] ring-offset-2"
-              : "bg-[oklch(0.92_0.01_255)] text-[oklch(0.55_0.04_255)]"
+              ? "bg-[#0F172A] text-white ring-2 ring-[#7C3AED] ring-offset-2"
+              : "bg-[#F1F5F9] text-[#64748B]"
           }`}>
             {i + 1 < current ? <CheckCircle2 size={16} /> : i + 1}
           </div>
           {i < total - 1 && (
-            <div className={`h-px w-8 transition-all ${i + 1 < current ? "bg-[oklch(0.72_0.12_75)]" : "bg-[oklch(0.88_0.015_85)]"}`} />
+            <div className={`h-px w-8 transition-all ${i + 1 < current ? "bg-[#7C3AED]" : "bg-[#E2E8F0]"}`} />
           )}
         </div>
       ))}
-      <span className="ml-3 text-sm text-[oklch(0.55_0.04_255)]">
+      <span className="ml-3 text-sm text-[#64748B]">
         Step {current} of {total}
       </span>
     </div>
@@ -136,7 +136,7 @@ export default function GetStarted() {
   const selectedType = PROPERTY_TYPES.find((t) => t.value === propertyType)!;
 
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
 
       <section className="pt-32 pb-20 lg:pt-40 lg:pb-28">
@@ -145,12 +145,12 @@ export default function GetStarted() {
           {/* Header */}
           <div className="mb-8">
             <span className="gold-rule" />
-            <h1 className="font-display text-3xl lg:text-4xl font-bold text-[oklch(0.18_0.06_255)] mb-3">
+            <h1 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-3">
               {step === 1 && "Tell Us About Your Property"}
               {step === 2 && "Your Contact Information"}
               {step === 3 && "Review & Submit"}
             </h1>
-            <p className="text-[oklch(0.55_0.04_255)]">
+            <p className="text-[#64748B]">
               {step === 1 && "Enter your property address and type for the most accurate analysis."}
               {step === 2 && "We'll send your analysis results and keep you updated on your appeal."}
               {step === 3 && "Review your submission details before we start the analysis."}
@@ -164,11 +164,11 @@ export default function GetStarted() {
             <div className="space-y-6">
               {/* Address */}
               <div>
-                <label className="block text-sm font-semibold text-[oklch(0.18_0.06_255)] mb-2">
+                <label className="block text-sm font-semibold text-[#0F172A] mb-2">
                   Property Address <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[oklch(0.72_0.12_75)]" />
+                  <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7C3AED]" />
                   <input
                     ref={addressRef}
                     type="text"
@@ -176,16 +176,16 @@ export default function GetStarted() {
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleNext()}
-                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[oklch(0.88_0.015_85)] bg-white text-[oklch(0.18_0.06_255)] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)] focus:border-transparent text-base"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
                     autoFocus
                   />
                 </div>
-                <p className="text-xs text-[oklch(0.65_0.02_255)] mt-1.5">Include street number, city, state, and ZIP for best results</p>
+                <p className="text-xs text-[#94A3B8] mt-1.5">Include street number, city, state, and ZIP for best results</p>
               </div>
 
               {/* Property Type */}
               <div>
-                <label className="block text-sm font-semibold text-[oklch(0.18_0.06_255)] mb-3">Property Type</label>
+                <label className="block text-sm font-semibold text-[#0F172A] mb-3">Property Type</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {PROPERTY_TYPES.map((type) => (
                     <button
@@ -194,24 +194,24 @@ export default function GetStarted() {
                       onClick={() => setPropertyType(type.value)}
                       className={`p-4 rounded-lg border-2 text-left transition-all ${
                         propertyType === type.value
-                          ? "border-[oklch(0.72_0.12_75)] bg-[oklch(0.72_0.12_75)]/5"
-                          : "border-[oklch(0.88_0.015_85)] bg-white hover:border-[oklch(0.72_0.12_75)]/40"
+                          ? "border-[#7C3AED] bg-[#7C3AED]/5"
+                          : "border-[#E2E8F0] bg-white hover:border-[#7C3AED]/40"
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded flex items-center justify-center shrink-0 ${
                           propertyType === type.value
-                            ? "bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)]"
-                            : "bg-[oklch(0.92_0.01_255)] text-[oklch(0.55_0.04_255)]"
+                            ? "bg-[#0F172A] text-[#7C3AED]"
+                            : "bg-[#F1F5F9] text-[#64748B]"
                         }`}>
                           {type.icon}
                         </div>
                         <div>
-                          <div className="font-semibold text-sm text-[oklch(0.18_0.06_255)]">{type.label}</div>
-                          <div className="text-xs text-[oklch(0.55_0.04_255)]">{type.desc}</div>
+                          <div className="font-semibold text-sm text-[#0F172A]">{type.label}</div>
+                          <div className="text-xs text-[#64748B]">{type.desc}</div>
                         </div>
                         {propertyType === type.value && (
-                          <CheckCircle2 size={16} className="text-[oklch(0.72_0.12_75)] ml-auto shrink-0" />
+                          <CheckCircle2 size={16} className="text-[#7C3AED] ml-auto shrink-0" />
                         )}
                       </div>
                     </button>
@@ -234,44 +234,44 @@ export default function GetStarted() {
             <div className="space-y-6">
               {/* Email */}
               <div>
-                <label className="block text-sm font-semibold text-[oklch(0.18_0.06_255)] mb-2">
+                <label className="block text-sm font-semibold text-[#0F172A] mb-2">
                   Email Address <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[oklch(0.72_0.12_75)]" />
+                  <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7C3AED]" />
                   <input
                     type="email"
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleNext()}
-                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[oklch(0.88_0.015_85)] bg-white text-[oklch(0.18_0.06_255)] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)] focus:border-transparent text-base"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
                     autoFocus
                   />
                 </div>
-                <p className="text-xs text-[oklch(0.65_0.02_255)] mt-1.5">Your analysis report will be sent to this address</p>
+                <p className="text-xs text-[#94A3B8] mt-1.5">Your analysis report will be sent to this address</p>
               </div>
 
               {/* Phone */}
               <div>
-                <label className="block text-sm font-semibold text-[oklch(0.18_0.06_255)] mb-2">
-                  Phone <span className="text-[oklch(0.65_0.02_255)] font-normal">(Optional)</span>
+                <label className="block text-sm font-semibold text-[#0F172A] mb-2">
+                  Phone <span className="text-[#94A3B8] font-normal">(Optional)</span>
                 </label>
                 <div className="relative">
-                  <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[oklch(0.72_0.12_75)]" />
+                  <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7C3AED]" />
                   <input
                     type="tel"
                     placeholder="(555) 123-4567"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[oklch(0.88_0.015_85)] bg-white text-[oklch(0.18_0.06_255)] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)] focus:border-transparent text-base"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
                   />
                 </div>
               </div>
 
               {/* Filing Method */}
               <div>
-                <label className="block text-sm font-semibold text-[oklch(0.18_0.06_255)] mb-3">
+                <label className="block text-sm font-semibold text-[#0F172A] mb-3">
                   How Would You Like to Proceed?
                 </label>
                 <div className="space-y-3">
@@ -282,35 +282,35 @@ export default function GetStarted() {
                       onClick={() => setFilingMethod(method.value as "poa" | "pro-se" | "none")}
                       className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                         filingMethod === method.value
-                          ? "border-[oklch(0.72_0.12_75)] bg-[oklch(0.72_0.12_75)]/5"
-                          : "border-[oklch(0.88_0.015_85)] bg-white hover:border-[oklch(0.72_0.12_75)]/40"
+                          ? "border-[#7C3AED] bg-[#7C3AED]/5"
+                          : "border-[#E2E8F0] bg-white hover:border-[#7C3AED]/40"
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <div className={`w-9 h-9 rounded flex items-center justify-center shrink-0 mt-0.5 ${
                           filingMethod === method.value
-                            ? "bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)]"
-                            : "bg-[oklch(0.92_0.01_255)] text-[oklch(0.55_0.04_255)]"
+                            ? "bg-[#0F172A] text-[#7C3AED]"
+                            : "bg-[#F1F5F9] text-[#64748B]"
                         }`}>
                           {method.icon}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-sm text-[oklch(0.18_0.06_255)]">{method.label}</span>
+                            <span className="font-semibold text-sm text-[#0F172A]">{method.label}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${method.badgeColor}`}>
                               {method.badge}
                             </span>
                           </div>
-                          <p className="text-xs text-[oklch(0.55_0.04_255)] leading-relaxed">{method.desc}</p>
+                          <p className="text-xs text-[#64748B] leading-relaxed">{method.desc}</p>
                         </div>
                         {filingMethod === method.value && (
-                          <CheckCircle2 size={16} className="text-[oklch(0.72_0.12_75)] shrink-0 mt-1" />
+                          <CheckCircle2 size={16} className="text-[#7C3AED] shrink-0 mt-1" />
                         )}
                       </div>
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-[oklch(0.65_0.02_255)] mt-2">
+                <p className="text-xs text-[#94A3B8] mt-2">
                   You can change this after reviewing your analysis. No commitment required.
                 </p>
               </div>
@@ -319,7 +319,7 @@ export default function GetStarted() {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="flex items-center gap-2 px-5 py-3.5 rounded border border-[oklch(0.88_0.015_85)] text-[oklch(0.45_0.04_255)] hover:bg-[oklch(0.92_0.01_255)] transition-colors text-sm font-semibold"
+                  className="flex items-center gap-2 px-5 py-3.5 rounded border border-[#E2E8F0] text-[#64748B] hover:bg-[#F1F5F9] transition-colors text-sm font-semibold"
                 >
                   <ArrowLeft size={16} /> Back
                 </button>
@@ -338,60 +338,60 @@ export default function GetStarted() {
           {step === 3 && (
             <div className="space-y-6">
               {/* Review card */}
-              <div className="rounded-xl border border-[oklch(0.88_0.015_85)] bg-white overflow-hidden">
-                <div className="bg-[oklch(0.18_0.06_255)] px-6 py-4">
+              <div className="rounded-xl border border-[#E2E8F0] bg-white overflow-hidden">
+                <div className="bg-[#0F172A] px-6 py-4">
                   <h3 className="font-display text-base font-semibold text-white">Submission Summary</h3>
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="flex items-start gap-3">
-                    <MapPin size={16} className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0" />
+                    <MapPin size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
                     <div>
-                      <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-0.5">Property</div>
-                      <div className="font-medium text-[oklch(0.18_0.06_255)] text-sm">{address}</div>
-                      <div className="text-xs text-[oklch(0.55_0.04_255)] capitalize">{selectedType?.label}</div>
+                      <div className="text-xs text-[#64748B] uppercase tracking-widest mb-0.5">Property</div>
+                      <div className="font-medium text-[#0F172A] text-sm">{address}</div>
+                      <div className="text-xs text-[#64748B] capitalize">{selectedType?.label}</div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="ml-auto text-xs text-[oklch(0.72_0.12_75)] hover:underline font-medium"
+                      className="ml-auto text-xs text-[#7C3AED] hover:underline font-medium"
                     >
                       Edit
                     </button>
                   </div>
 
-                  <div className="h-px bg-[oklch(0.92_0.01_255)]" />
+                  <div className="h-px bg-[#F1F5F9]" />
 
                   <div className="flex items-start gap-3">
-                    <Mail size={16} className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0" />
+                    <Mail size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
                     <div>
-                      <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-0.5">Contact</div>
-                      <div className="font-medium text-[oklch(0.18_0.06_255)] text-sm">{email}</div>
-                      {phone && <div className="text-xs text-[oklch(0.55_0.04_255)]">{phone}</div>}
+                      <div className="text-xs text-[#64748B] uppercase tracking-widest mb-0.5">Contact</div>
+                      <div className="font-medium text-[#0F172A] text-sm">{email}</div>
+                      {phone && <div className="text-xs text-[#64748B]">{phone}</div>}
                     </div>
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="ml-auto text-xs text-[oklch(0.72_0.12_75)] hover:underline font-medium"
+                      className="ml-auto text-xs text-[#7C3AED] hover:underline font-medium"
                     >
                       Edit
                     </button>
                   </div>
 
-                  <div className="h-px bg-[oklch(0.92_0.01_255)]" />
+                  <div className="h-px bg-[#F1F5F9]" />
 
                   <div className="flex items-start gap-3">
                     {selectedFiling?.icon && (
-                      <div className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0">{selectedFiling.icon}</div>
+                      <div className="text-[#7C3AED] mt-0.5 shrink-0">{selectedFiling.icon}</div>
                     )}
                     <div>
-                      <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-0.5">Filing Method</div>
-                      <div className="font-medium text-[oklch(0.18_0.06_255)] text-sm">{selectedFiling?.label}</div>
-                      <div className="text-xs text-[oklch(0.55_0.04_255)]">{selectedFiling?.desc}</div>
+                      <div className="text-xs text-[#64748B] uppercase tracking-widest mb-0.5">Filing Method</div>
+                      <div className="font-medium text-[#0F172A] text-sm">{selectedFiling?.label}</div>
+                      <div className="text-xs text-[#64748B]">{selectedFiling?.desc}</div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="ml-auto text-xs text-[oklch(0.72_0.12_75)] hover:underline font-medium"
+                      className="ml-auto text-xs text-[#7C3AED] hover:underline font-medium"
                     >
                       Edit
                     </button>
@@ -400,8 +400,8 @@ export default function GetStarted() {
               </div>
 
               {/* What happens next */}
-              <div className="p-5 rounded-xl bg-[oklch(0.18_0.06_255)]/5 border border-[oklch(0.18_0.06_255)]/10">
-                <div className="text-xs font-semibold text-[oklch(0.18_0.06_255)] uppercase tracking-widest mb-3">What Happens Next</div>
+              <div className="p-5 rounded-xl bg-[#0F172A]/5 border border-[#0F172A]/10">
+                <div className="text-xs font-semibold text-[#0F172A] uppercase tracking-widest mb-3">What Happens Next</div>
                 <div className="space-y-2.5">
                   {[
                     "AI queries 4 property data APIs simultaneously",
@@ -411,7 +411,7 @@ export default function GetStarted() {
                     "Results ready in 30–60 seconds",
                   ].map((item, i) => (
                     <div key={i} className="flex items-start gap-2.5 text-sm text-[oklch(0.35_0.04_255)]">
-                      <ChevronRight size={14} className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0" />
+                      <ChevronRight size={14} className="text-[#7C3AED] mt-0.5 shrink-0" />
                       {item}
                     </div>
                   ))}
@@ -419,7 +419,7 @@ export default function GetStarted() {
               </div>
 
               {/* Legal disclaimer */}
-              <p className="text-xs text-[oklch(0.65_0.02_255)] leading-relaxed">
+              <p className="text-xs text-[#94A3B8] leading-relaxed">
                 By submitting, you agree to our Terms of Service and Privacy Policy. AppraiseAI does not provide legal advice. 
                 For POA filings, a separate Power of Attorney agreement will be required before we can represent you.
               </p>
@@ -428,7 +428,7 @@ export default function GetStarted() {
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="flex items-center gap-2 px-5 py-3.5 rounded border border-[oklch(0.88_0.015_85)] text-[oklch(0.45_0.04_255)] hover:bg-[oklch(0.92_0.01_255)] transition-colors text-sm font-semibold"
+                  className="flex items-center gap-2 px-5 py-3.5 rounded border border-[#E2E8F0] text-[#64748B] hover:bg-[#F1F5F9] transition-colors text-sm font-semibold"
                 >
                   <ArrowLeft size={16} /> Back
                 </button>
@@ -440,7 +440,7 @@ export default function GetStarted() {
                 >
                   {submitMutation.isPending ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-[oklch(0.12_0.055_255)] border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-[#020617] border-t-transparent rounded-full animate-spin" />
                       Starting Analysis...
                     </>
                   ) : (
@@ -455,8 +455,8 @@ export default function GetStarted() {
               {/* Trust signals */}
               <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2">
                 {["No credit card required", "Results in 30–60 seconds", "No win, no fee on appeals"].map((item) => (
-                  <div key={item} className="flex items-center gap-1.5 text-xs text-[oklch(0.55_0.04_255)]">
-                    <CheckCircle2 size={12} className="text-[oklch(0.72_0.12_75)]" />
+                  <div key={item} className="flex items-center gap-1.5 text-xs text-[#64748B]">
+                    <CheckCircle2 size={12} className="text-[#7C3AED]" />
                     {item}
                   </div>
                 ))}
@@ -471,7 +471,7 @@ export default function GetStarted() {
         <div className="container max-w-3xl">
           <div className="mb-12">
             <span className="gold-rule" />
-            <h2 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Frequently Asked Questions</h2>
+            <h2 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Frequently Asked Questions</h2>
           </div>
           <div className="space-y-4">
             {[
@@ -500,9 +500,9 @@ export default function GetStarted() {
                 a: "Absolutely. Email hello@appraiseai.com or call our team. We're here to answer questions and help you understand your options.",
               },
             ].map((faq, i) => (
-              <div key={i} className="p-6 rounded-lg bg-white border border-[oklch(0.88_0.015_85)]">
-                <h3 className="font-display text-base font-semibold text-[oklch(0.18_0.06_255)] mb-2">{faq.q}</h3>
-                <p className="text-sm text-[oklch(0.45_0.04_255)] leading-relaxed">{faq.a}</p>
+              <div key={i} className="p-6 rounded-lg bg-white border border-[#E2E8F0]">
+                <h3 className="font-display text-base font-semibold text-[#0F172A] mb-2">{faq.q}</h3>
+                <p className="text-sm text-[#64748B] leading-relaxed">{faq.a}</p>
               </div>
             ))}
           </div>

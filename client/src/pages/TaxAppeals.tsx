@@ -5,9 +5,9 @@ import Footer from "@/components/Footer";
 
 export default function TaxAppeals() {
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
-      <section className="bg-[oklch(0.18_0.06_255)] pt-32 pb-20">
+      <section className="bg-[#0F172A] pt-32 pb-20">
         <div className="container max-w-3xl">
           <span className="gold-rule" />
           <h1 className="font-display text-4xl lg:text-5xl font-bold text-white mb-5">Property Tax Appeals</h1>
@@ -20,8 +20,8 @@ export default function TaxAppeals() {
           <div className="grid lg:grid-cols-2 gap-12 items-center mb-20">
             <div>
               <span className="gold-rule" />
-              <h2 className="font-display text-3xl lg:text-4xl font-bold text-[oklch(0.18_0.06_255)] mb-6">Your Appeal, Handled End-to-End</h2>
-              <p className="text-[oklch(0.45_0.04_255)] mb-8 leading-relaxed">
+              <h2 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-6">Your Appeal, Handled End-to-End</h2>
+              <p className="text-[#64748B] mb-8 leading-relaxed">
                 We don't just appraise your property — we fight your tax bill. From filing to hearing representation, AppraiseAI handles the entire appeal process on your behalf.
               </p>
               {[
@@ -33,8 +33,8 @@ export default function TaxAppeals() {
                 "Contingency fee — 25% of first-year savings only",
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3 mb-4">
-                  <CheckCircle2 size={16} className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0" />
-                  <span className="text-sm text-[oklch(0.3_0.04_255)]">{item}</span>
+                  <CheckCircle2 size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
+                  <span className="text-sm text-[#E2E8F0]">{item}</span>
                 </div>
               ))}
             </div>
@@ -50,17 +50,17 @@ export default function TaxAppeals() {
               { icon: <Clock size={20} />, title: "Fast Results", desc: "Most appeals resolved in 3–6 months." },
               { icon: <DollarSign size={20} />, title: "Real Savings", desc: "Average $2,800/year per successful appeal." },
             ].map((f) => (
-              <div key={f.title} className="p-6 rounded-lg bg-white border border-[oklch(0.88_0.015_85)]">
-                <div className="w-10 h-10 rounded bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)] flex items-center justify-center mb-4">{f.icon}</div>
-                <h3 className="font-display text-base font-semibold text-[oklch(0.18_0.06_255)] mb-2">{f.title}</h3>
-                <p className="text-sm text-[oklch(0.45_0.04_255)]">{f.desc}</p>
+              <div key={f.title} className="p-6 rounded-lg bg-white border border-[#E2E8F0]">
+                <div className="w-10 h-10 rounded bg-[#0F172A] text-[#7C3AED] flex items-center justify-center mb-4">{f.icon}</div>
+                <h3 className="font-display text-base font-semibold text-[#0F172A] mb-2">{f.title}</h3>
+                <p className="text-sm text-[#64748B]">{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-[oklch(0.18_0.06_255)] py-20 lg:py-28">
+      <section className="bg-[#0F172A] py-20 lg:py-28">
         <div className="container">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <span className="gold-rule mx-auto" />
@@ -85,8 +85,8 @@ export default function TaxAppeals() {
       <section className="py-20 lg:py-28">
         <div className="container text-center max-w-xl mx-auto">
           <span className="gold-rule mx-auto" />
-          <h2 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Ready to File Your Appeal?</h2>
-          <p className="text-[oklch(0.45_0.04_255)] mb-8">Get your free AI appraisal first. If you're over-assessed, we'll handle the rest.</p>
+          <h2 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Ready to File Your Appeal?</h2>
+          <p className="text-[#64748B] mb-8">Get your free AI appraisal first. If you're over-assessed, we'll handle the rest.</p>
           <Link href="/get-started" className="btn-gold inline-flex items-center gap-2 px-7 py-4 rounded font-semibold">
             Start My Appeal <ArrowRight size={16} />
           </Link>

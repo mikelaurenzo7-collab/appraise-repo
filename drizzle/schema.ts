@@ -7,6 +7,8 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  // Stripe integration
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -128,6 +130,11 @@ export const appealOutcomes = mysqlTable("appeal_outcomes", {
   // Notes
   adminNotes: text("adminNotes"),
   hearingNotes: text("hearingNotes"),
+
+  // Stripe payment tracking
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  contingencyFeePaid: decimal("contingencyFeePaid", { precision: 10, scale: 2 }),
+  paidAt: timestamp("paidAt"),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

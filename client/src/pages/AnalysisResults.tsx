@@ -54,7 +54,7 @@ function ScoreGauge({ score }: { score: number }) {
           <span className="font-data text-3xl font-bold" style={{ color }}>
             {score}
           </span>
-          <span className="text-xs text-[oklch(0.55_0.04_255)]">/ 100</span>
+          <span className="text-xs text-[#64748B]">/ 100</span>
         </div>
       </div>
       <span className="mt-2 text-sm font-semibold" style={{ color }}>
@@ -87,13 +87,13 @@ export default function AnalysisResults() {
 
   if (!submissionId) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+      <div className="min-h-screen bg-[#F1F5F9]">
         <Navbar />
         <section className="pt-32 pb-20">
           <div className="container max-w-2xl text-center">
-            <AlertTriangle size={48} className="text-[oklch(0.72_0.12_75)] mx-auto mb-4" />
-            <h1 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">No Submission Found</h1>
-            <p className="text-[oklch(0.45_0.04_255)] mb-8">Please submit your property address first to get an analysis.</p>
+            <AlertTriangle size={48} className="text-[#7C3AED] mx-auto mb-4" />
+            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">No Submission Found</h1>
+            <p className="text-[#64748B] mb-8">Please submit your property address first to get an analysis.</p>
             <Link href="/get-started" className="btn-gold inline-flex items-center gap-2 px-6 py-3 rounded font-semibold">
               Get Started <ArrowRight size={16} />
             </Link>
@@ -106,13 +106,13 @@ export default function AnalysisResults() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+      <div className="min-h-screen bg-[#F1F5F9]">
         <Navbar />
         <section className="pt-32 pb-20">
           <div className="container max-w-2xl text-center">
-            <Loader2 size={48} className="text-[oklch(0.72_0.12_75)] mx-auto mb-4 animate-spin" />
-            <h1 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Loading Analysis...</h1>
-            <p className="text-[oklch(0.45_0.04_255)]">Fetching your property analysis results.</p>
+            <Loader2 size={48} className="text-[#7C3AED] mx-auto mb-4 animate-spin" />
+            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Loading Analysis...</h1>
+            <p className="text-[#64748B]">Fetching your property analysis results.</p>
           </div>
         </section>
         <Footer />
@@ -126,19 +126,19 @@ export default function AnalysisResults() {
 
   if (isAnalyzing) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+      <div className="min-h-screen bg-[#F1F5F9]">
         <Navbar />
         <section className="pt-32 pb-20">
           <div className="container max-w-2xl text-center">
             <div className="relative mx-auto mb-6 w-20 h-20">
-              <div className="absolute inset-0 rounded-full border-4 border-[oklch(0.92_0.01_255)]" />
-              <div className="absolute inset-0 rounded-full border-4 border-t-[oklch(0.72_0.12_75)] animate-spin" />
+              <div className="absolute inset-0 rounded-full border-4 border-[#F1F5F9]" />
+              <div className="absolute inset-0 rounded-full border-4 border-t-[#7C3AED] animate-spin" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <BarChart3 size={28} className="text-[oklch(0.72_0.12_75)]" />
+                <BarChart3 size={28} className="text-[#7C3AED]" />
               </div>
             </div>
-            <h1 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Analyzing Your Property</h1>
-            <p className="text-[oklch(0.45_0.04_255)] text-lg mb-8 max-w-md mx-auto">
+            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Analyzing Your Property</h1>
+            <p className="text-[#64748B] text-lg mb-8 max-w-md mx-auto">
               Our AI is pulling assessor records, comparable sales, and market data for your property. This typically takes 30-60 seconds.
             </p>
 
@@ -149,13 +149,13 @@ export default function AnalysisResults() {
                 { label: "Running AI valuation model", done: false },
                 { label: "Generating appeal analysis", done: false },
               ].map((step, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white border border-[oklch(0.88_0.015_85)]">
+                <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white border border-[#E2E8F0]">
                   {step.done ? (
                     <CheckCircle2 size={18} className="text-green-500 shrink-0" />
                   ) : (
-                    <div className="w-[18px] h-[18px] rounded-full border-2 border-[oklch(0.88_0.015_85)] shrink-0" />
+                    <div className="w-[18px] h-[18px] rounded-full border-2 border-[#E2E8F0] shrink-0" />
                   )}
-                  <span className={`text-sm ${step.done ? "text-[oklch(0.18_0.06_255)]" : "text-[oklch(0.65_0.02_255)]"}`}>
+                  <span className={`text-sm ${step.done ? "text-[#0F172A]" : "text-[#94A3B8]"}`}>
                     {step.label}
                   </span>
                 </div>
@@ -170,13 +170,13 @@ export default function AnalysisResults() {
 
   // Analysis complete — show results
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
 
       {/* Header */}
-      <section className="bg-[oklch(0.18_0.06_255)] pt-28 pb-16 lg:pt-36 lg:pb-20">
+      <section className="bg-[#0F172A] pt-28 pb-16 lg:pt-36 lg:pb-20">
         <div className="container">
-          <div className="flex items-center gap-2 text-[oklch(0.72_0.12_75)] text-sm mb-4">
+          <div className="flex items-center gap-2 text-[#7C3AED] text-sm mb-4">
             <MapPin size={14} />
             <span>
               {submission?.address}
@@ -198,28 +198,28 @@ export default function AnalysisResults() {
         <div className="container">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Assessed vs Market */}
-            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-3">Assessed Value</div>
-              <div className="font-data text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-1">
+            <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-3">Assessed Value</div>
+              <div className="font-data text-3xl font-bold text-[#0F172A] mb-1">
                 {formatCurrency(submission?.assessedValue)}
               </div>
-              <div className="text-xs text-[oklch(0.55_0.04_255)]">Current county assessment</div>
+              <div className="text-xs text-[#64748B]">Current county assessment</div>
             </div>
 
-            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-3">Market Value Estimate</div>
-              <div className="font-data text-3xl font-bold text-[oklch(0.72_0.12_75)] mb-1">
+            <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-3">Market Value Estimate</div>
+              <div className="font-data text-3xl font-bold text-[#7C3AED] mb-1">
                 {formatCurrency(submission?.marketValue || analysis?.marketValueEstimate)}
               </div>
-              <div className="text-xs text-[oklch(0.55_0.04_255)]">AI-estimated fair market value</div>
+              <div className="text-xs text-[#64748B]">AI-estimated fair market value</div>
             </div>
 
-            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-3">Potential Annual Savings</div>
+            <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-3">Potential Annual Savings</div>
               <div className="font-data text-3xl font-bold text-green-600 mb-1">
                 {formatCurrency(submission?.potentialSavings)}
               </div>
-              <div className="text-xs text-[oklch(0.55_0.04_255)]">If appeal is successful</div>
+              <div className="text-xs text-[#64748B]">If appeal is successful</div>
             </div>
           </div>
         </div>
@@ -230,11 +230,11 @@ export default function AnalysisResults() {
         <div className="container">
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Appeal Strength */}
-            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm flex flex-col items-center justify-center">
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-4">Appeal Strength</div>
+            <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm flex flex-col items-center justify-center">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-4">Appeal Strength</div>
               <ScoreGauge score={submission?.appealStrengthScore || 0} />
               <div className="mt-4 text-center">
-                <div className="text-xs text-[oklch(0.55_0.04_255)]">
+                <div className="text-xs text-[#64748B]">
                   {analysis?.recommendedApproach === "poa"
                     ? "We recommend filing via Power of Attorney"
                     : analysis?.recommendedApproach === "pro-se"
@@ -245,14 +245,14 @@ export default function AnalysisResults() {
             </div>
 
             {/* Executive Summary */}
-            <div className="lg:col-span-2 p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-3">Executive Summary</div>
-              <p className="text-[oklch(0.3_0.04_255)] leading-relaxed mb-6">
+            <div className="lg:col-span-2 p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-3">Executive Summary</div>
+              <p className="text-[#E2E8F0] leading-relaxed mb-6">
                 {analysis?.executiveSummary || "Analysis summary is being generated..."}
               </p>
 
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-3">Valuation Methodology</div>
-              <p className="text-sm text-[oklch(0.45_0.04_255)] leading-relaxed">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-3">Valuation Methodology</div>
+              <p className="text-sm text-[#64748B] leading-relaxed">
                 {analysis?.valuationJustification || "Valuation details are being prepared..."}
               </p>
             </div>
@@ -264,13 +264,13 @@ export default function AnalysisResults() {
       {analysis?.appealStrengthFactors && analysis.appealStrengthFactors.length > 0 && (
         <section className="pb-12">
           <div className="container">
-            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-4">Key Factors Supporting Your Appeal</div>
+            <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-4">Key Factors Supporting Your Appeal</div>
               <div className="grid sm:grid-cols-2 gap-3">
                 {analysis.appealStrengthFactors.map((factor: string, i: number) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[oklch(0.975_0.012_85)]">
-                    <CheckCircle2 size={16} className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0" />
-                    <span className="text-sm text-[oklch(0.3_0.04_255)]">{factor}</span>
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[#F1F5F9]">
+                    <CheckCircle2 size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
+                    <span className="text-sm text-[#E2E8F0]">{factor}</span>
                   </div>
                 ))}
               </div>
@@ -282,8 +282,8 @@ export default function AnalysisResults() {
       {/* Property Details */}
       <section className="pb-12">
         <div className="container">
-          <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-            <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-4">Property Details</div>
+          <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+            <div className="text-xs text-[#64748B] uppercase tracking-widest mb-4">Property Details</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               {[
                 { label: "Type", value: submission?.propertyType || "Residential", icon: <Building2 size={16} /> },
@@ -293,12 +293,12 @@ export default function AnalysisResults() {
                 { label: "Bathrooms", value: submission?.bathrooms?.toString() || "N/A", icon: <HomeIcon size={16} /> },
                 { label: "County", value: submission?.county || "N/A", icon: <MapPin size={16} /> },
               ].map((item) => (
-                <div key={item.label} className="p-3 rounded-lg bg-[oklch(0.975_0.012_85)]">
-                  <div className="flex items-center gap-1.5 text-[oklch(0.55_0.04_255)] mb-1">
+                <div key={item.label} className="p-3 rounded-lg bg-[#F1F5F9]">
+                  <div className="flex items-center gap-1.5 text-[#64748B] mb-1">
                     {item.icon}
                     <span className="text-xs">{item.label}</span>
                   </div>
-                  <div className="font-semibold text-sm text-[oklch(0.18_0.06_255)] capitalize">{item.value}</div>
+                  <div className="font-semibold text-sm text-[#0F172A] capitalize">{item.value}</div>
                 </div>
               ))}
             </div>
@@ -310,15 +310,15 @@ export default function AnalysisResults() {
       {analysis?.nextSteps && analysis.nextSteps.length > 0 && (
         <section className="pb-12">
           <div className="container">
-            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-              <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-4">Recommended Next Steps</div>
+            <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-4">Recommended Next Steps</div>
               <div className="space-y-3">
                 {analysis.nextSteps.map((step: string, i: number) => (
-                  <div key={i} className="flex items-start gap-3 p-4 rounded-lg bg-[oklch(0.975_0.012_85)]">
-                    <div className="w-6 h-6 rounded-full bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)] flex items-center justify-center shrink-0 text-xs font-bold">
+                  <div key={i} className="flex items-start gap-3 p-4 rounded-lg bg-[#F1F5F9]">
+                    <div className="w-6 h-6 rounded-full bg-[#0F172A] text-[#7C3AED] flex items-center justify-center shrink-0 text-xs font-bold">
                       {i + 1}
                     </div>
-                    <span className="text-sm text-[oklch(0.3_0.04_255)]">{step}</span>
+                    <span className="text-sm text-[#E2E8F0]">{step}</span>
                   </div>
                 ))}
               </div>
@@ -336,17 +336,17 @@ export default function AnalysisResults() {
                 ? "border-red-300 bg-red-50"
                 : new Date(submission.appealDeadline).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000
                 ? "border-yellow-300 bg-yellow-50"
-                : "border-[oklch(0.72_0.12_75)]/30 bg-[oklch(0.72_0.12_75)]/5"
+                : "border-[#7C3AED]/30 bg-[#7C3AED]/5"
             }`}>
               <AlertTriangle size={20} className={`shrink-0 mt-0.5 ${
                 new Date(submission.appealDeadline).getTime() - Date.now() < 14 * 24 * 60 * 60 * 1000
-                  ? "text-red-600" : "text-[oklch(0.72_0.12_75)]"
+                  ? "text-red-600" : "text-[#7C3AED]"
               }`} />
               <div>
-                <div className="font-semibold text-[oklch(0.18_0.06_255)] mb-1">
+                <div className="font-semibold text-[#0F172A] mb-1">
                   Appeal Deadline: {new Date(submission.appealDeadline).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                 </div>
-                <div className="text-sm text-[oklch(0.45_0.04_255)]">
+                <div className="text-sm text-[#64748B]">
                   {Math.ceil((new Date(submission.appealDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days remaining to file your appeal.
                   {new Date(submission.appealDeadline).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000 && " Act now to protect your rights."}
                 </div>
@@ -366,42 +366,42 @@ export default function AnalysisResults() {
       {data?.activityLogs && data.activityLogs.length > 0 && (
         <section className="pb-12">
           <div className="container">
-            <div className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
+            <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
               <div className="flex items-center gap-2 mb-5">
-                <Activity size={16} className="text-[oklch(0.72_0.12_75)]" />
-                <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest">Analysis Pipeline Log</div>
+                <Activity size={16} className="text-[#7C3AED]" />
+                <div className="text-xs text-[#64748B] uppercase tracking-widest">Analysis Pipeline Log</div>
               </div>
               <div className="relative">
-                <div className="absolute left-[11px] top-0 bottom-0 w-px bg-[oklch(0.92_0.01_255)]" />
+                <div className="absolute left-[11px] top-0 bottom-0 w-px bg-[#F1F5F9]" />
                 <div className="space-y-4">
                   {data.activityLogs.map((log: any, i: number) => (
                     <div key={i} className="flex items-start gap-4 pl-1">
                       <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
                         log.status === "error" ? "bg-red-100" :
                         log.type === "analysis_complete" ? "bg-green-100" :
-                        "bg-[oklch(0.18_0.06_255)]"
+                        "bg-[#0F172A]"
                       }`}>
                         {log.status === "error" ? (
                           <AlertTriangle size={12} className="text-red-600" />
                         ) : log.type === "analysis_complete" ? (
                           <CheckCircle2 size={12} className="text-green-600" />
                         ) : (
-                          <Zap size={10} className="text-[oklch(0.72_0.12_75)]" />
+                          <Zap size={10} className="text-[#7C3AED]" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-semibold text-[oklch(0.18_0.06_255)] capitalize">
+                          <span className="text-xs font-semibold text-[#0F172A] capitalize">
                             {log.type.replace(/_/g, " ")}
                           </span>
                           {log.durationMs && (
-                            <span className="text-xs text-[oklch(0.65_0.02_255)]">{(log.durationMs / 1000).toFixed(1)}s</span>
+                            <span className="text-xs text-[#94A3B8]">{(log.durationMs / 1000).toFixed(1)}s</span>
                           )}
                           <span className="text-xs text-[oklch(0.75_0.01_255)] ml-auto">
                             {new Date(log.createdAt).toLocaleTimeString()}
                           </span>
                         </div>
-                        <p className="text-xs text-[oklch(0.45_0.04_255)] mt-0.5 leading-relaxed">{log.description}</p>
+                        <p className="text-xs text-[#64748B] mt-0.5 leading-relaxed">{log.description}</p>
                       </div>
                     </div>
                   ))}
@@ -415,8 +415,8 @@ export default function AnalysisResults() {
       {/* Download Report & CTA */}
       <section className="py-12">
         <div className="container">
-          <div className="p-8 rounded-xl bg-[oklch(0.18_0.06_255)] text-center">
-            <FileText size={32} className="text-[oklch(0.72_0.12_75)] mx-auto mb-4" />
+          <div className="p-8 rounded-xl bg-[#0F172A] text-center">
+            <FileText size={32} className="text-[#7C3AED] mx-auto mb-4" />
             <h2 className="font-display text-2xl font-bold text-white mb-2">Download Your Appraisal Report</h2>
             <p className="text-white/70 mb-6 max-w-md mx-auto">
               Get a professional, certified PDF report ready for your appeal filing or personal records.
@@ -457,7 +457,7 @@ export default function AnalysisResults() {
       </section>
 
       {/* CTA */}
-      <section className="bg-[oklch(0.18_0.06_255)] py-16">
+      <section className="bg-[#0F172A] py-16">
         <div className="container text-center max-w-xl mx-auto">
           <h2 className="font-display text-2xl lg:text-3xl font-bold text-white mb-4">Ready to File Your Appeal?</h2>
           <p className="text-white/60 mb-8">

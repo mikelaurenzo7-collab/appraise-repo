@@ -33,21 +33,21 @@ export default function UserDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)] flex items-center justify-center">
-        <Loader2 className="animate-spin text-[oklch(0.72_0.12_75)]" size={40} />
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#7C3AED]" size={40} />
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+      <div className="min-h-screen bg-[#F1F5F9]">
         <Navbar />
         <div className="container py-20 text-center">
-          <h1 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">
+          <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">
             Sign In to View Your Dashboard
           </h1>
-          <p className="text-[oklch(0.45_0.04_255)] mb-8">
+          <p className="text-[#64748B] mb-8">
             Track your property appraisals and appeals in one place.
           </p>
           <Link href="/" className="btn-gold px-6 py-3 rounded font-semibold inline-block">
@@ -60,45 +60,45 @@ export default function UserDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
 
       <div className="container py-12">
         {/* Header */}
         <div className="mb-12">
-          <h1 className="font-display text-4xl font-bold text-[oklch(0.18_0.06_255)] mb-2">
+          <h1 className="font-display text-4xl font-bold text-[#0F172A] mb-2">
             Your Dashboard
           </h1>
-          <p className="text-[oklch(0.45_0.04_255)]">
+          <p className="text-[#64748B]">
             Welcome back, {user?.name || user?.email}. Track your appraisals and appeals here.
           </p>
         </div>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-          <Card className="p-6 bg-white border border-[oklch(0.88_0.015_85)]">
-            <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-2">
+          <Card className="p-6 bg-white border border-[#E2E8F0]">
+            <div className="text-xs text-[#64748B] uppercase tracking-widest mb-2">
               Total Submissions
             </div>
-            <div className="font-data text-3xl font-bold text-[oklch(0.18_0.06_255)]">
+            <div className="font-data text-3xl font-bold text-[#0F172A]">
               {submissions.length}
             </div>
           </Card>
 
-          <Card className="p-6 bg-white border border-[oklch(0.88_0.015_85)]">
-            <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-2">
+          <Card className="p-6 bg-white border border-[#E2E8F0]">
+            <div className="text-xs text-[#64748B] uppercase tracking-widest mb-2">
               Analyzed
             </div>
-            <div className="font-data text-3xl font-bold text-[oklch(0.72_0.12_75)]">
+            <div className="font-data text-3xl font-bold text-[#7C3AED]">
               {submissions.filter((s) => s.status === "analyzed").length}
             </div>
           </Card>
 
-          <Card className="p-6 bg-white border border-[oklch(0.88_0.015_85)]">
-            <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-2">
+          <Card className="p-6 bg-white border border-[#E2E8F0]">
+            <div className="text-xs text-[#64748B] uppercase tracking-widest mb-2">
               Total Potential Savings
             </div>
-            <div className="font-data text-3xl font-bold text-[oklch(0.18_0.06_255)]">
+            <div className="font-data text-3xl font-bold text-[#0F172A]">
               $
               {submissions
                 .reduce((sum, s) => sum + (s.potentialSavings || 0), 0)
@@ -106,36 +106,36 @@ export default function UserDashboard() {
             </div>
           </Card>
 
-          <Card className="p-6 bg-white border border-[oklch(0.88_0.015_85)]">
-            <div className="text-xs text-[oklch(0.55_0.04_255)] uppercase tracking-widest mb-2">
+          <Card className="p-6 bg-white border border-[#E2E8F0]">
+            <div className="text-xs text-[#64748B] uppercase tracking-widest mb-2">
               In Progress
             </div>
-            <div className="font-data text-3xl font-bold text-[oklch(0.45_0.04_255)]">
+            <div className="font-data text-3xl font-bold text-[#64748B]">
               {submissions.filter((s) => s.status === "pending" || s.status === "analyzing").length}
             </div>
           </Card>
         </div>
 
         {/* Submissions Table */}
-        <Card className="bg-white border border-[oklch(0.88_0.015_85)] overflow-hidden">
-          <div className="p-6 border-b border-[oklch(0.88_0.015_85)]">
-            <h2 className="font-display text-xl font-bold text-[oklch(0.18_0.06_255)]">
+        <Card className="bg-white border border-[#E2E8F0] overflow-hidden">
+          <div className="p-6 border-b border-[#E2E8F0]">
+            <h2 className="font-display text-xl font-bold text-[#0F172A]">
               Your Submissions
             </h2>
           </div>
 
           {isLoading ? (
             <div className="p-12 text-center">
-              <Loader2 className="animate-spin text-[oklch(0.72_0.12_75)] mx-auto mb-4" size={32} />
-              <p className="text-[oklch(0.45_0.04_255)]">Loading your submissions...</p>
+              <Loader2 className="animate-spin text-[#7C3AED] mx-auto mb-4" size={32} />
+              <p className="text-[#64748B]">Loading your submissions...</p>
             </div>
           ) : submissions.length === 0 ? (
             <div className="p-12 text-center">
-              <FileText size={48} className="text-[oklch(0.88_0.015_85)] mx-auto mb-4" />
-              <h3 className="font-display text-lg font-semibold text-[oklch(0.18_0.06_255)] mb-2">
+              <FileText size={48} className="text-[#E2E8F0] mx-auto mb-4" />
+              <h3 className="font-display text-lg font-semibold text-[#0F172A] mb-2">
                 No Submissions Yet
               </h3>
-              <p className="text-[oklch(0.45_0.04_255)] mb-6">
+              <p className="text-[#64748B] mb-6">
                 Start by getting a free property analysis.
               </p>
               <Link href="/get-started" className="btn-gold px-6 py-3 rounded font-semibold inline-block">
@@ -145,24 +145,24 @@ export default function UserDashboard() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-[oklch(0.94_0.018_85)] border-b border-[oklch(0.88_0.015_85)]">
+                <thead className="bg-[oklch(0.94_0.018_85)] border-b border-[#E2E8F0]">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#64748B] uppercase">
                       Property
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#64748B] uppercase">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase">
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-[#64748B] uppercase">
                       Assessed Value
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase">
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-[#64748B] uppercase">
                       Market Value
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase">
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-[#64748B] uppercase">
                       Potential Savings
                     </th>
-                    <th className="px-6 py-3 text-center text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase">
+                    <th className="px-6 py-3 text-center text-xs font-semibold text-[#64748B] uppercase">
                       Action
                     </th>
                   </tr>
@@ -171,13 +171,13 @@ export default function UserDashboard() {
                   {submissions.map((submission) => (
                     <tr
                       key={submission.id}
-                      className="border-b border-[oklch(0.88_0.015_85)] hover:bg-[oklch(0.98_0.01_85)] transition-colors"
+                      className="border-b border-[#E2E8F0] hover:bg-[oklch(0.98_0.01_85)] transition-colors"
                     >
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-[oklch(0.18_0.06_255)]">
+                        <div className="font-semibold text-[#0F172A]">
                           {submission.address}
                         </div>
-                        <div className="text-xs text-[oklch(0.55_0.04_255)] mt-1">
+                        <div className="text-xs text-[#64748B] mt-1">
                           {new Date(submission.createdAt).toLocaleDateString()}
                         </div>
                       </td>
@@ -185,14 +185,14 @@ export default function UserDashboard() {
                         <div className="flex items-center gap-2">
                           {submission.status === "pending" && (
                             <>
-                              <Clock size={14} className="text-[oklch(0.45_0.04_255)]" />
-                              <span className="text-sm text-[oklch(0.45_0.04_255)]">Pending</span>
+                              <Clock size={14} className="text-[#64748B]" />
+                              <span className="text-sm text-[#64748B]">Pending</span>
                             </>
                           )}
                           {submission.status === "analyzing" && (
                             <>
-                              <Loader2 size={14} className="animate-spin text-[oklch(0.72_0.12_75)]" />
-                              <span className="text-sm text-[oklch(0.72_0.12_75)]">Analyzing</span>
+                              <Loader2 size={14} className="animate-spin text-[#7C3AED]" />
+                              <span className="text-sm text-[#7C3AED]">Analyzing</span>
                             </>
                           )}
                           {submission.status === "analyzed" && (
@@ -209,16 +209,16 @@ export default function UserDashboard() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right font-semibold text-[oklch(0.18_0.06_255)]">
+                      <td className="px-6 py-4 text-right font-semibold text-[#0F172A]">
                         ${submission.assessedValue.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {submission.marketValue ? (
-                          <span className="font-semibold text-[oklch(0.18_0.06_255)]">
+                          <span className="font-semibold text-[#0F172A]">
                             ${submission.marketValue.toLocaleString()}
                           </span>
                         ) : (
-                          <span className="text-[oklch(0.55_0.04_255)]">—</span>
+                          <span className="text-[#64748B]">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -230,7 +230,7 @@ export default function UserDashboard() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-[oklch(0.55_0.04_255)]">—</span>
+                          <span className="text-[#64748B]">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">

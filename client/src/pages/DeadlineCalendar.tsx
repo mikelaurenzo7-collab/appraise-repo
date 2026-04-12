@@ -115,20 +115,20 @@ export default function DeadlineCalendar() {
   const avgSavings = Math.round(stateData.reduce((sum, s) => sum + s.avgSavings, 0) / stateData.length);
 
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
 
       {/* Hero */}
-      <section className="bg-[oklch(0.18_0.06_255)] pt-28 pb-16">
+      <section className="bg-[#0F172A] pt-28 pb-16">
         <div className="container">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[oklch(0.72_0.12_75)]/40 bg-[oklch(0.72_0.12_75)]/10 text-[oklch(0.72_0.12_75)] text-xs font-semibold uppercase tracking-widest mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#7C3AED]/40 bg-[#7C3AED]/10 text-[#7C3AED] text-xs font-semibold uppercase tracking-widest mb-6">
               <Calendar size={12} />
               Nationwide Appeal Deadlines
             </div>
             <h1 className="font-display text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
               Property Tax Appeal<br />
-              <span className="text-[oklch(0.72_0.12_75)] italic">Deadline Calendar</span>
+              <span className="text-[#7C3AED] italic">Deadline Calendar</span>
             </h1>
             <p className="text-white/70 text-lg leading-relaxed mb-8 max-w-2xl">
               Every state has different appeal windows, procedures, and success rates. Missing your deadline means waiting another year. Know your state's rules — and let AppraiseAI handle the filing.
@@ -140,7 +140,7 @@ export default function DeadlineCalendar() {
                 { label: "Avg. Annual Savings", value: `$${avgSavings.toLocaleString()}` },
               ].map((s) => (
                 <div key={s.label} className="p-4 rounded-lg border border-white/10 bg-white/5 text-center">
-                  <div className="font-data text-2xl font-bold text-[oklch(0.72_0.12_75)]">{s.value}</div>
+                  <div className="font-data text-2xl font-bold text-[#7C3AED]">{s.value}</div>
                   <div className="text-xs text-white/50 mt-1">{s.label}</div>
                 </div>
               ))}
@@ -163,16 +163,16 @@ export default function DeadlineCalendar() {
       </div>
 
       {/* Filters */}
-      <section className="py-8 border-b border-[oklch(0.88_0.015_85)] bg-white">
+      <section className="py-8 border-b border-[#E2E8F0] bg-white">
         <div className="container flex flex-col sm:flex-row gap-4 items-start sm:items-center">
           <div className="relative flex-1 max-w-sm">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[oklch(0.55_0.04_255)]" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
             <input
               type="text"
               placeholder="Search state..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)]/30 focus:border-[oklch(0.72_0.12_75)]"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/30 focus:border-[#7C3AED]"
             />
           </div>
           <div className="flex gap-2">
@@ -182,8 +182,8 @@ export default function DeadlineCalendar() {
                 onClick={() => setUrgencyFilter(u)}
                 className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize transition-colors ${
                   urgencyFilter === u
-                    ? "bg-[oklch(0.18_0.06_255)] text-white"
-                    : "bg-[oklch(0.94_0.018_85)] text-[oklch(0.45_0.04_255)] hover:bg-[oklch(0.88_0.015_85)]"
+                    ? "bg-[#0F172A] text-white"
+                    : "bg-[oklch(0.94_0.018_85)] text-[#64748B] hover:bg-[#E2E8F0]"
                 }`}
               >
                 {u === "all" ? "All States" : `${u} priority`}
@@ -191,11 +191,11 @@ export default function DeadlineCalendar() {
             ))}
           </div>
           <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs text-[oklch(0.55_0.04_255)]">Sort by:</span>
+            <span className="text-xs text-[#64748B]">Sort by:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="text-xs border border-[oklch(0.88_0.015_85)] rounded px-2 py-1.5 focus:outline-none"
+              className="text-xs border border-[#E2E8F0] rounded px-2 py-1.5 focus:outline-none"
             >
               <option value="name">State Name</option>
               <option value="successRate">Success Rate</option>
@@ -209,7 +209,7 @@ export default function DeadlineCalendar() {
       {/* State Grid */}
       <section className="py-12">
         <div className="container">
-          <p className="text-sm text-[oklch(0.55_0.04_255)] mb-6">
+          <p className="text-sm text-[#64748B] mb-6">
             Showing {filtered.length} of {stateData.length} states
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -217,69 +217,69 @@ export default function DeadlineCalendar() {
               <div
                 key={state.code}
                 className={`rounded-xl bg-white border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
-                  state.urgency === "high" ? "border-red-200" : "border-[oklch(0.88_0.015_85)]"
+                  state.urgency === "high" ? "border-red-200" : "border-[#E2E8F0]"
                 }`}
               >
                 {/* Card Header */}
                 <div className={`px-5 py-4 flex items-start justify-between ${
-                  state.urgency === "high" ? "bg-red-50" : "bg-[oklch(0.975_0.012_85)]"
+                  state.urgency === "high" ? "bg-red-50" : "bg-[#F1F5F9]"
                 }`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[oklch(0.18_0.06_255)] flex items-center justify-center">
-                      <span className="font-data text-xs font-bold text-[oklch(0.72_0.12_75)]">{state.code}</span>
+                    <div className="w-10 h-10 rounded-lg bg-[#0F172A] flex items-center justify-center">
+                      <span className="font-data text-xs font-bold text-[#7C3AED]">{state.code}</span>
                     </div>
                     <div>
-                      <h3 className="font-display text-base font-semibold text-[oklch(0.18_0.06_255)]">{state.name}</h3>
+                      <h3 className="font-display text-base font-semibold text-[#0F172A]">{state.name}</h3>
                       <UrgencyBadge urgency={state.urgency} />
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-data text-lg font-bold text-[oklch(0.72_0.12_75)]">{state.successRate}%</div>
-                    <div className="text-xs text-[oklch(0.55_0.04_255)]">win rate</div>
+                    <div className="font-data text-lg font-bold text-[#7C3AED]">{state.successRate}%</div>
+                    <div className="text-xs text-[#64748B]">win rate</div>
                   </div>
                 </div>
 
                 {/* Card Body */}
                 <div className="px-5 py-4 space-y-3">
                   <div className="flex items-start gap-2">
-                    <Clock size={14} className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0" />
+                    <Clock size={14} className="text-[#7C3AED] mt-0.5 shrink-0" />
                     <div>
-                      <div className="text-xs font-semibold text-[oklch(0.18_0.06_255)]">Deadline</div>
-                      <div className="text-xs text-[oklch(0.45_0.04_255)]">{state.deadlineDescription}</div>
+                      <div className="text-xs font-semibold text-[#0F172A]">Deadline</div>
+                      <div className="text-xs text-[#64748B]">{state.deadlineDescription}</div>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2">
                     <TrendingDown size={14} className="text-green-600 mt-0.5 shrink-0" />
                     <div>
-                      <div className="text-xs font-semibold text-[oklch(0.18_0.06_255)]">Avg. Annual Savings</div>
+                      <div className="text-xs font-semibold text-[#0F172A]">Avg. Annual Savings</div>
                       <div className="text-xs text-green-600 font-semibold">${state.avgSavings.toLocaleString()}</div>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2">
-                    <Scale size={14} className="text-[oklch(0.55_0.04_255)] mt-0.5 shrink-0" />
+                    <Scale size={14} className="text-[#64748B] mt-0.5 shrink-0" />
                     <div>
-                      <div className="text-xs font-semibold text-[oklch(0.18_0.06_255)]">Hearing Type</div>
-                      <div className="text-xs text-[oklch(0.45_0.04_255)] capitalize">{state.hearingType} · {state.poaAllowed ? "POA allowed" : "Pro se only"}</div>
+                      <div className="text-xs font-semibold text-[#0F172A]">Hearing Type</div>
+                      <div className="text-xs text-[#64748B] capitalize">{state.hearingType} · {state.poaAllowed ? "POA allowed" : "Pro se only"}</div>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2">
-                    <Info size={14} className="text-[oklch(0.55_0.04_255)] mt-0.5 shrink-0" />
-                    <div className="text-xs text-[oklch(0.55_0.04_255)] leading-relaxed">{state.notes}</div>
+                    <Info size={14} className="text-[#64748B] mt-0.5 shrink-0" />
+                    <div className="text-xs text-[#64748B] leading-relaxed">{state.notes}</div>
                   </div>
                 </div>
 
                 {/* Card Footer */}
-                <div className="px-5 py-3 border-t border-[oklch(0.92_0.01_255)] flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-[oklch(0.55_0.04_255)]">
-                    <CheckCircle2 size={12} className="text-[oklch(0.72_0.12_75)]" />
+                <div className="px-5 py-3 border-t border-[#F1F5F9] flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
+                    <CheckCircle2 size={12} className="text-[#7C3AED]" />
                     {state.filingFee === 0 ? "No filing fee" : `$${state.filingFee} filing fee`}
                   </div>
                   <Link
                     href="/get-started"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-[oklch(0.18_0.06_255)] hover:text-[oklch(0.72_0.12_75)] transition-colors"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#0F172A] hover:text-[#7C3AED] transition-colors"
                   >
                     File in {state.code} <ArrowRight size={12} />
                   </Link>
@@ -291,7 +291,7 @@ export default function DeadlineCalendar() {
       </section>
 
       {/* CTA */}
-      <section className="bg-[oklch(0.18_0.06_255)] py-16">
+      <section className="bg-[#0F172A] py-16">
         <div className="container text-center max-w-2xl mx-auto">
           <h2 className="font-display text-3xl font-bold text-white mb-4">
             Don't Miss Your Window

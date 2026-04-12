@@ -34,7 +34,7 @@ export default function Navbar() {
 
   const navBg = isHome && !scrolled
     ? "bg-transparent"
-    : "bg-[oklch(0.18_0.06_255)] shadow-lg shadow-black/20";
+    : "bg-[#0F172A] shadow-lg shadow-black/20";
 
   return (
     <header
@@ -43,14 +43,14 @@ export default function Navbar() {
       <div className="container mx-auto flex items-center justify-between h-16 lg:h-20">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded bg-[oklch(0.72_0.12_75)] flex items-center justify-center">
+          <div className="w-8 h-8 rounded bg-[#7C3AED] flex items-center justify-center">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M9 2L2 7v9h5v-5h4v5h5V7L9 2z" fill="oklch(0.12 0.055 255)" />
               <path d="M9 2L2 7" stroke="oklch(0.12 0.055 255)" strokeWidth="0.5" />
             </svg>
           </div>
           <span className="font-display font-700 text-xl text-white tracking-tight">
-            Appraise<span className="text-[oklch(0.72_0.12_75)]">AI</span>
+            Appraise<span className="text-[#7C3AED]">AI</span>
           </span>
         </Link>
 
@@ -62,7 +62,7 @@ export default function Navbar() {
               href={link.href}
               className={`text-sm font-body font-medium transition-colors duration-200 ${
                 location === link.href
-                  ? "text-[oklch(0.72_0.12_75)]"
+                  ? "text-[#7C3AED]"
                   : "text-white/80 hover:text-white"
               }`}
             >
@@ -105,7 +105,7 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden bg-[oklch(0.18_0.06_255)] border-t border-white/10 px-4 pb-6 pt-4">
+        <div className="lg:hidden bg-[#0F172A] border-t border-white/10 px-4 pb-6 pt-4">
           <nav className="flex flex-col gap-4">
             {navLinks.map((link) => (
               <Link
@@ -113,7 +113,7 @@ export default function Navbar() {
                 href={link.href}
                 className={`text-base font-medium py-1 ${
                   location === link.href
-                    ? "text-[oklch(0.72_0.12_75)]"
+                    ? "text-[#7C3AED]"
                     : "text-white/80"
                 }`}
               >

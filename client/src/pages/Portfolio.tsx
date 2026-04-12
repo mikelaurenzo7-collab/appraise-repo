@@ -61,7 +61,7 @@ function AppealStrengthBar({ score }: { score: number | null | undefined }) {
   const color = score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-yellow-500" : "bg-red-400";
   return (
     <div className="flex items-center gap-2">
-      <div className="w-16 h-1.5 rounded-full bg-[oklch(0.92_0.01_255)] overflow-hidden">
+      <div className="w-16 h-1.5 rounded-full bg-[#F1F5F9] overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
       </div>
       <span className="text-xs font-semibold text-[oklch(0.35_0.04_255)]">{score}</span>
@@ -81,26 +81,26 @@ export default function Portfolio() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)] flex items-center justify-center">
-        <Loader2 className="animate-spin text-[oklch(0.72_0.12_75)]" size={40} />
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#7C3AED]" size={40} />
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+      <div className="min-h-screen bg-[#F1F5F9]">
         <Navbar />
         <div className="flex items-center justify-center min-h-[70vh]">
           <div className="text-center max-w-md">
-            <Building2 size={56} className="text-[oklch(0.72_0.12_75)] mx-auto mb-6" />
-            <h1 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Your Property Portfolio</h1>
-            <p className="text-[oklch(0.45_0.04_255)] mb-8 leading-relaxed">
+            <Building2 size={56} className="text-[#7C3AED] mx-auto mb-6" />
+            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Your Property Portfolio</h1>
+            <p className="text-[#64748B] mb-8 leading-relaxed">
               Sign in to track all your properties, monitor appeal status, and see your total tax savings in one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a href={getLoginUrl()} className="btn-gold px-6 py-3 rounded font-semibold inline-block">Sign In to View Portfolio</a>
-              <Link href="/get-started" className="px-6 py-3 rounded border border-[oklch(0.18_0.06_255)] text-[oklch(0.18_0.06_255)] font-semibold hover:bg-[oklch(0.18_0.06_255)] hover:text-white transition-colors inline-block text-center">
+              <Link href="/get-started" className="px-6 py-3 rounded border border-[#0F172A] text-[#0F172A] font-semibold hover:bg-[#0F172A] hover:text-white transition-colors inline-block text-center">
                 Add Your First Property
               </Link>
             </div>
@@ -127,7 +127,7 @@ export default function Portfolio() {
   ).length;
 
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
 
       <section className="pt-32 pb-8 lg:pt-40 lg:pb-10">
@@ -135,10 +135,10 @@ export default function Portfolio() {
           <div className="flex items-start justify-between mb-8">
             <div>
               <span className="gold-rule" />
-              <h1 className="font-display text-3xl lg:text-4xl font-bold text-[oklch(0.18_0.06_255)] mb-2">
+              <h1 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-2">
                 Property Portfolio
               </h1>
-              <p className="text-[oklch(0.55_0.04_255)]">
+              <p className="text-[#64748B]">
                 {user?.name ? `Welcome back, ${user.name.split(" ")[0]}. ` : ""}
                 Manage all your properties and track your tax appeal progress.
               </p>
@@ -155,14 +155,14 @@ export default function Portfolio() {
           {/* Portfolio KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             {[
-              { icon: <Building2 size={16} />, label: "Properties", value: totalProperties, color: "text-[oklch(0.18_0.06_255)]" },
+              { icon: <Building2 size={16} />, label: "Properties", value: totalProperties, color: "text-[#0F172A]" },
               { icon: <CheckCircle2 size={16} />, label: "Analyzed", value: analyzed, color: "text-green-600" },
               { icon: <Scale size={16} />, label: "In Progress", value: appealsInProgress, color: "text-blue-600" },
               { icon: <Trophy size={16} />, label: "Won", value: won, color: "text-emerald-600" },
-              { icon: <DollarSign size={16} />, label: "Potential Savings/yr", value: formatCurrency(totalPotentialSavings), color: "text-[oklch(0.72_0.12_75)]" },
+              { icon: <DollarSign size={16} />, label: "Potential Savings/yr", value: formatCurrency(totalPotentialSavings), color: "text-[#7C3AED]" },
             ].map((stat) => (
-              <div key={stat.label} className="p-4 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-                <div className="flex items-center gap-1.5 text-[oklch(0.55_0.04_255)] mb-2">
+              <div key={stat.label} className="p-4 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+                <div className="flex items-center gap-1.5 text-[#64748B] mb-2">
                   {stat.icon}
                   <span className="text-xs">{stat.label}</span>
                 </div>
@@ -173,11 +173,11 @@ export default function Portfolio() {
 
           {/* Actual savings banner */}
           {totalActualSavings > 0 && (
-            <div className="mb-6 p-5 rounded-xl bg-[oklch(0.18_0.06_255)] flex items-center gap-4">
-              <TrendingDown size={24} className="text-[oklch(0.72_0.12_75)] shrink-0" />
+            <div className="mb-6 p-5 rounded-xl bg-[#0F172A] flex items-center gap-4">
+              <TrendingDown size={24} className="text-[#7C3AED] shrink-0" />
               <div>
                 <div className="text-white font-semibold">Total Confirmed Annual Savings</div>
-                <div className="font-data text-2xl font-bold text-[oklch(0.72_0.12_75)]">{formatCurrency(totalActualSavings)}/year</div>
+                <div className="font-data text-2xl font-bold text-[#7C3AED]">{formatCurrency(totalActualSavings)}/year</div>
               </div>
             </div>
           )}
@@ -189,13 +189,13 @@ export default function Portfolio() {
         <div className="container">
           {submissionsQuery.isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="animate-spin text-[oklch(0.72_0.12_75)]" size={36} />
+              <Loader2 className="animate-spin text-[#7C3AED]" size={36} />
             </div>
           ) : submissions.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-2xl border border-[oklch(0.88_0.015_85)]">
-              <Building2 size={56} className="text-[oklch(0.88_0.015_85)] mx-auto mb-4" />
-              <h2 className="font-display text-2xl font-bold text-[oklch(0.18_0.06_255)] mb-3">No Properties Yet</h2>
-              <p className="text-[oklch(0.55_0.04_255)] mb-6 max-w-sm mx-auto">
+            <div className="text-center py-20 bg-white rounded-2xl border border-[#E2E8F0]">
+              <Building2 size={56} className="text-[#E2E8F0] mx-auto mb-4" />
+              <h2 className="font-display text-2xl font-bold text-[#0F172A] mb-3">No Properties Yet</h2>
+              <p className="text-[#64748B] mb-6 max-w-sm mx-auto">
                 Add your first property to get an instant AI appraisal and see if you're overpaying on taxes.
               </p>
               <Link href="/get-started" className="btn-gold inline-flex items-center gap-2 px-6 py-3 rounded font-semibold">
@@ -219,14 +219,14 @@ export default function Portfolio() {
                         ? "border-emerald-200 bg-emerald-50/30"
                         : isInProgress
                         ? "border-blue-200"
-                        : "border-[oklch(0.88_0.015_85)]"
+                        : "border-[#E2E8F0]"
                     }`}
                   >
                     <div className="p-5 lg:p-6">
                       <div className="flex items-start gap-4">
                         {/* Property type icon */}
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                          isWon ? "bg-emerald-100 text-emerald-600" : "bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)]"
+                          isWon ? "bg-emerald-100 text-emerald-600" : "bg-[#0F172A] text-[#7C3AED]"
                         }`}>
                           {PROPERTY_TYPE_ICONS[sub.propertyType || "residential"] || <HomeIcon size={16} />}
                         </div>
@@ -236,9 +236,9 @@ export default function Portfolio() {
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-semibold text-[oklch(0.18_0.06_255)] text-sm">{sub.address}</h3>
+                                <h3 className="font-semibold text-[#0F172A] text-sm">{sub.address}</h3>
                                 {sub.city && sub.state && (
-                                  <span className="text-xs text-[oklch(0.55_0.04_255)]">{sub.city}, {sub.state}</span>
+                                  <span className="text-xs text-[#64748B]">{sub.city}, {sub.state}</span>
                                 )}
                               </div>
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -249,7 +249,7 @@ export default function Portfolio() {
                             </div>
                             <Link
                               href={`/analysis?id=${sub.id}`}
-                              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-[oklch(0.18_0.06_255)] hover:text-[oklch(0.72_0.12_75)] transition-colors border border-[oklch(0.88_0.015_85)] px-3 py-1.5 rounded-lg hover:border-[oklch(0.72_0.12_75)]"
+                              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F172A] hover:text-[#7C3AED] transition-colors border border-[#E2E8F0] px-3 py-1.5 rounded-lg hover:border-[#7C3AED]"
                             >
                               <Eye size={12} />
                               View Analysis
@@ -260,13 +260,13 @@ export default function Portfolio() {
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
                             <div>
                               <div className="text-xs text-[oklch(0.65_0.03_255)] mb-0.5">Assessed Value</div>
-                              <div className="font-data text-sm font-semibold text-[oklch(0.18_0.06_255)]">
+                              <div className="font-data text-sm font-semibold text-[#0F172A]">
                                 {formatCurrency(sub.assessedValue)}
                               </div>
                             </div>
                             <div>
                               <div className="text-xs text-[oklch(0.65_0.03_255)] mb-0.5">Market Value</div>
-                              <div className="font-data text-sm font-semibold text-[oklch(0.72_0.12_75)]">
+                              <div className="font-data text-sm font-semibold text-[#7C3AED]">
                                 {formatCurrency(sub.marketValue)}
                               </div>
                             </div>
@@ -307,13 +307,13 @@ export default function Portfolio() {
 
                           {/* CTA for analyzed but not filed */}
                           {isAnalyzed && sub.appealStrengthScore && sub.appealStrengthScore >= 50 && (
-                            <div className="mt-3 p-3 rounded-lg bg-[oklch(0.72_0.12_75)]/10 border border-[oklch(0.72_0.12_75)]/30 flex items-center justify-between gap-3">
-                              <div className="text-xs text-[oklch(0.18_0.06_255)]">
+                            <div className="mt-3 p-3 rounded-lg bg-[#7C3AED]/10 border border-[#7C3AED]/30 flex items-center justify-between gap-3">
+                              <div className="text-xs text-[#0F172A]">
                                 <strong>Strong appeal case detected.</strong> Your appeal strength score is {sub.appealStrengthScore}/100.
                               </div>
                               <Link
                                 href={`/analysis?id=${sub.id}`}
-                                className="shrink-0 text-xs font-semibold text-[oklch(0.18_0.06_255)] flex items-center gap-1 hover:text-[oklch(0.72_0.12_75)] transition-colors"
+                                className="shrink-0 text-xs font-semibold text-[#0F172A] flex items-center gap-1 hover:text-[#7C3AED] transition-colors"
                               >
                                 Start Appeal <ChevronRight size={12} />
                               </Link>
@@ -333,7 +333,7 @@ export default function Portfolio() {
             <div className="mt-8 text-center">
               <Link
                 href="/get-started"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border-2 border-dashed border-[oklch(0.88_0.015_85)] text-[oklch(0.55_0.04_255)] hover:border-[oklch(0.72_0.12_75)] hover:text-[oklch(0.18_0.06_255)] transition-all text-sm font-semibold"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border-2 border-dashed border-[#E2E8F0] text-[#64748B] hover:border-[#7C3AED] hover:text-[#0F172A] transition-all text-sm font-semibold"
               >
                 <Plus size={16} />
                 Add Another Property
@@ -349,8 +349,8 @@ export default function Portfolio() {
           <div className="container max-w-4xl">
             <div className="text-center mb-12">
               <span className="gold-rule mx-auto" />
-              <h2 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Built for Investors & Landlords</h2>
-              <p className="text-[oklch(0.45_0.04_255)]">Manage your entire property portfolio from one dashboard.</p>
+              <h2 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Built for Investors & Landlords</h2>
+              <p className="text-[#64748B]">Manage your entire property portfolio from one dashboard.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-6">
               {[
@@ -358,12 +358,12 @@ export default function Portfolio() {
                 { icon: <BarChart3 size={20} />, title: "Aggregate Savings", desc: "See your total potential and confirmed savings across all properties in one view." },
                 { icon: <FileText size={20} />, title: "Unified Filing", desc: "One POA covers all your properties. We track deadlines and file appeals for every eligible property." },
               ].map((f) => (
-                <div key={f.title} className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)]">
-                  <div className="w-10 h-10 rounded bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)] flex items-center justify-center mb-4">
+                <div key={f.title} className="p-6 rounded-xl bg-white border border-[#E2E8F0]">
+                  <div className="w-10 h-10 rounded bg-[#0F172A] text-[#7C3AED] flex items-center justify-center mb-4">
                     {f.icon}
                   </div>
-                  <h3 className="font-display text-base font-semibold text-[oklch(0.18_0.06_255)] mb-2">{f.title}</h3>
-                  <p className="text-sm text-[oklch(0.45_0.04_255)] leading-relaxed">{f.desc}</p>
+                  <h3 className="font-display text-base font-semibold text-[#0F172A] mb-2">{f.title}</h3>
+                  <p className="text-sm text-[#64748B] leading-relaxed">{f.desc}</p>
                 </div>
               ))}
             </div>

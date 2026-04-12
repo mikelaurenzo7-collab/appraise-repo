@@ -90,18 +90,18 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)] flex items-center justify-center">
-        <Loader2 className="animate-spin text-[oklch(0.72_0.12_75)]" size={40} />
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#7C3AED]" size={40} />
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
         <div className="text-center">
-          <AlertTriangle size={48} className="text-[oklch(0.72_0.12_75)] mx-auto mb-4" />
-          <h1 className="font-display text-2xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Admin Access Required</h1>
+          <AlertTriangle size={48} className="text-[#7C3AED] mx-auto mb-4" />
+          <h1 className="font-display text-2xl font-bold text-[#0F172A] mb-4">Admin Access Required</h1>
           <a href={getLoginUrl()} className="btn-gold px-6 py-3 rounded font-semibold inline-block">Sign In</a>
         </div>
       </div>
@@ -110,11 +110,11 @@ export default function AdminDashboard() {
 
   if (user?.role !== "admin") {
     return (
-      <div className="min-h-screen bg-[oklch(0.975_0.012_85)] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
         <div className="text-center">
           <AlertTriangle size={48} className="text-red-500 mx-auto mb-4" />
-          <h1 className="font-display text-2xl font-bold text-[oklch(0.18_0.06_255)] mb-2">Access Denied</h1>
-          <p className="text-[oklch(0.45_0.04_255)]">You do not have admin privileges.</p>
+          <h1 className="font-display text-2xl font-bold text-[#0F172A] mb-2">Access Denied</h1>
+          <p className="text-[#64748B]">You do not have admin privileges.</p>
         </div>
       </div>
     );
@@ -125,9 +125,9 @@ export default function AdminDashboard() {
   const outcomes = outcomesQuery.data?.outcomes ?? [];
 
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       {/* Top Bar */}
-      <div className="bg-[oklch(0.18_0.06_255)] px-6 py-4 flex items-center justify-between">
+      <div className="bg-[#0F172A] px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 text-white/70 hover:text-white text-sm">
             <Building2 size={16} />AppraiseAI
@@ -153,17 +153,17 @@ export default function AdminDashboard() {
         {/* KPI Row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-8">
           {[
-            { icon: <Users size={16} />, label: "Total Leads", value: submissionStats?.total ?? "—", color: "text-[oklch(0.18_0.06_255)]" },
+            { icon: <Users size={16} />, label: "Total Leads", value: submissionStats?.total ?? "—", color: "text-[#0F172A]" },
             { icon: <CheckCircle2 size={16} />, label: "Analyzed", value: submissionStats?.analyzed ?? "—", color: "text-green-600" },
             { icon: <Activity size={16} />, label: "In Progress", value: (submissionStats?.pending ?? 0) + (submissionStats?.analyzing ?? 0), color: "text-blue-600" },
-            { icon: <DollarSign size={16} />, label: "Avg. Savings", value: submissionStats?.avgSavings ? formatCurrency(submissionStats.avgSavings) : "—", color: "text-[oklch(0.72_0.12_75)]" },
+            { icon: <DollarSign size={16} />, label: "Avg. Savings", value: submissionStats?.avgSavings ? formatCurrency(submissionStats.avgSavings) : "—", color: "text-[#7C3AED]" },
             { icon: <Trophy size={16} />, label: "Appeals Won", value: outcomeStats?.won ?? "—", color: "text-emerald-600" },
             { icon: <XCircle size={16} />, label: "Appeals Lost", value: outcomeStats?.lost ?? "—", color: "text-red-500" },
-            { icon: <BarChart3 size={16} />, label: "Win Rate", value: outcomeStats?.winRate != null ? `${outcomeStats.winRate}%` : "—", color: "text-[oklch(0.72_0.12_75)]" },
+            { icon: <BarChart3 size={16} />, label: "Win Rate", value: outcomeStats?.winRate != null ? `${outcomeStats.winRate}%` : "—", color: "text-[#7C3AED]" },
             { icon: <DollarSign size={16} />, label: "Total Revenue", value: outcomeStats?.totalRevenue ? formatCurrency(outcomeStats.totalRevenue) : "—", color: "text-emerald-600" },
           ].map((s) => (
-            <div key={s.label} className="p-4 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-              <div className="flex items-center gap-1.5 text-[oklch(0.55_0.04_255)] mb-2">
+            <div key={s.label} className="p-4 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+              <div className="flex items-center gap-1.5 text-[#64748B] mb-2">
                 {s.icon}
                 <span className="text-xs">{s.label}</span>
               </div>
@@ -173,15 +173,15 @@ export default function AdminDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b border-[oklch(0.88_0.015_85)]">
+        <div className="flex gap-1 mb-6 border-b border-[#E2E8F0]">
           {(["submissions", "outcomes", "activity"] as TabKey[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`px-4 py-2.5 text-sm font-semibold capitalize transition-colors border-b-2 -mb-px ${
                 tab === t
-                  ? "border-[oklch(0.72_0.12_75)] text-[oklch(0.18_0.06_255)]"
-                  : "border-transparent text-[oklch(0.55_0.04_255)] hover:text-[oklch(0.18_0.06_255)]"
+                  ? "border-[#7C3AED] text-[#0F172A]"
+                  : "border-transparent text-[#64748B] hover:text-[#0F172A]"
               }`}
             >
               {t === "submissions" && <span className="flex items-center gap-1.5"><FileText size={14} />{t}</span>}
@@ -193,59 +193,59 @@ export default function AdminDashboard() {
 
         {/* ── SUBMISSIONS TAB ─────────────────────────────────────── */}
         {tab === "submissions" && (
-          <div className="bg-white rounded-xl border border-[oklch(0.88_0.015_85)] shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-[oklch(0.88_0.015_85)] flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold text-[oklch(0.18_0.06_255)]">
+          <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold text-[#0F172A]">
                 Property Submissions
                 {submissionsQuery.data?.total != null && (
-                  <span className="ml-2 text-sm font-normal text-[oklch(0.55_0.04_255)]">({submissionsQuery.data.total} total)</span>
+                  <span className="ml-2 text-sm font-normal text-[#64748B]">({submissionsQuery.data.total} total)</span>
                 )}
               </h2>
-              <span className="text-xs text-[oklch(0.55_0.04_255)]">Auto-refreshes every 15s</span>
+              <span className="text-xs text-[#64748B]">Auto-refreshes every 15s</span>
             </div>
 
             {submissionsQuery.isLoading ? (
-              <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-[oklch(0.72_0.12_75)]" size={32} /></div>
+              <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-[#7C3AED]" size={32} /></div>
             ) : submissions.length === 0 ? (
               <div className="text-center py-16">
-                <FileText size={40} className="text-[oklch(0.88_0.015_85)] mx-auto mb-3" />
-                <p className="text-[oklch(0.55_0.04_255)]">No submissions yet. Share the site to get your first lead.</p>
+                <FileText size={40} className="text-[#E2E8F0] mx-auto mb-3" />
+                <p className="text-[#64748B]">No submissions yet. Share the site to get your first lead.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[oklch(0.88_0.015_85)] bg-[oklch(0.975_0.012_85)]">
+                    <tr className="border-b border-[#E2E8F0] bg-[#F1F5F9]">
                       {["ID", "Address", "Email", "Type", "Assessed", "Market", "Savings", "Score", "Filing", "Status", "Date", ""].map((h) => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase tracking-wider">{h}</th>
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#64748B] uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {submissions.map((sub, i) => (
-                      <tr key={sub.id} className={`border-b border-[oklch(0.92_0.01_255)] hover:bg-[oklch(0.975_0.012_85)] transition-colors ${i % 2 === 0 ? "" : "bg-[oklch(0.985_0.008_85)]"}`}>
-                        <td className="px-4 py-3 font-mono text-xs text-[oklch(0.55_0.04_255)]">#{sub.id}</td>
+                      <tr key={sub.id} className={`border-b border-[#F1F5F9] hover:bg-[#F1F5F9] transition-colors ${i % 2 === 0 ? "" : "bg-[oklch(0.985_0.008_85)]"}`}>
+                        <td className="px-4 py-3 font-mono text-xs text-[#64748B]">#{sub.id}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-start gap-1.5">
-                            <MapPin size={12} className="text-[oklch(0.72_0.12_75)] mt-0.5 shrink-0" />
+                            <MapPin size={12} className="text-[#7C3AED] mt-0.5 shrink-0" />
                             <div>
-                              <div className="font-medium text-[oklch(0.18_0.06_255)] max-w-[160px] truncate">{sub.address}</div>
-                              <div className="text-xs text-[oklch(0.55_0.04_255)]">{[sub.city, sub.state].filter(Boolean).join(", ")}</div>
+                              <div className="font-medium text-[#0F172A] max-w-[160px] truncate">{sub.address}</div>
+                              <div className="text-xs text-[#64748B]">{[sub.city, sub.state].filter(Boolean).join(", ")}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-[oklch(0.45_0.04_255)] max-w-[130px] truncate">{sub.email}</td>
-                        <td className="px-4 py-3 capitalize text-[oklch(0.45_0.04_255)] text-xs">{sub.propertyType || "—"}</td>
-                        <td className="px-4 py-3 font-data text-[oklch(0.18_0.06_255)] text-xs">{formatCurrency(sub.assessedValue)}</td>
-                        <td className="px-4 py-3 font-data text-[oklch(0.72_0.12_75)] text-xs">{formatCurrency(sub.marketValue)}</td>
+                        <td className="px-4 py-3 text-[#64748B] max-w-[130px] truncate">{sub.email}</td>
+                        <td className="px-4 py-3 capitalize text-[#64748B] text-xs">{sub.propertyType || "—"}</td>
+                        <td className="px-4 py-3 font-data text-[#0F172A] text-xs">{formatCurrency(sub.assessedValue)}</td>
+                        <td className="px-4 py-3 font-data text-[#7C3AED] text-xs">{formatCurrency(sub.marketValue)}</td>
                         <td className="px-4 py-3 font-data text-green-600 font-semibold text-xs">{formatCurrency(sub.potentialSavings)}</td>
                         <td className="px-4 py-3">
                           {sub.appealStrengthScore != null ? (
                             <div className="flex items-center gap-1.5">
-                              <div className="w-12 h-1.5 rounded-full bg-[oklch(0.92_0.01_255)] overflow-hidden">
-                                <div className="h-full rounded-full bg-[oklch(0.72_0.12_75)]" style={{ width: `${sub.appealStrengthScore}%` }} />
+                              <div className="w-12 h-1.5 rounded-full bg-[#F1F5F9] overflow-hidden">
+                                <div className="h-full rounded-full bg-[#7C3AED]" style={{ width: `${sub.appealStrengthScore}%` }} />
                               </div>
-                              <span className="text-xs text-[oklch(0.45_0.04_255)]">{sub.appealStrengthScore}</span>
+                              <span className="text-xs text-[#64748B]">{sub.appealStrengthScore}</span>
                             </div>
                           ) : "—"}
                         </td>
@@ -255,10 +255,10 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
-                        <td className="px-4 py-3 text-xs text-[oklch(0.55_0.04_255)]">{formatDate(sub.createdAt)}</td>
+                        <td className="px-4 py-3 text-xs text-[#64748B]">{formatDate(sub.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <Link href={`/analysis?id=${sub.id}`} className="inline-flex items-center gap-1 text-xs text-[oklch(0.18_0.06_255)] hover:text-[oklch(0.72_0.12_75)] transition-colors">
+                            <Link href={`/analysis?id=${sub.id}`} className="inline-flex items-center gap-1 text-xs text-[#0F172A] hover:text-[#7C3AED] transition-colors">
                               <Eye size={12} />View
                             </Link>
                             <button
@@ -272,7 +272,7 @@ export default function AdminDashboard() {
                               <button
                                 onClick={() => retriggerMutation.mutate({ submissionId: sub.id })}
                                 disabled={retriggerMutation.isPending}
-                                className="inline-flex items-center gap-1 text-xs text-[oklch(0.55_0.04_255)] hover:text-blue-600 transition-colors"
+                                className="inline-flex items-center gap-1 text-xs text-[#64748B] hover:text-blue-600 transition-colors"
                                 title="Re-run analysis"
                               >
                                 <RotateCcw size={11} />
@@ -288,13 +288,13 @@ export default function AdminDashboard() {
             )}
 
             {(submissionsQuery.data?.total ?? 0) > PAGE_SIZE && (
-              <div className="px-6 py-4 border-t border-[oklch(0.88_0.015_85)] flex items-center justify-between">
-                <span className="text-xs text-[oklch(0.55_0.04_255)]">
+              <div className="px-6 py-4 border-t border-[#E2E8F0] flex items-center justify-between">
+                <span className="text-xs text-[#64748B]">
                   Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, submissionsQuery.data?.total ?? 0)} of {submissionsQuery.data?.total ?? 0}
                 </span>
                 <div className="flex gap-2">
-                  <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded border border-[oklch(0.88_0.015_85)] text-xs text-[oklch(0.45_0.04_255)] hover:bg-[oklch(0.975_0.012_85)] disabled:opacity-40">Previous</button>
-                  <button onClick={() => setPage((p) => p + 1)} disabled={(page + 1) * PAGE_SIZE >= (submissionsQuery.data?.total ?? 0)} className="px-3 py-1.5 rounded border border-[oklch(0.88_0.015_85)] text-xs text-[oklch(0.45_0.04_255)] hover:bg-[oklch(0.975_0.012_85)] disabled:opacity-40">Next</button>
+                  <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded border border-[#E2E8F0] text-xs text-[#64748B] hover:bg-[#F1F5F9] disabled:opacity-40">Previous</button>
+                  <button onClick={() => setPage((p) => p + 1)} disabled={(page + 1) * PAGE_SIZE >= (submissionsQuery.data?.total ?? 0)} className="px-3 py-1.5 rounded border border-[#E2E8F0] text-xs text-[#64748B] hover:bg-[#F1F5F9] disabled:opacity-40">Next</button>
                 </div>
               </div>
             )}
@@ -307,58 +307,58 @@ export default function AdminDashboard() {
             {/* Outcome KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Total Filed", value: outcomeStats?.totalFiled ?? "—", icon: <Scale size={16} />, color: "text-[oklch(0.18_0.06_255)]" },
+                { label: "Total Filed", value: outcomeStats?.totalFiled ?? "—", icon: <Scale size={16} />, color: "text-[#0F172A]" },
                 { label: "Won", value: outcomeStats?.won ?? "—", icon: <Trophy size={16} />, color: "text-emerald-600" },
-                { label: "Avg. Annual Savings", value: outcomeStats?.avgSavings ? formatCurrency(outcomeStats.avgSavings) : "—", icon: <TrendingDown size={16} />, color: "text-[oklch(0.72_0.12_75)]" },
+                { label: "Avg. Annual Savings", value: outcomeStats?.avgSavings ? formatCurrency(outcomeStats.avgSavings) : "—", icon: <TrendingDown size={16} />, color: "text-[#7C3AED]" },
                 { label: "Avg. Resolution", value: outcomeStats?.avgResolutionDays ? `${outcomeStats.avgResolutionDays} days` : "—", icon: <Clock size={16} />, color: "text-blue-600" },
               ].map((s) => (
-                <div key={s.label} className="p-5 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-                  <div className="flex items-center gap-2 text-[oklch(0.55_0.04_255)] mb-2">{s.icon}<span className="text-xs">{s.label}</span></div>
+                <div key={s.label} className="p-5 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+                  <div className="flex items-center gap-2 text-[#64748B] mb-2">{s.icon}<span className="text-xs">{s.label}</span></div>
                   <div className={`font-data text-2xl font-bold ${s.color}`}>{s.value}</div>
                 </div>
               ))}
             </div>
 
-            <div className="bg-white rounded-xl border border-[oklch(0.88_0.015_85)] shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-[oklch(0.88_0.015_85)]">
-                <h2 className="font-display text-lg font-semibold text-[oklch(0.18_0.06_255)]">Appeal Outcomes</h2>
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-[#E2E8F0]">
+                <h2 className="font-display text-lg font-semibold text-[#0F172A]">Appeal Outcomes</h2>
               </div>
               {outcomesQuery.isLoading ? (
-                <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-[oklch(0.72_0.12_75)]" size={32} /></div>
+                <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-[#7C3AED]" size={32} /></div>
               ) : outcomes.length === 0 ? (
                 <div className="text-center py-16">
-                  <Trophy size={40} className="text-[oklch(0.88_0.015_85)] mx-auto mb-3" />
-                  <p className="text-[oklch(0.55_0.04_255)]">No outcomes recorded yet. File your first appeal to start tracking wins.</p>
+                  <Trophy size={40} className="text-[#E2E8F0] mx-auto mb-3" />
+                  <p className="text-[#64748B]">No outcomes recorded yet. File your first appeal to start tracking wins.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-[oklch(0.88_0.015_85)] bg-[oklch(0.975_0.012_85)]">
+                      <tr className="border-b border-[#E2E8F0] bg-[#F1F5F9]">
                         {["ID", "Submission", "Outcome", "Original", "Final", "Reduction", "Annual Savings", "Fee Earned", "Days", "Filed"].map((h) => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[oklch(0.55_0.04_255)] uppercase tracking-wider">{h}</th>
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#64748B] uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {outcomes.map((o, i) => (
-                        <tr key={o.id} className={`border-b border-[oklch(0.92_0.01_255)] hover:bg-[oklch(0.975_0.012_85)] ${i % 2 === 0 ? "" : "bg-[oklch(0.985_0.008_85)]"}`}>
-                          <td className="px-4 py-3 font-mono text-xs text-[oklch(0.55_0.04_255)]">#{o.id}</td>
+                        <tr key={o.id} className={`border-b border-[#F1F5F9] hover:bg-[#F1F5F9] ${i % 2 === 0 ? "" : "bg-[oklch(0.985_0.008_85)]"}`}>
+                          <td className="px-4 py-3 font-mono text-xs text-[#64748B]">#{o.id}</td>
                           <td className="px-4 py-3 text-xs">
-                            <Link href={`/analysis?id=${o.submissionId}`} className="text-[oklch(0.18_0.06_255)] hover:text-[oklch(0.72_0.12_75)] flex items-center gap-1">
+                            <Link href={`/analysis?id=${o.submissionId}`} className="text-[#0F172A] hover:text-[#7C3AED] flex items-center gap-1">
                               Sub #{o.submissionId}<ChevronRight size={10} />
                             </Link>
                           </td>
                           <td className="px-4 py-3"><StatusBadge status={o.outcome} /></td>
                           <td className="px-4 py-3 font-data text-xs">{formatCurrency(o.originalAssessedValue)}</td>
                           <td className="px-4 py-3 font-data text-xs">{formatCurrency(o.finalAssessedValue)}</td>
-                          <td className="px-4 py-3 font-data text-xs text-[oklch(0.72_0.12_75)]">{formatCurrency(o.reductionAmount)}</td>
+                          <td className="px-4 py-3 font-data text-xs text-[#7C3AED]">{formatCurrency(o.reductionAmount)}</td>
                           <td className="px-4 py-3 font-data text-xs text-emerald-600 font-semibold">{formatCurrency(o.annualTaxSavings)}</td>
-                          <td className="px-4 py-3 font-data text-xs text-[oklch(0.72_0.12_75)] font-semibold">
+                          <td className="px-4 py-3 font-data text-xs text-[#7C3AED] font-semibold">
                             {o.contingencyFeeEarned ? `$${Number(o.contingencyFeeEarned).toLocaleString()}` : "—"}
                           </td>
-                          <td className="px-4 py-3 text-xs text-[oklch(0.55_0.04_255)]">{o.resolutionDays ?? "—"}</td>
-                          <td className="px-4 py-3 text-xs text-[oklch(0.55_0.04_255)]">{formatDate(o.filedAt)}</td>
+                          <td className="px-4 py-3 text-xs text-[#64748B]">{o.resolutionDays ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-[#64748B]">{formatDate(o.filedAt)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -371,29 +371,29 @@ export default function AdminDashboard() {
 
         {/* ── ACTIVITY TAB ────────────────────────────────────────── */}
         {tab === "activity" && (
-          <div className="bg-white rounded-xl border border-[oklch(0.88_0.015_85)] shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-[oklch(0.88_0.015_85)]">
-              <h2 className="font-display text-lg font-semibold text-[oklch(0.18_0.06_255)]">Live Activity Feed</h2>
+          <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E2E8F0]">
+              <h2 className="font-display text-lg font-semibold text-[#0F172A]">Live Activity Feed</h2>
             </div>
             {!recentActivity || recentActivity.length === 0 ? (
               <div className="text-center py-16">
-                <Activity size={40} className="text-[oklch(0.88_0.015_85)] mx-auto mb-3" />
-                <p className="text-[oklch(0.55_0.04_255)]">No activity yet.</p>
+                <Activity size={40} className="text-[#E2E8F0] mx-auto mb-3" />
+                <p className="text-[#64748B]">No activity yet.</p>
               </div>
             ) : (
-              <div className="divide-y divide-[oklch(0.92_0.01_255)]">
+              <div className="divide-y divide-[#F1F5F9]">
                 {recentActivity.map((log) => (
-                  <div key={log.id} className="px-6 py-4 flex items-start gap-4 hover:bg-[oklch(0.975_0.012_85)] transition-colors">
+                  <div key={log.id} className="px-6 py-4 flex items-start gap-4 hover:bg-[#F1F5F9] transition-colors">
                     <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${log.status === "success" ? "bg-emerald-400" : log.status === "error" ? "bg-red-400" : "bg-yellow-400"}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-xs font-mono text-[oklch(0.55_0.04_255)] bg-[oklch(0.94_0.018_85)] px-1.5 py-0.5 rounded">{log.type}</span>
+                        <span className="text-xs font-mono text-[#64748B] bg-[oklch(0.94_0.018_85)] px-1.5 py-0.5 rounded">{log.type}</span>
                         {log.submissionId && (
-                          <Link href={`/analysis?id=${log.submissionId}`} className="text-xs text-[oklch(0.72_0.12_75)] hover:underline">Sub #{log.submissionId}</Link>
+                          <Link href={`/analysis?id=${log.submissionId}`} className="text-xs text-[#7C3AED] hover:underline">Sub #{log.submissionId}</Link>
                         )}
                         <span className="text-xs text-[oklch(0.65_0.03_255)] capitalize">{log.actor}</span>
                       </div>
-                      <p className="text-sm text-[oklch(0.3_0.04_255)]">{log.description}</p>
+                      <p className="text-sm text-[#E2E8F0]">{log.description}</p>
                     </div>
                     <div className="text-xs text-[oklch(0.65_0.03_255)] shrink-0">{formatTimeAgo(log.createdAt)}</div>
                   </div>

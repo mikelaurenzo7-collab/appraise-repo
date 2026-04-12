@@ -29,6 +29,13 @@
       "when": 1775955682875,
       "tag": "0003_odd_pyro",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1775962886421,
+      "tag": "0004_magenta_archangel",
+      "breakpoints": true
     }
   ]
 }

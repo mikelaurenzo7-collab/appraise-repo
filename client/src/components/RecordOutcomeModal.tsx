@@ -80,7 +80,7 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-[oklch(0.18_0.06_255)] px-6 py-4 rounded-t-2xl flex items-start justify-between">
+        <div className="sticky top-0 bg-[#0F172A] px-6 py-4 rounded-t-2xl flex items-start justify-between">
           <div>
             <h2 className="font-display text-lg font-bold text-white">Record Appeal Outcome</h2>
             <p className="text-white/60 text-sm mt-0.5 truncate max-w-sm">{address}</p>
@@ -93,7 +93,7 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
         <div className="p-6 space-y-6">
           {/* Outcome selector */}
           <div>
-            <label className="block text-sm font-semibold text-[oklch(0.18_0.06_255)] mb-3">Appeal Outcome *</label>
+            <label className="block text-sm font-semibold text-[#0F172A] mb-3">Appeal Outcome *</label>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {OUTCOME_OPTIONS.map((opt) => (
                 <button
@@ -114,28 +114,28 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
           {/* Assessment values */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Original Assessed Value</label>
+              <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Original Assessed Value</label>
               <div className="relative">
-                <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[oklch(0.72_0.12_75)]" />
+                <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7C3AED]" />
                 <input
                   type="text"
                   placeholder="450,000"
                   value={originalValue}
                   onChange={(e) => setOriginalValue(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)]"
+                  className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Final Assessed Value</label>
+              <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Final Assessed Value</label>
               <div className="relative">
-                <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[oklch(0.72_0.12_75)]" />
+                <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7C3AED]" />
                 <input
                   type="text"
                   placeholder="380,000"
                   value={finalValue}
                   onChange={(e) => setFinalValue(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)]"
+                  className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
                 />
               </div>
             </div>
@@ -156,19 +156,19 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
 
           {/* Annual tax savings */}
           <div>
-            <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Annual Tax Savings</label>
+            <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Annual Tax Savings</label>
             <div className="relative">
-              <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[oklch(0.72_0.12_75)]" />
+              <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7C3AED]" />
               <input
                 type="text"
                 placeholder="2,800"
                 value={annualSavings}
                 onChange={(e) => setAnnualSavings(e.target.value)}
-                className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)]"
+                className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
               />
             </div>
             {contingencyFee > 0 && (
-              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[oklch(0.72_0.12_75)] font-semibold">
+              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[#7C3AED] font-semibold">
                 <CheckCircle2 size={12} />
                 25% contingency fee: {formatCurrency(contingencyFee)} (auto-calculated)
               </div>
@@ -178,58 +178,58 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Filed Date</label>
+              <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Filed Date</label>
               <input
                 type="date"
                 value={filedAt}
                 onChange={(e) => setFiledAt(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)]"
+                className="w-full px-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Resolved Date</label>
+              <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Resolved Date</label>
               <input
                 type="date"
                 value={resolvedAt}
                 onChange={(e) => setResolvedAt(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)]"
+                className="w-full px-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
               />
             </div>
           </div>
 
           {/* Grounds for appeal */}
           <div>
-            <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Grounds for Appeal</label>
+            <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Grounds for Appeal</label>
             <input
               type="text"
               placeholder="e.g., Overvaluation, Unequal assessment, Incorrect property data"
               value={groundsForAppeal}
               onChange={(e) => setGroundsForAppeal(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)]"
+              className="w-full px-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
             />
           </div>
 
           {/* Hearing notes */}
           <div>
-            <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Hearing Notes</label>
+            <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Hearing Notes</label>
             <textarea
               placeholder="What happened at the hearing? Key arguments, board response, etc."
               value={hearingNotes}
               onChange={(e) => setHearingNotes(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)] resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED] resize-none"
             />
           </div>
 
           {/* Admin notes */}
           <div>
-            <label className="block text-xs font-semibold text-[oklch(0.45_0.04_255)] uppercase tracking-wider mb-1.5">Internal Admin Notes</label>
+            <label className="block text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Internal Admin Notes</label>
             <textarea
               placeholder="Internal notes for the team..."
               value={adminNotes}
               onChange={(e) => setAdminNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2.5 rounded-lg border border-[oklch(0.88_0.015_85)] text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.72_0.12_75)] resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED] resize-none"
             />
           </div>
 
@@ -238,7 +238,7 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-3 rounded-lg border border-[oklch(0.88_0.015_85)] text-[oklch(0.45_0.04_255)] hover:bg-[oklch(0.975_0.012_85)] transition-colors text-sm font-semibold"
+              className="px-5 py-3 rounded-lg border border-[#E2E8F0] text-[#64748B] hover:bg-[#F1F5F9] transition-colors text-sm font-semibold"
             >
               Cancel
             </button>

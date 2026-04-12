@@ -12,7 +12,7 @@ const phases = [
     phase: "Phase 1",
     title: "Instant AI Appraisal",
     icon: <Brain size={28} />,
-    color: "text-[oklch(0.72_0.12_75)]",
+    color: "text-[#7C3AED]",
     steps: [
       { icon: <MapPin size={18} />, title: "Enter Your Property Address", desc: "Our system instantly pulls your county assessor records, deed information, and current assessed value." },
       { icon: <BarChart3 size={18} />, title: "AI Analyzes Comparable Sales", desc: "We run your property against thousands of recent comparable sales (comps) in your neighborhood to determine fair market value." },
@@ -23,7 +23,7 @@ const phases = [
     phase: "Phase 2",
     title: "Appeal Preparation",
     icon: <FileText size={28} />,
-    color: "text-[oklch(0.72_0.12_75)]",
+    color: "text-[#7C3AED]",
     steps: [
       { icon: <Shield size={18} />, title: "Sign Power of Attorney", desc: "Authorize AppraiseAI to act as your legal representative before the county assessor and appeal board." },
       { icon: <FileText size={18} />, title: "Certified Appraisal Report", desc: "Our licensed appraisers produce a USPAP-compliant certified appraisal report — the gold standard evidence for tax appeals." },
@@ -34,7 +34,7 @@ const phases = [
     phase: "Phase 3",
     title: "Filing & Representation",
     icon: <Scale size={28} />,
-    color: "text-[oklch(0.72_0.12_75)]",
+    color: "text-[#7C3AED]",
     steps: [
       { icon: <Scale size={18} />, title: "We File Your Appeal", desc: "Our team submits your appeal packet — including the certified appraisal, comparable sales, and legal arguments — to the assessor's office." },
       { icon: <Users size={18} />, title: "Hearing Representation", desc: "If a hearing is required, we appear on your behalf via power of attorney and present your case to the appeal board." },
@@ -72,11 +72,11 @@ const faqs = [
 
 export default function HowItWorks() {
   return (
-    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+    <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
 
       {/* Page header */}
-      <section className="bg-[oklch(0.18_0.06_255)] pt-32 pb-20">
+      <section className="bg-[#0F172A] pt-32 pb-20">
         <div className="container max-w-3xl">
           <span className="gold-rule" />
           <h1 className="font-display text-4xl lg:text-5xl font-bold text-white mb-5 leading-tight">
@@ -95,22 +95,22 @@ export default function HowItWorks() {
             {phases.map((phase, pi) => (
               <div key={phase.phase}>
                 <div className="flex items-center gap-4 mb-10">
-                  <div className="w-12 h-12 rounded-lg bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)] flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-lg bg-[#0F172A] text-[#7C3AED] flex items-center justify-center">
                     {phase.icon}
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-[oklch(0.72_0.12_75)] uppercase tracking-widest">{phase.phase}</div>
-                    <h2 className="font-display text-2xl font-bold text-[oklch(0.18_0.06_255)]">{phase.title}</h2>
+                    <div className="text-xs font-semibold text-[#7C3AED] uppercase tracking-widest">{phase.phase}</div>
+                    <h2 className="font-display text-2xl font-bold text-[#0F172A]">{phase.title}</h2>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {phase.steps.map((step, si) => (
-                    <div key={si} className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)] shadow-sm">
-                      <div className="w-9 h-9 rounded bg-[oklch(0.18_0.06_255)] text-[oklch(0.72_0.12_75)] flex items-center justify-center mb-4">
+                    <div key={si} className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+                      <div className="w-9 h-9 rounded bg-[#0F172A] text-[#7C3AED] flex items-center justify-center mb-4">
                         {step.icon}
                       </div>
-                      <h3 className="font-display text-base font-semibold text-[oklch(0.18_0.06_255)] mb-2">{step.title}</h3>
-                      <p className="text-sm text-[oklch(0.45_0.04_255)] leading-relaxed">{step.desc}</p>
+                      <h3 className="font-display text-base font-semibold text-[#0F172A] mb-2">{step.title}</h3>
+                      <p className="text-sm text-[#64748B] leading-relaxed">{step.desc}</p>
                     </div>
                   ))}
                 </div>
@@ -121,7 +121,7 @@ export default function HowItWorks() {
       </section>
 
       {/* AI Analysis section */}
-      <section className="bg-[oklch(0.18_0.06_255)] py-20 lg:py-24">
+      <section className="bg-[#0F172A] py-20 lg:py-24">
         <div className="container">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -141,7 +141,7 @@ export default function HowItWorks() {
                   "Generates court-ready evidence packages",
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-3">
-                    <CheckCircle2 size={15} className="text-[oklch(0.72_0.12_75)] shrink-0" />
+                    <CheckCircle2 size={15} className="text-[#7C3AED] shrink-0" />
                     <span className="text-sm text-white/80">{item}</span>
                   </div>
                 ))}
@@ -163,13 +163,13 @@ export default function HowItWorks() {
         <div className="container max-w-3xl">
           <div className="mb-12">
             <span className="gold-rule" />
-            <h2 className="font-display text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">Frequently Asked Questions</h2>
+            <h2 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Frequently Asked Questions</h2>
           </div>
           <div className="space-y-6">
             {faqs.map((faq, i) => (
-              <div key={i} className="p-6 rounded-xl bg-white border border-[oklch(0.88_0.015_85)]">
-                <h3 className="font-display text-base font-semibold text-[oklch(0.18_0.06_255)] mb-3">{faq.q}</h3>
-                <p className="text-sm text-[oklch(0.45_0.04_255)] leading-relaxed">{faq.a}</p>
+              <div key={i} className="p-6 rounded-xl bg-white border border-[#E2E8F0]">
+                <h3 className="font-display text-base font-semibold text-[#0F172A] mb-3">{faq.q}</h3>
+                <p className="text-sm text-[#64748B] leading-relaxed">{faq.a}</p>
               </div>
             ))}
           </div>
@@ -179,10 +179,10 @@ export default function HowItWorks() {
       {/* CTA */}
       <section className="bg-[oklch(0.94_0.018_85)] py-16">
         <div className="container text-center max-w-xl">
-          <h2 className="font-display text-2xl lg:text-3xl font-bold text-[oklch(0.18_0.06_255)] mb-4">
+          <h2 className="font-display text-2xl lg:text-3xl font-bold text-[#0F172A] mb-4">
             Ready to Start Your Appeal?
           </h2>
-          <p className="text-[oklch(0.45_0.04_255)] mb-8">
+          <p className="text-[#64748B] mb-8">
             Get your free AI appraisal in seconds. If you're over-assessed, we'll handle everything from there.
           </p>
           <Link href="/get-started" className="btn-gold inline-flex items-center gap-2 px-7 py-4 rounded font-semibold">
