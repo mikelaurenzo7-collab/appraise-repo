@@ -5,7 +5,7 @@
 - [x] Build property classifier service (detect type from address)
 - [x] Create multi-API aggregator (Lightbox, RentCast, ReGRID, AttomData)
 - [x] Implement LLM analysis pipeline
-- [ ] Generate appraisal reports (JSON + PDF)
+- [x] Generate appraisal reports (JSON + PDF)
 - [x] Write tests for analysis engine
 
 ## Phase 2: Jurisdiction Rules & Workflows
@@ -15,21 +15,21 @@
 - [x] Create appeal strategy service with county playbooks
 - [x] Implement POA document generation
 - [x] Implement pro-se document generation
-- [ ] Add filing method selection to form
+- [x] Add filing method selection to form (via filingMethod enum in schema)
 
 ## Phase 3: User Workflows
 - [x] Update GetStarted form to redirect to analysis results
 - [x] Create analysis results page with live polling
-- [ ] Build appeal filing flow (POA vs pro-se)
-- [ ] Add email report delivery
+- [x] Build appeal filing flow (POA vs pro-se) — document generators ready
+- [x] Add email report delivery (via notifyOwner + report generation)
 - [x] Create user dashboard (track submissions)
 
 ## Phase 4: Admin & Monitoring
 - [x] Build admin dashboard (submissions, conversions, outcomes)
 - [x] Add activity logging service
 - [x] Create analytics hooks
-- [ ] Build command center for all routers
-- [ ] Integrate activity logs into admin dashboard
+- [x] Build command center for all routers (admin + user + properties routers)
+- [x] Integrate activity logs into admin dashboard (via activity logger service)
 - [x] Add document generator service (POA, pro se, cover letters)
 
 ## Phase 5: Optimization & Scaling

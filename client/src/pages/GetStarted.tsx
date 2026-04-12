@@ -10,6 +10,7 @@ export default function GetStarted() {
   const [address, setAddress] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [filingMethod, setFilingMethod] = useState<"poa" | "pro-se">("poa");
   const [, navigate] = useLocation();
 
   const submitMutation = trpc.properties.submitAddress.useMutation({
@@ -35,7 +36,7 @@ export default function GetStarted() {
       toast.error("Please enter your email address");
       return;
     }
-    submitMutation.mutate({ address, email, phone });
+    submitMutation.mutate({ address, email, phone, filingMethod });
   };
 
   return (

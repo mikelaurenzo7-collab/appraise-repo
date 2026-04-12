@@ -42,6 +42,7 @@ export const appRouter = router({
           address: z.string().min(5, "Please enter a valid address"),
           email: z.string().email("Please enter a valid email"),
           phone: z.string().optional(),
+          filingMethod: z.enum(["poa", "pro-se"]).default("poa"),
         })
       )
       .mutation(async ({ input }) => {
@@ -61,6 +62,7 @@ export const appRouter = router({
             zipCode,
             email: input.email,
             phone: input.phone,
+            filingMethod: input.filingMethod,
             status: "pending",
           });
 
