@@ -179,3 +179,54 @@ export const apiCache = mysqlTable("api_cache", {
 
 export type ApiCache = typeof apiCache.$inferSelect;
 export type InsertApiCache = typeof apiCache.$inferInsert;
+
+/**
+ * Property photos — user-uploaded images for appraisal reports
+ * Critical for winning appeals
+ */
+export const propertyPhotos = mysqlTable("property_photos", {
+  id: int("id").autoincrement().primaryKey(),
+  submissionId: int("submissionId").notNull(),
+  photoUrl: varchar("photoUrl", { length: 500 }).notNull(), // S3 URL
+  photoKey: varchar("photoKey", { length: 255 }).notNull(), // S3 key for reference
+  caption: text("caption"), // User-provided description
+  category: mysqlEnum("category", [
+    "exterior",
+    "interior",
+    "damage",
+    "condition",
+    "comparable",
+    "neighborhood",
+    "other"
+  ]).default("other"),
+  displayOrder: int("displayOrder").default(0), // For sorting in report
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PropertyPhoto = typeof propertyPhotos.$inferSelect;
+export type InsertPropertyPhoto = typeof propertyPhotos.$inferInsert;
+
+/**
+ * Report preferences — customization for each appraisal report
+ */
+export const reportPreferences = mysqlTable("report_preferences", {
+  id: int("id").autoincrement().primaryKey(),
+  submissionId: int("submissionId").notNull().unique(),
+  // Valuation methods to include
+  includeCostApproach: mysqlEnum("includeCostApproach", ["yes", "no", "auto"]).default("auto"),
+  includeSalesComparison: mysqlEnum("includeSalesComparison", ["yes", "no", "auto"]).default("auto"),
+  includeIncomeApproach: mysqlEnum("includeIncomeApproach", ["yes", "no", "auto"]).default("auto"),
+  // Strategy preferences
+  recommendedStrategy: mysqlEnum("recommendedStrategy", ["poa", "pro-se", "both", "auto"]).default("auto"),
+  emphasizePhotos: mysqlEnum("emphasizePhotos", ["yes", "no"]).default("yes"),
+  includeMarketAnalysis: mysqlEnum("includeMarketAnalysis", ["yes", "no"]).default("yes"),
+  includeComparableProperties: mysqlEnum("includeComparableProperties", ["yes", "no"]).default("yes"),
+  // Report customization
+  additionalNotes: text("additionalNotes"), // Custom notes to include
+  targetAudience: mysqlEnum("targetAudience", ["assessor", "board", "attorney", "owner"]).default("board"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReportPreference = typeof reportPreferences.$inferSelect;
+export type InsertReportPreference = typeof reportPreferences.$inferInsert;
