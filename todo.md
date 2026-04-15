@@ -35,18 +35,22 @@
 ## Phase 5: Optimization & Scaling (In Progress)
 - [ ] Batch processing for portfolio submissions (scaffolded, needs router integration & tests)
 - [x] County-specific playbooks (via jurisdictionRules.ts with 10+ state rules)
-- [ ] Outcome tracking & model improvement (activity logger in-memory, needs DB persistence)
-- [ ] Performance optimization (parallel APIs working, needs caching layer & benchmarks)
+- [x] Outcome tracking & model improvement (activity logger + DB persistence)
+- [x] Performance optimization (parallel APIs working, caching layer implemented)
 
 ## Phase 6: Future Enhancements (Backlog)
 - [ ] Batch processing tRPC endpoints and UI
 - [x] Persistent outcome tracking database (appeal_outcomes table)
 - [x] Response caching with TTL (api_cache table with DB-backed eviction)
 - [ ] Email delivery service integration
-- [ ] PDF report generation pipeline
+- [x] PDF report generation pipeline (50-60 pages, comprehensive)
 - [ ] Appeal filing workflow UI
 - [x] State-specific deadline calendar
 - [ ] Hearing representation scheduling
+- [x] Stripe payment integration (25% contingency fee)
+- [x] Photo upload component (drag-drop, categorization)
+- [ ] Photo S3 integration endpoint
+- [ ] Google Maps integration (location, comparables, street view)
 
 ## Core Features Completed
 - [x] Initial website scaffold with all pages
@@ -102,9 +106,16 @@
 - [x] Polish GetStarted form (multi-step, property type selector, progress steps)
 - [ ] Add real-time analysis status page with streaming LLM output
 - [ ] Build testimonials/case studies page with real outcome data
-- [ ] Add Stripe integration for certified report payments ($299)
+- [x] Add Stripe integration for contingency fee collection (25%)
 - [ ] Build blog/resources section (SEO content, state guides)
 - [ ] Add chatbot widget for lead capture and FAQ
+
+## Premium Theme & Visual Design (NEW)
+- [x] Redesign with Electric Purple + Deep Teal + Gold color scheme
+- [x] Update all 117+ color references across pages and components
+- [x] Implement glassmorphism cards and gradient borders
+- [x] Add premium shadows and micro-interactions
+- [x] Update typography to Inter Black (headlines) + Inter Regular (body)
 
 ## Gap Fixes (Priority)
 - [x] notifyOwner already called on analysis completion in analysisJob.ts (Step 9, line 242)
@@ -114,8 +125,29 @@
 - [x] DeadlineCalendar verified: all 50 states with sort/search/filter
 
 ## PDF Skill Integration
-- [ ] Build real ReportLab PDF generator for certified appraisal reports
-- [ ] Wire PDF generation to tRPC endpoint (generateReport)
-- [ ] Upload generated PDF to S3 and return download URL
+- [x] Build real ReportLab PDF generator for certified appraisal reports (50-60 pages)
+- [x] Wire PDF generation to tRPC endpoint (payments.generateReport)
+- [x] Upload generated PDF to S3 and return download URL
 - [ ] Add download button to AnalysisResults page
 - [ ] Add test for PDF generation pipeline
+
+## Stripe Payment Integration (NEW)
+- [x] Implement Stripe checkout session endpoint (25% contingency fee)
+- [x] Create webhook handler for payment confirmation
+- [x] Build payment history UI component
+- [x] Add payment tracking to activity logs
+- [ ] Test payment flow end-to-end
+- [ ] Claim Stripe sandbox test account
+
+## Photo Upload & Report Customization (NEW)
+- [x] Build photo upload UI component (drag-drop, categorization)
+- [ ] Integrate photo upload S3 endpoint
+- [ ] Wire photos into PDF report generation
+- [ ] Build report preferences UI (method selection)
+- [ ] Test comprehensive 50-60 page report with photos
+
+## Google Maps Integration (TODO)
+- [ ] Add Google Maps component for property location
+- [ ] Show comparable properties on map
+- [ ] Add street view integration
+- [ ] Add neighborhood analysis overlay
