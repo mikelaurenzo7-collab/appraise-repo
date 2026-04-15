@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import PropertyMapView from "@/components/PropertyMapView";
 import { trpc } from "@/lib/trpc";
 
 function ScoreGauge({ score }: { score: number }) {
@@ -260,6 +261,26 @@ export default function AnalysisResults() {
         </div>
       </section>
 
+      {/* Property Map View */}
+      {submission && analysis && (
+        <section className="pb-12">
+          <div className="container">
+            <div className="mb-4">
+              <div className="text-xs text-[#64748B] uppercase tracking-widest mb-2">Property Location & Comparable Sales</div>
+              <p className="text-sm text-[#64748B]">Interactive map showing your property and comparable sales in the area</p>
+            </div>
+            <PropertyMapView
+              address={submission.address}
+              city={submission.city || undefined}
+              state={submission.state || undefined}
+              zipCode={submission.zipCode || undefined}
+              marketValue={submission.marketValue || undefined}
+              assessedValue={submission.assessedValue || undefined}
+              comparableSales={analysis.comparableSales ? JSON.parse(analysis.comparableSales) : []}
+            />
+          </div>
+        </section>
+      )}
       {/* Appeal Strength Factors */}
       {analysis?.appealStrengthFactors && analysis.appealStrengthFactors.length > 0 && (
         <section className="pb-12">
