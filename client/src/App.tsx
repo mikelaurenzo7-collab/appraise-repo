@@ -15,6 +15,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import DeadlineCalendar from "./pages/DeadlineCalendar";
 import Portfolio from "./pages/Portfolio";
+import PaymentHistory from "./pages/PaymentHistory";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
       <Route path="/portfolio" component={Portfolio} />
+      <Route path="/payments" component={PaymentHistory} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

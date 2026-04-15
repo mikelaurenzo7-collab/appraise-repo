@@ -24,7 +24,10 @@ import {
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
-import { generateAppraisalPDF } from "./services/pdfGenerator";
+import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
+import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
 // Admin-only middleware
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -240,6 +243,133 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── PAYMENTS (STRIPE) ──────────────────────────────────────────────────
+  payments: router({
+    // Create checkout session for certified report
+    createCheckoutSession: protectedProcedure
+      .input(z.object({
+        submissionId: z.number(),
+        annualTaxSavings: z.number().min(0),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Calculate 25% contingency fee
+        const contingencyFee = Math.round(input.annualTaxSavings * 0.25 * 100);
+        const minCharge = 5000; // $50 minimum
+        const chargeAmount = Math.max(contingencyFee, minCharge);
+
+        // Create checkout session
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+          mode: "payment",
+          customer_email: ctx.user.email || undefined,
+          client_reference_id: ctx.user.id.toString(),
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                product_data: {
+                  name: "AppraiseAI Certified Appraisal Report",
+                  description: `25% contingency fee on $${(input.annualTaxSavings / 100).toFixed(2)} annual tax savings`,
+                },
+                unit_amount: chargeAmount,
+              },
+              quantity: 1,
+            },
+          ],
+          success_url: `${ctx.req.headers.origin}/dashboard?payment=success&submissionId=${input.submissionId}`,
+          cancel_url: `${ctx.req.headers.origin}/analysis?id=${input.submissionId}`,
+          metadata: {
+            submissionId: input.submissionId.toString(),
+            userId: ctx.user.id.toString(),
+            annualTaxSavings: input.annualTaxSavings.toString(),
+          },
+        });
+
+        return {
+          sessionId: session.id,
+          url: session.url,
+          chargeAmount: chargeAmount / 100,
+        };
+      }),
+
+    // Get payment history
+    getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
+      const charges = await stripe.charges.list({
+        limit: 50,
+      });
+
+      return charges.data
+        .filter((charge: any) => charge.receipt_email === ctx.user.email || charge.metadata?.userId === ctx.user.id.toString())
+        .map((charge: any) => ({
+          id: charge.id,
+          amount: charge.amount / 100,
+          currency: charge.currency.toUpperCase(),
+          status: charge.status,
+          created: new Date(charge.created * 1000),
+          description: charge.description,
+         }));
+    }),
+
+    // Generate certified appraisal report
+    generateReport: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .mutation(async ({ input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
+
+        const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
+
+        const reportData: AppraisalReportData = {
+          submissionId: input.submissionId,
+          address: submission.address,
+          city: submission.city ?? undefined,
+          state: submission.state ?? undefined,
+          zipCode: submission.zipCode ?? undefined,
+          county: submission.county ?? undefined,
+          propertyType: submission.propertyType ?? undefined,
+          ownerEmail: submission.email ?? undefined,
+          assessedValue: submission.assessedValue ?? undefined,
+          marketValueEstimate: submission.marketValue ?? undefined,
+          assessmentGap: (submission.assessedValue && submission.marketValue) ? submission.assessedValue - submission.marketValue : undefined,
+          potentialSavings: submission.potentialSavings ?? undefined,
+          appealStrengthScore: submission.appealStrengthScore ?? undefined,
+          executiveSummary: analysis.executiveSummary ?? undefined,
+          valuationJustification: analysis.valuationJustification ?? undefined,
+          recommendedApproach: analysis.recommendedApproach ?? undefined,
+          nextSteps: analysis.nextSteps ?? undefined,
+          filingMethod: submission.filingMethod ?? undefined,
+          appealDeadline: submission.appealDeadline ? submission.appealDeadline.toISOString().split("T")[0] : undefined,
+          comparableSales,
+          squareFeet: submission.squareFeet ?? undefined,
+          yearBuilt: submission.yearBuilt ?? undefined,
+          bedrooms: submission.bedrooms ?? undefined,
+          bathrooms: submission.bathrooms ?? undefined,
+          lotSize: submission.lotSize ?? undefined,
+          parcelNumber: undefined,
+        };
+
+        const { url, key } = await generateAppraisalPDF(reportData);
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "report_generated",
+          actor: "user",
+          actorId: 0,
+          description: "Certified appraisal report generated",
+          metadata: JSON.stringify({ reportUrl: url, reportKey: key }),
+          status: "success",
+        });
+
+        return {
+          url,
+          key,
+          fileName: `AppraiseAI-Report-${submission.address.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`,
+        };
+      }),
+  }),
   // ─── ADMIN COMMAND CENTER ────────────────────────────────────────────────
   admin: router({
     // Dashboard overview
