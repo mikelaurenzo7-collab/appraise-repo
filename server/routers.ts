@@ -25,6 +25,7 @@ import {
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
+import { storagePut } from "./storage";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
@@ -309,6 +310,40 @@ export const appRouter = router({
           description: charge.description,
          }));
     }),
+
+    // Upload property photos to S3
+    uploadPhoto: protectedProcedure
+      .input(z.object({
+        submissionId: z.number(),
+        fileName: z.string(),
+        fileData: z.string(), // base64 encoded
+        category: z.enum(["exterior", "interior", "roof", "foundation", "other"]),
+        caption: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        }
+
+        // Convert base64 to buffer and upload to S3
+        const buffer = Buffer.from(input.fileData, "base64");
+        const photoKey = `photos/${ctx.user.id}/${input.submissionId}/${Date.now()}-${input.fileName}`;
+        const { url } = await storagePut(photoKey, buffer, "image/jpeg");
+
+        // Log activity
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "photo_uploaded",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Photo uploaded: ${input.fileName}`,
+          metadata: JSON.stringify({ category: input.category, url }),
+          status: "success",
+        });
+
+        return { url, fileName: input.fileName, category: input.category };
+      }),
 
     // Generate certified appraisal report
     generateReport: protectedProcedure

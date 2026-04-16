@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 interface PhotoUploadProps {
   submissionId: number;
@@ -15,7 +16,7 @@ interface UploadedPhoto {
   id: string;
   url: string;
   caption: string;
-  category: "exterior" | "interior" | "damage" | "comparison" | "other";
+  category: "exterior" | "interior" | "roof" | "foundation" | "other";
   order: number;
 }
 
@@ -32,8 +33,8 @@ export default function PhotoUpload({
   const categories = [
     { value: "exterior", label: "Exterior", color: "bg-blue-100 text-blue-700" },
     { value: "interior", label: "Interior", color: "bg-purple-100 text-purple-700" },
-    { value: "damage", label: "Damage/Issues", color: "bg-red-100 text-red-700" },
-    { value: "comparison", label: "Comparison", color: "bg-green-100 text-green-700" },
+    { value: "roof", label: "Roof", color: "bg-orange-100 text-orange-700" },
+    { value: "foundation", label: "Foundation", color: "bg-red-100 text-red-700" },
     { value: "other", label: "Other", color: "bg-gray-100 text-gray-700" },
   ];
 
@@ -63,6 +64,8 @@ export default function PhotoUpload({
     }
   };
 
+  const uploadPhotoMutation = trpc.payments.uploadPhoto.useMutation();
+
   const handleFiles = async (files: FileList) => {
     if (photos.length >= maxPhotos) {
       toast.error(`Maximum ${maxPhotos} photos allowed`);
@@ -73,31 +76,44 @@ export default function PhotoUpload({
 
     setIsUploading(true);
     try {
-      // Simulate upload - in production, call tRPC endpoint
       for (const file of newFiles) {
         if (!file.type.startsWith("image/")) {
           toast.error(`${file.name} is not an image`);
           continue;
         }
 
+        // Convert file to base64
         const reader = new FileReader();
-        reader.onload = (e) => {
-          const newPhoto: UploadedPhoto = {
-            id: Math.random().toString(36).substr(2, 9),
-            url: e.target?.result as string,
-            caption: "",
-            category: "other",
-            order: photos.length + 1,
-          };
-          setPhotos((prev) => [...prev, newPhoto]);
+        reader.onload = async (e) => {
+          const base64Data = (e.target?.result as string).split(",")[1];
+          try {
+            const result = await uploadPhotoMutation.mutateAsync({
+              submissionId,
+              fileName: file.name,
+              fileData: base64Data,
+              category: "other",
+            });
+
+            const newPhoto: UploadedPhoto = {
+              id: Math.random().toString(36).substr(2, 9),
+              url: result.url,
+              caption: "",
+              category: "other",
+              order: photos.length + 1,
+            };
+            setPhotos((prev) => [...prev, newPhoto]);
+          } catch (error) {
+            toast.error(`Failed to upload ${file.name}`);
+            console.error(error);
+          }
         };
         reader.readAsDataURL(file);
       }
 
-      toast.success(`${newFiles.length} photo(s) added`);
+      toast.success(`${newFiles.length} photo(s) uploaded`);
       onPhotosUploaded?.(newFiles.length);
     } catch (error) {
-      toast.error("Failed to upload photos");
+      toast.error("Failed to process photos");
       console.error(error);
     } finally {
       setIsUploading(false);
@@ -119,6 +135,11 @@ export default function PhotoUpload({
     setPhotos((prev) =>
       prev.map((p) => (p.id === id ? { ...p, category } : p))
     );
+  };
+
+  const getValidCategories = (cat: string): "exterior" | "interior" | "roof" | "foundation" | "other" => {
+    const validCats = ["exterior", "interior", "roof", "foundation", "other"];
+    return (validCats.includes(cat) ? cat : "other") as "exterior" | "interior" | "roof" | "foundation" | "other";
   };
 
   return (
@@ -214,16 +235,16 @@ export default function PhotoUpload({
                         onChange={(e) =>
                           updatePhotoCategory(
                             photo.id,
-                            e.target.value as UploadedPhoto["category"]
+                            getValidCategories(e.target.value)
                           )
                         }
                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                       >
-                        {categories.map((cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        ))}
+                        <option value="exterior">Exterior</option>
+                        <option value="interior">Interior</option>
+                        <option value="roof">Roof</option>
+                        <option value="foundation">Foundation</option>
+                        <option value="other">Other</option>
                       </select>
                     </div>
 
