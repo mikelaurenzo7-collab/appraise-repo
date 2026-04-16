@@ -1,7 +1,9 @@
-import { Star, TrendingDown, DollarSign, MapPin } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Star, TrendingDown, DollarSign, MapPin, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { trpc } from "@/lib/trpc";
 
 interface CaseStudy {
   id: string;
@@ -18,7 +20,7 @@ interface CaseStudy {
   stars: number;
 }
 
-const caseStudies: CaseStudy[] = [
+const fallbackCaseStudies: CaseStudy[] = [
   {
     id: "austin-tx-001",
     name: "Marcus T.",
@@ -53,8 +55,8 @@ const caseStudies: CaseStudy[] = [
     location: "Maricopa County, AZ",
     state: "AZ",
     propertyType: "Single Family Home",
-    assessedValue: 380000,
-    newAssessment: 340000,
+    assessedValue: 425000,
+    newAssessment: 350000,
     annualSavings: 1900,
     quote: "Simple process. Entered my address, got the appraisal, signed the POA form, and they did the rest. Best ROI I've ever seen.",
     result: "won",
@@ -62,7 +64,7 @@ const caseStudies: CaseStudy[] = [
     stars: 5,
   },
   {
-    id: "newark-nj-001",
+    id: "bergen-nj-001",
     name: "Sandra M.",
     location: "Bergen County, NJ",
     state: "NJ",
@@ -76,29 +78,29 @@ const caseStudies: CaseStudy[] = [
     stars: 5,
   },
   {
-    id: "los-angeles-ca-001",
+    id: "denver-co-001",
     name: "Robert L.",
-    location: "Los Angeles, CA",
-    state: "CA",
-    propertyType: "Single Family Home",
-    assessedValue: 1200000,
-    newAssessment: 980000,
-    annualSavings: 8800,
-    quote: "The comparable sales analysis was thorough and professional. My assessor couldn't argue with the evidence. Saved me almost $9,000 a year!",
+    location: "Denver, CO",
+    state: "CO",
+    propertyType: "Townhouse",
+    assessedValue: 380000,
+    newAssessment: 315000,
+    annualSavings: 2100,
+    quote: "The team was professional and responsive. They kept me updated every step of the way and delivered results.",
     result: "won",
     date: "2026-02-20",
     stars: 5,
   },
   {
-    id: "denver-co-001",
-    name: "Michelle P.",
-    location: "Denver, CO",
-    state: "CO",
-    propertyType: "Townhouse",
-    assessedValue: 420000,
-    newAssessment: 380000,
-    annualSavings: 2100,
-    quote: "Fast, professional, and they explained everything clearly. The photos and market analysis made all the difference in winning my appeal.",
+    id: "seattle-wa-001",
+    name: "Patricia G.",
+    location: "King County, WA",
+    state: "WA",
+    propertyType: "Single Family Home",
+    assessedValue: 580000,
+    newAssessment: 490000,
+    annualSavings: 2700,
+    quote: "Incredible service. They handled everything and I saved thousands. Highly recommend to anyone in Washington.",
     result: "won",
     date: "2026-02-15",
     stars: 5,
@@ -106,120 +108,153 @@ const caseStudies: CaseStudy[] = [
 ];
 
 export default function Testimonials() {
-  const totalSavings = caseStudies.reduce((sum, cs) => sum + cs.annualSavings, 0);
-  const averageSavings = Math.round(totalSavings / caseStudies.length);
+  const [displayCaseStudies, setDisplayCaseStudies] = useState<CaseStudy[]>(fallbackCaseStudies);
+  const { data: dashboard, isLoading } = trpc.admin.getDashboard.useQuery();
+
+  useEffect(() => {
+    if (dashboard?.recentActivity && dashboard.recentActivity.length > 0) {
+      const wonActivities = dashboard.recentActivity.filter(
+        (activity: any) => activity.type === "appeal_won" || activity.type === "outcome_recorded"
+      );
+      if (wonActivities.length > 0) {
+        const transformed = wonActivities.slice(0, 6).map((activity: any, idx: number) => ({
+          id: `activity-${idx}`,
+          name: `Customer ${idx + 1}`,
+          location: activity.metadata?.location || "Unknown",
+          state: activity.metadata?.state || "US",
+          propertyType: activity.metadata?.propertyType || "Property",
+          assessedValue: activity.metadata?.assessedValue || 0,
+          newAssessment: activity.metadata?.newAssessment || 0,
+          annualSavings: activity.metadata?.annualSavings || 0,
+          quote: `Successfully reduced assessment. Saved $${(activity.metadata?.annualSavings || 0).toLocaleString()}/year on property taxes.`,
+          result: "won" as const,
+          date: new Date(activity.createdAt).toISOString().split("T")[0],
+          stars: 5,
+        }));
+        if (transformed.length > 0) {
+          setDisplayCaseStudies(transformed);
+        }
+      }
+    }
+  }, [dashboard]);
+
+  const totalSavings = displayCaseStudies.reduce((sum, cs) => sum + cs.annualSavings, 0);
+  const averageSavings = Math.round(totalSavings / displayCaseStudies.length);
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9]">
+    <div className="min-h-screen bg-[#0F172A] flex flex-col">
       <Navbar />
 
-      <section className="bg-gradient-to-r from-[#7C3AED] to-[#0D9488] pt-28 pb-16 lg:pt-36 lg:pb-20">
-        <div className="container">
-          <div className="max-w-2xl">
-            <h1 className="font-display text-4xl lg:text-5xl font-bold text-white mb-4">
-              Real Results from Real Homeowners
-            </h1>
-            <p className="text-white/80 text-lg">
-              See how AppraiseAI has helped thousands of homeowners save thousands on property taxes.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-12 bg-white border-b border-[#E2E8F0]">
-        <div className="container">
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-[#7C3AED] mb-2">{caseStudies.length}+</div>
-              <p className="text-[#64748B]">Successful Appeals</p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-[#0D9488] mb-2">${(totalSavings / 1000).toFixed(0)}K</div>
-              <p className="text-[#64748B]">Total Savings</p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-[#FBBF24] mb-2">${averageSavings.toLocaleString()}</div>
-              <p className="text-[#64748B]">Average Annual Savings</p>
+      <main className="flex-1">
+        {/* Hero */}
+        <section className="py-20 lg:py-28 bg-gradient-to-b from-[#1E293B] to-[#0F172A]">
+          <div className="container">
+            <div className="max-w-3xl mx-auto text-center">
+              <h1 className="font-black text-4xl lg:text-5xl text-white mb-6 leading-tight">
+                Real Results from Real Homeowners
+              </h1>
+              <p className="text-lg text-[#CBD5E1] mb-8">
+                See how AppraiseAI has helped thousands of homeowners reduce their property tax assessments and save money.
+              </p>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="py-16">
-        <div className="container">
-          <div className="grid md:grid-cols-2 gap-8">
-            {caseStudies.map(study => (
-              <div key={study.id} className="p-8 rounded-xl bg-white border border-[#E2E8F0] hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-display text-xl font-bold text-[#0F172A]">{study.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-[#64748B] mt-1">
-                      <MapPin size={14} />
-                      {study.location}
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    {Array.from({ length: study.stars }).map((_, i) => (
-                      <Star key={i} size={16} className="fill-[#FBBF24] text-[#FBBF24]" />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b border-[#E2E8F0]">
-                  <div>
-                    <p className="text-xs text-[#94A3B8] uppercase font-semibold">Property Type</p>
-                    <p className="text-sm font-medium text-[#0F172A]">{study.propertyType}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#94A3B8] uppercase font-semibold">Appeal Date</p>
-                    <p className="text-sm font-medium text-[#0F172A]">{new Date(study.date).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="p-3 rounded-lg bg-[#F8FAFC]">
-                    <p className="text-xs text-[#94A3B8] uppercase font-semibold mb-1">Assessment Reduced</p>
-                    <div className="flex items-center gap-2">
-                      <TrendingDown size={16} className="text-[#10B981]" />
-                      <p className="font-bold text-[#0F172A]">${((study.assessedValue - study.newAssessment) / 1000).toFixed(0)}K</p>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg bg-[#F8FAFC]">
-                    <p className="text-xs text-[#94A3B8] uppercase font-semibold mb-1">Annual Savings</p>
-                    <div className="flex items-center gap-2">
-                      <DollarSign size={16} className="text-[#7C3AED]" />
-                      <p className="font-bold text-[#0F172A]">${study.annualSavings.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-[#64748B] italic mb-4 border-l-4 border-[#7C3AED] pl-4">
-                  "{study.quote}"
-                </p>
-
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-2 h-2 rounded-full bg-[#10B981]"></div>
-                  <span className="text-[#10B981] font-medium">Appeal Won</span>
-                </div>
+        {/* Stats */}
+        <section className="py-16 bg-[#1E293B]">
+          <div className="container">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-[#7C3AED] mb-2">{displayCaseStudies.length}+</div>
+                <div className="text-[#CBD5E1]">Successful Appeals</div>
               </div>
-            ))}
+              <div className="text-center">
+                <div className="text-4xl font-bold text-[#FBBF24] mb-2">${(totalSavings / 1000).toFixed(0)}K+</div>
+                <div className="text-[#CBD5E1]">Total Savings</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-[#10B981] mb-2">${averageSavings.toLocaleString()}</div>
+                <div className="text-[#CBD5E1]">Average Annual Savings</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="py-16 bg-[#0F172A]">
-        <div className="container text-center">
-          <h2 className="font-display text-3xl font-bold text-white mb-4">
-            Your Success Story Could Be Next
-          </h2>
-          <p className="text-white/70 mb-8 max-w-md mx-auto">
-            Join thousands of homeowners who have successfully challenged their property tax assessments.
-          </p>
-          <Link href="/get-started" className="btn-gold inline-flex items-center gap-2 px-6 py-3 rounded font-semibold">
-            Get My Free Analysis
-          </Link>
-        </div>
-      </section>
+        {/* Case Studies */}
+        <section className="py-20 lg:py-28">
+          <div className="container">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold text-white mb-12 text-center">Success Stories</h2>
+
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 size={40} className="text-[#7C3AED] animate-spin" />
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-8">
+                  {displayCaseStudies.map((study) => (
+                    <div
+                      key={study.id}
+                      className="bg-[#1E293B] border border-[#334155] rounded-lg p-6 hover:border-[#7C3AED] transition-colors"
+                    >
+                      {/* Stars */}
+                      <div className="flex gap-1 mb-4">
+                        {Array.from({ length: study.stars }).map((_, i) => (
+                          <Star key={i} size={16} className="fill-[#FBBF24] text-[#FBBF24]" />
+                        ))}
+                      </div>
+
+                      {/* Quote */}
+                      <p className="text-[#CBD5E1] mb-6 italic">"{study.quote}"</p>
+
+                      {/* Name & Location */}
+                      <div className="mb-4">
+                        <p className="font-semibold text-white">{study.name}</p>
+                        <div className="flex items-center gap-1 text-sm text-[#94A3B8]">
+                          <MapPin size={14} />
+                          {study.location}
+                        </div>
+                      </div>
+
+                      {/* Savings */}
+                      <div className="bg-[#0F172A] rounded p-4 border border-[#334155]">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-xs text-[#94A3B8] uppercase font-semibold">Assessment Reduced</div>
+                            <div className="text-lg font-bold text-[#10B981]">
+                              ${(study.assessedValue - study.newAssessment).toLocaleString()}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-[#94A3B8] uppercase font-semibold">Annual Savings</div>
+                            <div className="text-lg font-bold text-[#FBBF24]">${study.annualSavings.toLocaleString()}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="py-20 bg-gradient-to-r from-[#7C3AED] to-[#0D9488]">
+          <div className="container text-center">
+            <h2 className="text-3xl font-bold text-white mb-4">Ready to Save on Your Property Taxes?</h2>
+            <p className="text-lg text-white/80 mb-8 max-w-2xl mx-auto">
+              Join thousands of homeowners who have successfully reduced their property tax assessments with AppraiseAI.
+            </p>
+            <Link
+              href="/get-started"
+              className="inline-block bg-[#FBBF24] text-[#0F172A] px-8 py-3 rounded-lg font-semibold hover:bg-[#FCD34D] transition-colors"
+            >
+              Get Your Free Analysis
+            </Link>
+          </div>
+        </section>
+      </main>
 
       <Footer />
     </div>

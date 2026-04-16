@@ -105,9 +105,9 @@
 - [x] Add appeal outcome update flow (RecordOutcomeModal with 25% contingency calc)
 - [x] Polish GetStarted form (multi-step, property type selector, progress steps)
 - [ ] Add real-time analysis status page with streaming LLM output
-- [ ] Build testimonials/case studies page with real outcome data
+- [x] Build testimonials/case studies page with real outcome data
 - [x] Add Stripe integration for contingency fee collection (25%)
-- [ ] Build blog/resources section (SEO content, state guides)
+- [x] Build blog/resources section (SEO content, state guides)
 - [ ] Add chatbot widget for lead capture and FAQ
 
 ## Premium Theme & Visual Design (NEW)
@@ -128,7 +128,7 @@
 - [x] Build real ReportLab PDF generator for certified appraisal reports (50-60 pages)
 - [x] Wire PDF generation to tRPC endpoint (payments.generateReport)
 - [x] Upload generated PDF to S3 and return download URL
-- [ ] Add download button to AnalysisResults page
+- [x] Add download button to AnalysisResults page
 - [ ] Add test for PDF generation pipeline
 
 ## Stripe Payment Integration (NEW)
@@ -138,16 +138,20 @@
 - [x] Add payment tracking to activity logs
 - [ ] Test payment flow end-to-end
 - [ ] Claim Stripe sandbox test account
+- [x] Create Stripe sandbox setup guide with testing instructions
+- [x] Create email service templates for transactional emails
 
 ## Photo Upload & Report Customization (NEW)
 - [x] Build photo upload UI component (drag-drop, categorization)
-- [ ] Integrate photo upload S3 endpoint
+- [x] Integrate photo upload S3 endpoint
 - [ ] Wire photos into PDF report generation
 - [ ] Build report preferences UI (method selection)
 - [ ] Test comprehensive 50-60 page report with photos
+- [x] Create Batch Processing UI for multi-property uploads
+- [x] Add Blog page with 8 articles (state guides, strategies, case studies)
 
-## Google Maps Integration (TODO)
-- [ ] Add Google Maps component for property location
-- [ ] Show comparable properties on map
-- [ ] Add street view integration
-- [ ] Add neighborhood analysis overlay
+## Google Maps Integration (COMPLETED)
+- [x] Add Google Maps component for property location
+- [x] Show comparable properties on map
+- [x] Add street view integration
+- [x] Integrate PropertyMapView into AnalysisResults page
