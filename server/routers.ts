@@ -24,6 +24,8 @@ import {
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
+import { queueReportGeneration } from "./services/reportJobQueue";
+import { getReportJobById } from "./db";
 import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
 import { storagePut } from "./storage";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -404,6 +406,54 @@ export const appRouter = router({
           url,
           key,
           fileName: `AppraiseAI-Report-${submission.address.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`,
+        };
+      }),
+
+    // Queue async report generation (24-hour SLA)
+    generateReportAsync: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
+
+        const { jobId, status } = await queueReportGeneration(input.submissionId, ctx.user.id);
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "report_job_queued",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Async report generation queued (24-hour SLA)`,
+          metadata: JSON.stringify({ jobId, status }),
+          status: "success",
+        });
+
+        return { jobId, status };
+      }),
+
+    // Check report job status
+    getReportJobStatus: protectedProcedure
+      .input(z.object({ jobId: z.number() }))
+      .query(async ({ input }) => {
+        const job = await getReportJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+
+        return {
+          jobId: job.id,
+          status: job.status,
+          reportUrl: job.reportUrl || null,
+          reportKey: job.reportKey || null,
+          sizeBytes: job.sizeBytes || null,
+          errorMessage: job.errorMessage || null,
+          queuedAt: job.queuedAt,
+          startedAt: job.startedAt || null,
+          completedAt: job.completedAt || null,
+          expiresAt: job.expiresAt,
+          retryCount: job.retryCount,
+          maxRetries: job.maxRetries,
         };
       }),
   }),

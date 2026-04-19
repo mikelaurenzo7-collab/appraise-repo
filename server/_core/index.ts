@@ -78,6 +78,38 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Start report job processor
+  try {
+    const { processPendingReportJobs } = await import("../services/reportJobQueue");
+    const { cleanupExpiredReportJobs } = await import("../db");
+
+    // Process pending jobs immediately on startup
+    processPendingReportJobs(5).then((count) => {
+      if (count > 0) console.log(`[ReportQueue] Processing ${count} pending jobs on startup`);
+    }).catch((err) => console.error("[ReportQueue] Startup error:", err));
+
+    // Cleanup expired jobs every 5 minutes
+    setInterval(async () => {
+      try {
+        const cleaned = await cleanupExpiredReportJobs();
+        if (cleaned > 0) console.log(`[ReportQueue] Cleaned up ${cleaned} expired jobs`);
+      } catch (err) {
+        console.error("[ReportQueue] Cleanup error:", err);
+      }
+    }, 5 * 60 * 1000);
+
+    // Process pending jobs every 30 seconds
+    setInterval(async () => {
+      try {
+        await processPendingReportJobs(3);
+      } catch (err) {
+        console.error("[ReportQueue] Processing error:", err);
+      }
+    }, 30 * 1000);
+  } catch (err) {
+    console.warn("[ReportQueue] Failed to initialize report job processor:", err);
+  }
 }
 
 startServer().catch(console.error);

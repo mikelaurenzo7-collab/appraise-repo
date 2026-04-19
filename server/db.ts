@@ -7,6 +7,7 @@ import {
   appealOutcomes, InsertAppealOutcome,
   activityLogs, InsertActivityLog,
   apiCache, InsertApiCache,
+  reportJobs, InsertReportJob, ReportJob,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -359,6 +360,110 @@ export async function evictExpiredCache() {
     return (result as any).affectedRows ?? 0;
   } catch (error) {
     console.error("[Cache] Failed to evict expired cache:", error);
+    return 0;
+  }
+}
+
+// ─── REPORT JOBS ─────────────────────────────────────────────────────────────
+
+export async function createReportJob(data: InsertReportJob): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(reportJobs).values(data);
+    const id = (result as any).insertId;
+    return id ? await getReportJobById(id) : null;
+  } catch (error) {
+    console.error("[ReportJob] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getReportJobById(jobId: number): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(reportJobs).where(eq(reportJobs.id, jobId)).limit(1);
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error("[ReportJob] Failed to get by ID:", error);
+    return null;
+  }
+}
+
+export async function getReportJobBySubmissionId(submissionId: number): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(reportJobs)
+      .where(eq(reportJobs.submissionId, submissionId))
+      .orderBy(desc(reportJobs.createdAt))
+      .limit(1);
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error("[ReportJob] Failed to get by submission:", error);
+    return null;
+  }
+}
+
+export async function updateReportJob(jobId: number, data: Partial<InsertReportJob>): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db.update(reportJobs).set(data).where(eq(reportJobs.id, jobId));
+    return await getReportJobById(jobId);
+  } catch (error) {
+    console.error("[ReportJob] Failed to update:", error);
+    return null;
+  }
+}
+
+export async function listPendingReportJobs(limit = 10): Promise<ReportJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const now = new Date();
+    return await db.select().from(reportJobs)
+      .where(and(
+        eq(reportJobs.status, "queued"),
+        gte(reportJobs.expiresAt, now)
+      ))
+      .orderBy(reportJobs.queuedAt)
+      .limit(limit);
+  } catch (error) {
+    console.error("[ReportJob] Failed to list pending:", error);
+    return [];
+  }
+}
+
+export async function listFailedReportJobs(limit = 10): Promise<ReportJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(reportJobs)
+      .where(eq(reportJobs.status, "failed"))
+      .orderBy(desc(reportJobs.updatedAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[ReportJob] Failed to list failed:", error);
+    return [];
+  }
+}
+
+export async function cleanupExpiredReportJobs(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const now = new Date();
+    const result = await db.update(reportJobs)
+      .set({ status: "expired" })
+      .where(and(
+        lt(reportJobs.expiresAt, now),
+        eq(reportJobs.status, "queued")
+      ));
+    return (result as any).affectedRows ?? 0;
+  } catch (error) {
+    console.error("[ReportJob] Failed to cleanup expired:", error);
     return 0;
   }
 }

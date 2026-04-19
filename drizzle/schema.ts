@@ -230,3 +230,39 @@ export const reportPreferences = mysqlTable("report_preferences", {
 
 export type ReportPreference = typeof reportPreferences.$inferSelect;
 export type InsertReportPreference = typeof reportPreferences.$inferInsert;
+
+/**
+ * Report generation jobs — async PDF generation with 24-hour SLA
+ */
+export const reportJobs = mysqlTable("report_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  submissionId: int("submissionId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Job status
+  status: mysqlEnum("status", ["queued", "generating", "completed", "failed", "expired"]).default("queued").notNull(),
+  
+  // Result
+  reportUrl: varchar("reportUrl", { length: 500 }),
+  reportKey: varchar("reportKey", { length: 255 }),
+  sizeBytes: int("sizeBytes"),
+  
+  // Error tracking
+  errorMessage: text("errorMessage"),
+  
+  // SLA tracking
+  queuedAt: timestamp("queuedAt").defaultNow().notNull(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  expiresAt: timestamp("expiresAt").notNull(), // 24 hours from queuedAt
+  
+  // Retry logic
+  retryCount: int("retryCount").default(0).notNull(),
+  maxRetries: int("maxRetries").default(3).notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReportJob = typeof reportJobs.$inferSelect;
+export type InsertReportJob = typeof reportJobs.$inferInsert;
