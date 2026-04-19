@@ -331,22 +331,28 @@ export const appRouter = router({
         };
       }),
 
-    // Get payment history
+    // Get payment history (filters at the Stripe API level by userId metadata,
+    // so high-traffic accounts don't truncate the user's results to the first
+    // 50 charges in the account).
     getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
-      const charges = await getStripe().charges.list({
-        limit: 50,
-      });
+      try {
+        const result = await getStripe().charges.search({
+          query: `metadata['userId']:'${ctx.user.id}'`,
+          limit: 50,
+        });
 
-      return charges.data
-        .filter((charge: any) => charge.receipt_email === ctx.user.email || charge.metadata?.userId === ctx.user.id.toString())
-        .map((charge: any) => ({
+        return result.data.map((charge) => ({
           id: charge.id,
           amount: charge.amount / 100,
           currency: charge.currency.toUpperCase(),
           status: charge.status,
           created: new Date(charge.created * 1000),
           description: charge.description,
-         }));
+        }));
+      } catch (error) {
+        console.error("[Payments] getPaymentHistory failed:", error);
+        return [];
+      }
     }),
 
     // Upload property photos to S3

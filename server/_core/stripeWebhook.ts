@@ -2,8 +2,14 @@ import express, { Request, Response } from "express";
 import Stripe from "stripe";
 import { updateAppealOutcome, getAppealOutcomeBySubmissionId } from "../db";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe | null {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  _stripe = new Stripe(key);
+  return _stripe;
+}
 
 /**
  * Stripe webhook handler for payment events
@@ -14,6 +20,13 @@ export function registerStripeWebhook(app: express.Application) {
     "/api/stripe/webhook",
     express.raw({ type: "application/json" }),
     async (req: Request, res: Response) => {
+      const stripe = getStripe();
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+      if (!stripe || !webhookSecret) {
+        console.error("[Stripe Webhook] STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET not configured");
+        return res.status(503).json({ error: "Webhooks not configured" });
+      }
+
       const sig = req.headers["stripe-signature"] as string;
 
       if (!sig) {
