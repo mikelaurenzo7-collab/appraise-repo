@@ -158,7 +158,7 @@
 
 
 ## CRITICAL BUGS (BLOCKING - MUST FIX)
-- [ ] Fix submissionId null serialization bug in submitAddress endpoint (returns [Max Depth])
+- [x] Fix submissionId null serialization bug in submitAddress endpoint (returns [Max Depth])
 - [ ] Implement async PDF generation job queue with 24-hour SLA guarantee
 - [ ] Add email notification system for report completion
 - [ ] Create report download page with S3 presigned URLs

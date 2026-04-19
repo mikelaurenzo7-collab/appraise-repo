@@ -38,6 +38,21 @@ async function startServer() {
   registerStripeWebhook(app);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // Places autocomplete endpoint
+  app.post("/api/places-autocomplete", async (req, res) => {
+    try {
+      const { input } = req.body;
+      if (!input || input.length < 3) {
+        return res.json({ predictions: [] });
+      }
+      const { getPlacePredictions } = await import("./placesAutocomplete");
+      const predictions = await getPlacePredictions(input);
+      res.json({ predictions });
+    } catch (error) {
+      console.error("[Places Autocomplete Error]", error);
+      res.json({ predictions: [] });
+    }
+  });
   // tRPC API
   app.use(
     "/api/trpc",

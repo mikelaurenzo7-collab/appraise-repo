@@ -28,6 +28,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 const PROPERTY_TYPES = [
   { value: "residential", label: "Residential", icon: <HomeIcon size={20} />, desc: "Single-family home, condo, townhouse" },
@@ -98,7 +99,7 @@ export default function GetStarted() {
   const [phone, setPhone] = useState("");
   const [filingMethod, setFilingMethod] = useState<"poa" | "pro-se" | "none">("poa");
   const [, navigate] = useLocation();
-  const addressRef = useRef<HTMLInputElement>(null);
+
 
   const submitMutation = trpc.properties.submitAddress.useMutation({
     onSuccess: (data) => {
@@ -167,19 +168,11 @@ export default function GetStarted() {
                 <label className="block text-sm font-semibold text-[#0F172A] mb-2">
                   Property Address <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7C3AED]" />
-                  <input
-                    ref={addressRef}
-                    type="text"
-                    placeholder="123 Main St, Austin, TX 78701"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleNext()}
-                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
-                    autoFocus
-                  />
-                </div>
+                <AddressAutocomplete
+                  value={address}
+                  onChange={setAddress}
+                  placeholder="123 Main St, Austin, TX 78701"
+                />
                 <p className="text-xs text-[#94A3B8] mt-1.5">Include street number, city, state, and ZIP for best results</p>
               </div>
 
