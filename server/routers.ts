@@ -28,9 +28,33 @@ import { queueReportGeneration } from "./services/reportJobQueue";
 import { getReportJobById } from "./db";
 import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
 import { storagePut } from "./storage";
-import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
+import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Payments are not configured. Please contact support.",
+    });
+  }
+  _stripe = new Stripe(key);
+  return _stripe;
+}
+
+// Tolerant JSON parse — returns a safe fallback instead of crashing the
+// request if a column contains malformed JSON written by an older code path.
+function safeParseArray<T = unknown>(value: string | null | undefined): T[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 // Admin-only middleware
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -132,9 +156,9 @@ export const appRouter = router({
             submission,
             analysis: analysis ? {
               ...analysis,
-              comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-              appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
-              nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+              comparableSales: safeParseArray(analysis.comparableSales),
+              appealStrengthFactors: safeParseArray(analysis.appealStrengthFactors),
+              nextSteps: safeParseArray(analysis.nextSteps),
             } : null,
             outcome: outcome || null,
             activityLogs: activityLogs || [],
@@ -174,7 +198,7 @@ export const appRouter = router({
             recommendedApproach: analysis?.recommendedApproach || undefined,
             filingMethod: submission.filingMethod || "poa",
             reportType: "instant" as const,
-            comparableSales: analysis?.comparableSales ? JSON.parse(analysis.comparableSales) : [],
+            comparableSales: safeParseArray(analysis?.comparableSales) as NonNullable<AppraisalReportData["comparableSales"]>,
             squareFeet: submission.squareFeet ?? null,
             yearBuilt: submission.yearBuilt ?? null,
             bedrooms: submission.bedrooms ?? null,
@@ -238,9 +262,9 @@ export const appRouter = router({
           submission,
           analysis: analysis ? {
             ...analysis,
-            comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-            appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
-            nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+            comparableSales: safeParseArray(analysis.comparableSales),
+            appealStrengthFactors: safeParseArray(analysis.appealStrengthFactors),
+            nextSteps: safeParseArray(analysis.nextSteps),
           } : null,
           outcome: outcome || null,
           activityLogs: logs,
@@ -262,8 +286,18 @@ export const appRouter = router({
         const minCharge = 5000; // $50 minimum
         const chargeAmount = Math.max(contingencyFee, minCharge);
 
+        // Build absolute URLs — origin header can be string[] or undefined in some setups
+        const rawOrigin = ctx.req.headers.origin;
+        const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin;
+        if (!origin) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Missing Origin header on payment request.",
+          });
+        }
+
         // Create checkout session
-        const session = await stripe.checkout.sessions.create({
+        const session = await getStripe().checkout.sessions.create({
           payment_method_types: ["card"],
           mode: "payment",
           customer_email: ctx.user.email || undefined,
@@ -281,8 +315,8 @@ export const appRouter = router({
               quantity: 1,
             },
           ],
-          success_url: `${ctx.req.headers.origin}/dashboard?payment=success&submissionId=${input.submissionId}`,
-          cancel_url: `${ctx.req.headers.origin}/analysis?id=${input.submissionId}`,
+          success_url: `${origin}/dashboard?payment=success&submissionId=${input.submissionId}`,
+          cancel_url: `${origin}/analysis?id=${input.submissionId}`,
           metadata: {
             submissionId: input.submissionId.toString(),
             userId: ctx.user.id.toString(),
@@ -299,7 +333,7 @@ export const appRouter = router({
 
     // Get payment history
     getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
-      const charges = await stripe.charges.list({
+      const charges = await getStripe().charges.list({
         limit: 50,
       });
 
@@ -359,7 +393,7 @@ export const appRouter = router({
         const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
         if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
 
-        const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
+        const comparableSales = safeParseArray(analysis.comparableSales) as NonNullable<AppraisalReportData["comparableSales"]>;
 
         const reportData: AppraisalReportData = {
           submissionId: input.submissionId,
@@ -492,9 +526,9 @@ export const appRouter = router({
           submission,
           analysis: analysis ? {
             ...analysis,
-            comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-            appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
-            nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+            comparableSales: safeParseArray(analysis.comparableSales),
+            appealStrengthFactors: safeParseArray(analysis.appealStrengthFactors),
+            nextSteps: safeParseArray(analysis.nextSteps),
           } : null,
           outcome: outcome || null,
           activityLogs: logs,

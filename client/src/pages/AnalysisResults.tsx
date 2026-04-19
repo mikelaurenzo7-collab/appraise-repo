@@ -276,7 +276,7 @@ export default function AnalysisResults() {
               zipCode={submission.zipCode || undefined}
               marketValue={submission.marketValue || undefined}
               assessedValue={submission.assessedValue || undefined}
-              comparableSales={analysis.comparableSales ? JSON.parse(analysis.comparableSales) : []}
+              comparableSales={(analysis.comparableSales ?? []) as any}
             />
           </div>
         </section>
@@ -288,7 +288,7 @@ export default function AnalysisResults() {
             <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
               <div className="text-xs text-[#64748B] uppercase tracking-widest mb-4">Key Factors Supporting Your Appeal</div>
               <div className="grid sm:grid-cols-2 gap-3">
-                {analysis.appealStrengthFactors.map((factor: string, i: number) => (
+                {(analysis.appealStrengthFactors as string[]).map((factor, i) => (
                   <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[#F1F5F9]">
                     <CheckCircle2 size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
                     <span className="text-sm text-[#E2E8F0]">{factor}</span>
@@ -334,7 +334,7 @@ export default function AnalysisResults() {
             <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
               <div className="text-xs text-[#64748B] uppercase tracking-widest mb-4">Recommended Next Steps</div>
               <div className="space-y-3">
-                {analysis.nextSteps.map((step: string, i: number) => (
+                {(analysis.nextSteps as string[]).map((step, i) => (
                   <div key={i} className="flex items-start gap-3 p-4 rounded-lg bg-[#F1F5F9]">
                     <div className="w-6 h-6 rounded-full bg-[#0F172A] text-[#7C3AED] flex items-center justify-center shrink-0 text-xs font-bold">
                       {i + 1}
