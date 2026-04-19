@@ -81,7 +81,9 @@ export const appRouter = router({
             status: "pending",
           });
 
-          if (submission) {
+          const submissionId = submission?.id;
+          
+          if (submission && submissionId) {
             // Persist activity log
             await persistActivityLog({
               submissionId: submission.id,
@@ -104,7 +106,7 @@ export const appRouter = router({
 
           return {
             success: true,
-            submissionId: submission?.id,
+            submissionId: submissionId ? Number(submissionId) : null,
             message: "Your address has been received. AI analysis is running now.",
           };
         } catch (error) {

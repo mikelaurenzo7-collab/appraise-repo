@@ -243,6 +243,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       title: `Analysis Complete — ${strengthLabel}`,
       content: `Property: ${submission.address}\n\nMarket Value: $${analysis.marketValueEstimate.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${analysis.assessmentGap.toLocaleString()}\nAppeal Strength: ${analysis.appealStrengthScore}/100\nPotential Savings: $${analysis.potentialSavings?.toLocaleString() ?? "N/A"}/yr\nApproach: ${analysis.recommendedApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\n\nView: /analysis?id=${submissionId}`,
     }).catch((err: unknown) => console.error("[AnalysisJob] Failed to notify owner:", err));
+    // Queue report generation (24-hour SLA)
 
     console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${analysis.appealStrengthScore}/100`);
 

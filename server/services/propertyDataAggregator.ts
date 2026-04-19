@@ -211,11 +211,19 @@ async function queryAttomData(address: string, city: string, state: string): Pro
 
 export async function aggregatePropertyData(address: string, city: string, state: string): Promise<PropertyData> {
   try {
-    const [lightboxData, rentcastData, regridData, attomData] = await Promise.all([
-      queryLightbox(address, city, state),
-      queryRentCast(address, city, state),
-      queryReGRID(address, city, state),
-      queryAttomData(address, city, state),
+    // Add 30-second timeout to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error("API aggregation timeout after 30s")), 30000)
+    );
+    
+    const [lightboxData, rentcastData, regridData, attomData] = await Promise.race([
+      Promise.all([
+        queryLightbox(address, city, state),
+        queryRentCast(address, city, state),
+        queryReGRID(address, city, state),
+        queryAttomData(address, city, state),
+      ]),
+      timeoutPromise,
     ]);
 
     const merged: PropertyData = {
@@ -240,8 +248,17 @@ export async function aggregatePropertyData(address: string, city: string, state
     };
 
     return merged;
-  } catch (error) {
+    } catch (error) {
     console.error("[Aggregator] Error:", error);
-    return { address, city, state, source: "error" };
+    // Return partial data instead of empty object on error
+    return { 
+      address, 
+      city, 
+      state, 
+      source: "error",
+      assessedValue: undefined,
+      marketValue: undefined,
+      comparableSales: [],
+    };
   }
 }
