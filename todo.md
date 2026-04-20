@@ -33,7 +33,7 @@
 - [x] Add document generator service (POA, pro se, cover letters)
 
 ## Phase 5: Optimization & Scaling (In Progress)
-- [ ] Batch processing for portfolio submissions (scaffolded, needs router integration & tests)
+- [x] Batch processing for portfolio submissions (submitBatch & getBatchStatus endpoints + 8 tests)
 - [x] County-specific playbooks (via jurisdictionRules.ts with 10+ state rules)
 - [x] Outcome tracking & model improvement (activity logger + DB persistence)
 - [x] Performance optimization (parallel APIs working, caching layer implemented)
@@ -49,7 +49,7 @@
 - [ ] Hearing representation scheduling
 - [x] Stripe payment integration (25% contingency fee)
 - [x] Photo upload component (drag-drop, categorization)
-- [ ] Photo S3 integration endpoint
+- [x] Photo S3 integration endpoint (uploadPhoto with S3 storage + 8 tests)
 - [ ] Google Maps integration (location, comparables, street view)
 
 ## Core Features Completed

@@ -456,6 +456,98 @@ export const appRouter = router({
           maxRetries: job.maxRetries,
         };
       }),
+
+    // Batch processing endpoints
+    submitBatch: protectedProcedure
+      .input(
+        z.object({
+          properties: z.array(
+            z.object({
+              address: z.string(),
+              city: z.string(),
+              state: z.string(),
+              zipCode: z.string(),
+              county: z.string().optional(),
+              propertyType: z.string().optional(),
+              assessedValue: z.number().optional(),
+            })
+          ),
+          filingMethod: z.enum(["poa", "pro-se"]),
+          contactEmail: z.string().email(),
+          contactPhone: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const results = [];
+
+        for (const prop of input.properties) {
+          try {
+            // Create submission for each property
+            const submission = await createPropertySubmission({
+              address: prop.address,
+              city: prop.city,
+              state: prop.state,
+              zipCode: prop.zipCode,
+              county: prop.county,
+              propertyType: (prop.propertyType as any) || "unknown",
+              assessedValue: prop.assessedValue,
+              email: input.contactEmail,
+              phone: input.contactPhone,
+              filingMethod: input.filingMethod,
+              status: "pending",
+            });
+
+            if (submission) {
+              // Queue analysis job
+              await queueAnalysisJob(submission.id, ctx.user.id);
+              results.push({
+                address: prop.address,
+                status: "queued" as const,
+                submissionId: submission.id,
+              });
+            }
+          } catch (err) {
+            results.push({
+              address: prop.address,
+              status: "failed" as const,
+              error: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+        }
+
+        // Log batch submission
+        await persistActivityLog({
+          type: "batch_submitted" as any,
+          actor: "system",
+          description: `Batch submission: ${input.properties.length} properties`,
+          metadata: JSON.stringify({ batchId, count: input.properties.length, results }),
+          status: "success",
+        });
+
+        return {
+          batchId,
+          totalProperties: input.properties.length,
+          queuedCount: results.filter((r) => r.status === "queued").length,
+          failedCount: results.filter((r) => r.status === "failed").length,
+          results,
+        };
+      }),
+
+    // Get batch status
+    getBatchStatus: protectedProcedure
+      .input(z.object({ batchId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        // In production, store batch metadata in database
+        // For now, return placeholder
+        return {
+          batchId: input.batchId,
+          status: "processing",
+          totalProperties: 0,
+          completedCount: 0,
+          failedCount: 0,
+        };
+      }),
   }),
   // ─── ADMIN COMMAND CENTER ────────────────────────────────────────────────
   admin: router({
