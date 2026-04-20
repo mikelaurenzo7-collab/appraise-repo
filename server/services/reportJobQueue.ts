@@ -13,7 +13,7 @@ import {
   getPropertyAnalysisBySubmissionId,
   persistActivityLog,
 } from "../db";
-import { sendAnalysisConfirmationEmail } from "../_core/emailService";
+import { sendAnalysisConfirmationEmail, sendReportCompletionEmail } from "../_core/emailService";
 
 // Prevent duplicate concurrent jobs
 const activeJobs = new Set<number>();
@@ -155,13 +155,25 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       durationMs,
     });
 
-    // Send email notification
+    // Send email notification with report download link
     try {
-      await sendAnalysisConfirmationEmail({
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+      const expiresAtStr = expiresAt.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      await sendReportCompletionEmail({
         userEmail: submission.email,
         userName: submission.email.split("@")[0],
         propertyAddress: submission.address,
+        reportUrl: url,
         appealStrengthScore: submission.appealStrengthScore || 0,
+        downloadExpiresAt: expiresAtStr,
       });
     } catch (emailErr) {
       console.warn(`[ReportQueue] Failed to send email for job ${jobId}:`, emailErr);

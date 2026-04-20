@@ -38,6 +38,15 @@ export interface AppealResultEmail {
   annualSavings?: number;
 }
 
+export interface ReportCompletionEmail {
+  userEmail: string;
+  userName: string;
+  propertyAddress: string;
+  reportUrl: string;
+  appealStrengthScore: number;
+  downloadExpiresAt: string;
+}
+
 /**
  * Send analysis confirmation email
  */
@@ -206,6 +215,63 @@ export async function sendAppealFiledEmail(data: AppealFiledEmail): Promise<bool
     });
   } catch (error) {
     console.error("Failed to send appeal filed email:", error);
+    return false;
+  }
+}
+
+/**
+ * Send report completion email
+ */
+export async function sendReportCompletionEmail(data: ReportCompletionEmail): Promise<boolean> {
+  try {
+    const scoreColor = data.appealStrengthScore >= 70 ? "#10B981" : data.appealStrengthScore >= 40 ? "#FBBF24" : "#EF4444";
+    const scoreLabel = data.appealStrengthScore >= 70 ? "Strong" : data.appealStrengthScore >= 40 ? "Moderate" : "Weak";
+
+    const html = `
+      <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #7C3AED 0%, #0D9488 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 28px;">Your Report is Ready!</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9;">Your certified appraisal report is now available</p>
+        </div>
+        <div style="background: #F8FAFC; padding: 40px 20px; border-radius: 0 0 12px 12px;">
+          <p style="margin: 0 0 20px 0; color: #0F172A;">Hi \${data.userName},</p>
+          <p style="margin: 0 0 20px 0; color: #64748B; line-height: 1.6;">
+            Your certified property appraisal report for <strong>\${data.propertyAddress}</strong> has been generated and is ready for download.
+          </p>
+          <div style="background: white; border: 2px solid \${scoreColor}; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+            <div style="font-size: 48px; font-weight: bold; color: \${scoreColor};">\${data.appealStrengthScore}%</div>
+            <div style="color: \${scoreColor}; font-weight: 600; margin-top: 8px;">\${scoreLabel} Appeal Potential</div>
+          </div>
+          <div style="background: #F0F4FF; border-left: 4px solid #7C3AED; padding: 16px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #0F172A; font-weight: 600;">Report Details:</p>
+            <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #64748B;">
+              <li>50-60 page certified appraisal report</li>
+              <li>Comparable sales analysis (comps)</li>
+              <li>Market data and trends</li>
+              <li>USPAP-compliant methodology</li>
+              <li>Ready for legal proceedings</li>
+            </ul>
+          </div>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="\${data.reportUrl}" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Download Report</a>
+          </div>
+          <p style="margin: 20px 0 0 0; color: #94A3B8; font-size: 12px;">
+            <strong>Download expires:</strong> \${data.downloadExpiresAt}
+          </p>
+          <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
+            Questions? Contact our support team at support@appraise-ai.com
+          </p>
+        </div>
+      </div>
+    `;
+
+    return await sendEmail({
+      to: data.userEmail,
+      subject: `Your Certified Appraisal Report is Ready - \${data.propertyAddress}`,
+      html,
+    });
+  } catch (error) {
+    console.error("Failed to send report completion email:", error);
     return false;
   }
 }
