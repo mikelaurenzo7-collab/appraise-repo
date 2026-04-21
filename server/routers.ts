@@ -21,6 +21,7 @@ import {
   getActivityLogsBySubmission,
   persistActivityLog,
   evictExpiredCache,
+  getSubmissionPhotos,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
@@ -167,6 +168,7 @@ export const appRouter = router({
           if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
           const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+          const photos = await getSubmissionPhotos(input.submissionId);
 
           // Build report data from submission + analysis
           const reportData = {
@@ -196,6 +198,7 @@ export const appRouter = router({
             bathrooms: submission.bathrooms ?? null,
             lotSize: submission.lotSize ?? null,
             parcelNumber: undefined,
+            photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
           };
 
           const { url, sizeBytes } = await generateAppraisalPDF(reportData);
@@ -375,6 +378,7 @@ export const appRouter = router({
         if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
 
         const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
+        const photos = await getSubmissionPhotos(input.submissionId);
 
         const reportData: AppraisalReportData = {
           submissionId: input.submissionId,
@@ -403,6 +407,7 @@ export const appRouter = router({
           bathrooms: submission.bathrooms ?? undefined,
           lotSize: submission.lotSize ?? undefined,
           parcelNumber: undefined,
+          photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
         };
 
         const { url, key } = await generateAppraisalPDF(reportData);

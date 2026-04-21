@@ -95,8 +95,8 @@
 
 ## TOP FORM — Build Status
 - [x] Persist outcome tracking in DB (appeal_outcomes table with win/loss/savings)
-- [ ] Wire batch processing into tRPC router with validation + tests
-- [ ] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track)
+- [x] Wire batch processing into tRPC router with validation + tests (submitBatch/getBatchStatus + 8 tests)
+- [x] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track — now loads real submission data)
 - [x] Build state deadline calendar page (all 50 states, sortable, searchable)
 - [x] Add API response caching layer (DB-backed cache with TTL eviction)
 - [x] Build admin command center (activity feed, conversion funnel, revenue tracker)
@@ -144,9 +144,9 @@
 ## Photo Upload & Report Customization (NEW)
 - [x] Build photo upload UI component (drag-drop, categorization)
 - [x] Integrate photo upload S3 endpoint
-- [ ] Wire photos into PDF report generation
+- [x] Wire photos into PDF report generation (getSubmissionPhotos → AppraisalReportData.photos → generate_pdf.py renders grouped-by-category section)
 - [ ] Build report preferences UI (method selection)
-- [ ] Test comprehensive 50-60 page report with photos
+- [ ] Test comprehensive 50-60 page report with photos (requires live Python env + S3)
 - [x] Create Batch Processing UI for multi-property uploads
 - [x] Add Blog page with 8 articles (state guides, strategies, case studies)
 

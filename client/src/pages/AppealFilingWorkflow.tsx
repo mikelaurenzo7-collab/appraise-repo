@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { ChevronRight, CheckCircle2, FileText, Signature, Clock, AlertCircle } from "lucide-react";
+import { ChevronRight, CheckCircle2, FileText, Signature, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 interface WorkflowStep {
   id: number;
@@ -47,34 +50,39 @@ const steps: WorkflowStep[] = [
 
 interface AppealFilingWorkflowProps {
   submissionId: string;
-  propertyAddress: string;
-  appealStrengthScore: number;
 }
 
-export default function AppealFilingWorkflow({
-  submissionId,
-  propertyAddress,
-  appealStrengthScore,
-}: AppealFilingWorkflowProps) {
-  const { user } = useAuth();
+export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkflowProps) {
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const parsedSubmissionId = parseInt(submissionId, 10);
+  const submissionIdIsValid = Number.isFinite(parsedSubmissionId) && parsedSubmissionId > 0;
+
+  const detailQuery = trpc.user.getSubmissionDetail.useQuery(
+    { submissionId: parsedSubmissionId },
+    { enabled: isAuthenticated && submissionIdIsValid, retry: false }
+  );
+
   const [currentStep, setCurrentStep] = useState(1);
   const [filingMethod, setFilingMethod] = useState<"poa" | "pro_se" | null>(null);
-  const [documentsReviewed, setDocumentsReviewed] = useState(false);
   const [documentsSigned, setDocumentsSigned] = useState(false);
 
   const createCheckoutMutation = trpc.payments.createCheckoutSession.useMutation();
 
+  const submission = detailQuery.data?.submission;
+  const propertyAddress = submission
+    ? [submission.address, submission.city, submission.state, submission.zipCode].filter(Boolean).join(", ")
+    : "";
+  const appealStrengthScore = submission?.appealStrengthScore ?? 0;
+  // Prefer real potential savings from analysis; fall back to strength-based estimate.
+  const estimatedSavings = submission?.potentialSavings && submission.potentialSavings > 0
+    ? submission.potentialSavings
+    : appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000;
+  const contingencyFee = Math.round(estimatedSavings * 0.25);
+
   const handleGenerateDocuments = async () => {
     if (!filingMethod) return;
-
-    try {
-      // Documents are generated server-side when filing
-      // This would call a documents.generateAppealDocuments endpoint if it exists
-      // For now, proceed to signing step
-      setCurrentStep(3);
-    } catch (error) {
-      console.error("Failed to generate documents:", error);
-    }
+    // Documents are prepared server-side on demand; advance the workflow.
+    setCurrentStep(3);
   };
 
   const handleSignDocuments = () => {
@@ -84,13 +92,8 @@ export default function AppealFilingWorkflow({
 
   const handleConfirmAndPay = async () => {
     try {
-      // Calculate 25% contingency fee
-      const estimatedSavings = appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000;
-      const contingencyFee = estimatedSavings * 0.25;
-
-      // Create checkout session
       const response = await createCheckoutMutation.mutateAsync({
-        submissionId: parseInt(submissionId),
+        submissionId: parsedSubmissionId,
         annualTaxSavings: estimatedSavings,
       });
 
@@ -103,6 +106,48 @@ export default function AppealFilingWorkflow({
       console.error("Failed to create checkout session:", error);
     }
   };
+
+  if (authLoading || (isAuthenticated && detailQuery.isLoading)) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#7C3AED]" size={40} />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0F172A]">
+        <Navbar />
+        <div className="container py-20 text-center max-w-xl">
+          <h1 className="text-3xl font-bold text-white mb-4">Sign in to file your appeal</h1>
+          <p className="text-[#CBD5E1] mb-8">You need an account to access the appeal workflow.</p>
+          <Link href="/" className="btn-gold px-6 py-3 rounded font-semibold inline-block">Back to Home</Link>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!submissionIdIsValid || detailQuery.error || !submission) {
+    return (
+      <div className="min-h-screen bg-[#0F172A]">
+        <Navbar />
+        <div className="container py-20 text-center max-w-xl">
+          <AlertCircle size={48} className="text-amber-400 mx-auto mb-4" />
+          <h1 className="text-3xl font-bold text-white mb-4">We couldn&apos;t load this submission</h1>
+          <p className="text-[#CBD5E1] mb-6">
+            {detailQuery.error?.message ||
+              "That submission ID isn't valid or you don't have access to it."}
+          </p>
+          <Link href="/dashboard" className="btn-gold px-6 py-3 rounded font-semibold inline-block">
+            Go to Dashboard
+          </Link>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0F172A] py-12">
@@ -181,11 +226,8 @@ export default function AppealFilingWorkflow({
                 <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
                   <p className="text-[#94A3B8] text-sm uppercase font-semibold mb-2">Estimated Savings</p>
                   <p className="text-4xl font-bold text-[#10B981]">
-                    $
-                    {(
-                      (appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000) / 1000
-                    ).toFixed(0)}
-                    K/yr
+                    ${estimatedSavings.toLocaleString()}
+                    <span className="text-2xl text-[#94A3B8] font-normal">/yr</span>
                   </p>
                   <p className="text-[#CBD5E1] text-sm mt-2">Potential annual tax savings</p>
                 </div>
@@ -398,14 +440,15 @@ export default function AppealFilingWorkflow({
                   <span className="font-semibold text-[#7C3AED]">{appealStrengthScore}%</span>
                 </div>
 
+                <div className="flex justify-between items-center pt-4 border-b border-[#334155] pb-4">
+                  <span className="text-[#CBD5E1]">Estimated Annual Savings</span>
+                  <span className="font-semibold text-[#10B981]">${estimatedSavings.toLocaleString()}</span>
+                </div>
+
                 <div className="flex justify-between items-center pt-4">
                   <span className="text-[#CBD5E1] font-semibold">Contingency Fee (25%)</span>
                   <div className="text-2xl font-bold text-[#FBBF24]">
-                    $
-                    {(
-                      (appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000) *
-                      0.25
-                    ).toLocaleString()}
+                    ${contingencyFee.toLocaleString()}
                   </div>
                 </div>
               </div>

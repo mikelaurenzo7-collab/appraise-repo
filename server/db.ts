@@ -296,6 +296,57 @@ export async function getActivityLogsBySubmission(submissionId: number) {
   }
 }
 
+export interface SubmissionPhoto {
+  url: string;
+  category: "exterior" | "interior" | "roof" | "foundation" | "other";
+  caption?: string;
+  fileName?: string;
+  uploadedAt: Date;
+}
+
+/**
+ * Pure parser: converts activity-log rows into photo records.
+ * Extracted so it can be unit-tested without a DB or module mocks.
+ */
+export function parsePhotosFromLogs(
+  logs: Array<{ type: string; metadata: string | null; createdAt: Date }>
+): SubmissionPhoto[] {
+  const photos: SubmissionPhoto[] = [];
+  for (const log of logs) {
+    if (log.type !== "photo_uploaded" || !log.metadata) continue;
+    try {
+      const meta = JSON.parse(log.metadata) as {
+        url?: string;
+        category?: SubmissionPhoto["category"];
+        caption?: string;
+        fileName?: string;
+      };
+      if (!meta.url) continue;
+      photos.push({
+        url: meta.url,
+        category: meta.category ?? "other",
+        caption: meta.caption,
+        fileName: meta.fileName,
+        uploadedAt: log.createdAt,
+      });
+    } catch {
+      // skip malformed metadata
+    }
+  }
+  // Return in upload order (oldest first) so the PDF renders a stable sequence.
+  return photos.reverse();
+}
+
+/**
+ * Extract uploaded photos for a submission by reading the `photo_uploaded`
+ * activity-log entries. Photos are stored in S3 via storagePut and only the
+ * URL + category + caption are persisted (as JSON in `metadata`).
+ */
+export async function getSubmissionPhotos(submissionId: number): Promise<SubmissionPhoto[]> {
+  const logs = await getActivityLogsBySubmission(submissionId);
+  return parsePhotosFromLogs(logs);
+}
+
 export async function getRecentActivityLogs(limit = 50) {
   const db = await getDb();
   if (!db) return [];

@@ -12,6 +12,7 @@ import {
   getPropertySubmissionById,
   getPropertyAnalysisBySubmissionId,
   persistActivityLog,
+  getSubmissionPhotos,
 } from "../db";
 import { sendAnalysisConfirmationEmail, sendReportCompletionEmail } from "../_core/emailService";
 
@@ -95,6 +96,8 @@ async function processReportJobAsync(jobId: number): Promise<void> {
     const analysis = await getPropertyAnalysisBySubmissionId(job.submissionId);
     if (!analysis) throw new Error("Analysis not found");
 
+    const photos = await getSubmissionPhotos(job.submissionId);
+
     // Prepare report data
     const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
     const reportData: AppraisalReportData = {
@@ -127,6 +130,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       bedrooms: submission.bedrooms ?? undefined,
       bathrooms: submission.bathrooms ?? undefined,
       lotSize: submission.lotSize ?? undefined,
+      photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
     };
 
     // Generate PDF
