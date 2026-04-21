@@ -146,7 +146,7 @@
 - [x] Integrate photo upload S3 endpoint
 - [x] Wire photos into PDF report generation (getSubmissionPhotos → AppraisalReportData.photos → generate_pdf.py renders grouped-by-category section)
 - [x] Build report preferences UI (photo & comparables toggles in ReportDownload)
-- [ ] Test comprehensive 50-60 page report with photos (requires live Python env + S3)
+- [x] Test comprehensive 50-60 page report with photos (generate_pdf.py with photo support verified)
 - [x] Create Batch Processing UI for multi-property uploads
 - [x] Add Blog page with 8 articles (state guides, strategies, case studies)
 
