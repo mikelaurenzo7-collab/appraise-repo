@@ -12,6 +12,7 @@ import About from "./pages/About";
 import GetStarted from "./pages/GetStarted";
 import AnalysisResults from "./pages/AnalysisResults";
 import AdminDashboard from "./pages/AdminDashboard";
+import ParalegalsDashboard from "./pages/ParalegalsDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import DeadlineCalendar from "./pages/DeadlineCalendar";
 import Portfolio from "./pages/Portfolio";
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/analysis" component={AnalysisResults} />
       <Route path="/dashboard" component={UserDashboard} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/paralegals" component={ParalegalsDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/payments" component={PaymentHistory} />

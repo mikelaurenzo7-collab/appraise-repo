@@ -2,7 +2,7 @@ import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users,
-  propertySubmissions, InsertPropertySubmission,
+  propertySubmissions, InsertPropertySubmission, PropertySubmission,
   propertyAnalysis, InsertPropertyAnalysis,
   appealOutcomes, InsertAppealOutcome,
   activityLogs, InsertActivityLog,
@@ -736,6 +736,242 @@ export async function listParalegalsWorkload(paralegalName: string): Promise<Par
       .orderBy(paralegalsQueue.deadline);
   } catch (error) {
     console.error("[ParalegalsQueue] Failed to list workload:", error);
+    return [];
+  }
+}
+
+/**
+ * Aggregated filing view used by the Paralegals Dashboard.
+ * Joins the queue to the underlying POA filing, submission, and county
+ * so the UI can render everything from one query.
+ */
+export type FilingQueueRow = {
+  queueId: number;
+  poaFilingId: number;
+  submissionId: number;
+  status: ParalegalsQueueItem["status"];
+  priority: ParalegalsQueueItem["priority"];
+  assignedTo: string | null;
+  deadline: Date | null;
+  queuedAt: Date;
+  completedAt: Date | null;
+  county: string;
+  state: string;
+  address: string;
+  ownerEmail: string;
+  ownerPhone: string | null;
+  filingType: "poa" | "pro-se";
+  notes: string | null;
+};
+
+export async function listFilingQueue(): Promise<FilingQueueRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        queueId: paralegalsQueue.id,
+        poaFilingId: paralegalsQueue.poaFilingId,
+        status: paralegalsQueue.status,
+        priority: paralegalsQueue.priority,
+        assignedTo: paralegalsQueue.assignedTo,
+        deadline: paralegalsQueue.deadline,
+        queuedAt: paralegalsQueue.queuedAt,
+        completedAt: paralegalsQueue.completedAt,
+        notes: paralegalsQueue.notes,
+        submissionId: poaFilings.submissionId,
+        countyId: poaFilings.countyId,
+        countyName: counties.countyName,
+        state: counties.state,
+        address: propertySubmissions.address,
+        ownerEmail: propertySubmissions.email,
+        ownerPhone: propertySubmissions.phone,
+      })
+      .from(paralegalsQueue)
+      .leftJoin(poaFilings, eq(paralegalsQueue.poaFilingId, poaFilings.id))
+      .leftJoin(counties, eq(poaFilings.countyId, counties.id))
+      .leftJoin(propertySubmissions, eq(poaFilings.submissionId, propertySubmissions.id))
+      .orderBy(paralegalsQueue.priority, paralegalsQueue.queuedAt);
+
+    return rows.map((r) => ({
+      queueId: r.queueId,
+      poaFilingId: r.poaFilingId,
+      submissionId: r.submissionId ?? 0,
+      status: r.status,
+      priority: r.priority,
+      assignedTo: r.assignedTo ?? null,
+      deadline: r.deadline ?? null,
+      queuedAt: r.queuedAt,
+      completedAt: r.completedAt ?? null,
+      county: r.countyName ?? "",
+      state: r.state ?? "",
+      address: r.address ?? "",
+      ownerEmail: r.ownerEmail ?? "",
+      ownerPhone: r.ownerPhone ?? null,
+      filingType: "poa",
+      notes: r.notes ?? null,
+    }));
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to list filing queue:", error);
+    return [];
+  }
+}
+
+export async function assignQueueItem(
+  queueId: number,
+  assignedTo: string
+): Promise<ParalegalsQueueItem | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db
+      .update(paralegalsQueue)
+      .set({ assignedTo, status: "in-progress", startedAt: new Date() })
+      .where(eq(paralegalsQueue.id, queueId));
+    return await db
+      .select()
+      .from(paralegalsQueue)
+      .where(eq(paralegalsQueue.id, queueId))
+      .limit(1)
+      .then((r) => r[0] || null);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to assign queue item:", error);
+    return null;
+  }
+}
+
+export async function completeQueueItem(
+  queueId: number,
+  notes?: string
+): Promise<ParalegalsQueueItem | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const updates: Partial<InsertParalegalsQueueItem> = {
+      status: "completed",
+      completedAt: new Date(),
+    };
+    if (notes !== undefined) updates.notes = notes;
+    await db.update(paralegalsQueue).set(updates).where(eq(paralegalsQueue.id, queueId));
+    return await db
+      .select()
+      .from(paralegalsQueue)
+      .where(eq(paralegalsQueue.id, queueId))
+      .limit(1)
+      .then((r) => r[0] || null);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to mark complete:", error);
+    return null;
+  }
+}
+
+/**
+ * User-facing filing status rows. For each submission owned by this email,
+ * return the POA filing (if any), outcome, and key timeline data.
+ */
+export type UserFilingRow = {
+  submissionId: number;
+  address: string;
+  city: string | null;
+  state: string | null;
+  status: PropertySubmission["status"];
+  filingMethod: PropertySubmission["filingMethod"];
+  filedDate: Date | null;
+  hearingDate: Date | null;
+  hearingLocation: string | null;
+  hearingFormat: POAFiling["hearingFormat"] | null;
+  outcome: POAFiling["outcome"] | null;
+  newAssessedValue: number | null;
+  assessmentReduction: number | null;
+  annualTaxSavings: number | null;
+  confirmationNumber: string | null;
+  portalUrl: string | null;
+  lastUpdated: Date;
+  notes: string | null;
+};
+
+export async function listUserFilings(userEmail: string): Promise<UserFilingRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const submissions = await db
+      .select()
+      .from(propertySubmissions)
+      .where(eq(propertySubmissions.email, userEmail))
+      .orderBy(desc(propertySubmissions.createdAt));
+
+    const results: UserFilingRow[] = [];
+    for (const s of submissions) {
+      const poa = await db
+        .select()
+        .from(poaFilings)
+        .where(eq(poaFilings.submissionId, s.id))
+        .limit(1)
+        .then((r) => r[0] || null);
+      const outcome = await db
+        .select()
+        .from(appealOutcomes)
+        .where(eq(appealOutcomes.submissionId, s.id))
+        .limit(1)
+        .then((r) => r[0] || null);
+
+      results.push({
+        submissionId: s.id,
+        address: s.address,
+        city: s.city ?? null,
+        state: s.state ?? null,
+        status: s.status,
+        filingMethod: s.filingMethod ?? null,
+        filedDate: poa?.filingDate ?? outcome?.filedAt ?? null,
+        hearingDate: poa?.hearingDate ?? outcome?.hearingDate ?? null,
+        hearingLocation: poa?.hearingLocation ?? null,
+        hearingFormat: poa?.hearingFormat ?? null,
+        outcome: poa?.outcome ?? null,
+        newAssessedValue: poa?.newAssessedValue ?? outcome?.finalAssessedValue ?? null,
+        assessmentReduction: poa?.assessmentReduction ?? outcome?.reductionAmount ?? null,
+        annualTaxSavings: outcome?.annualTaxSavings ?? s.potentialSavings ?? null,
+        confirmationNumber: poa?.confirmationNumber ?? null,
+        portalUrl: poa?.portalUrl ?? null,
+        lastUpdated: poa?.updatedAt ?? s.updatedAt,
+        notes: poa?.notes ?? null,
+      });
+    }
+    return results;
+  } catch (error) {
+    console.error("[Database] Failed to list user filings:", error);
+    return [];
+  }
+}
+
+/**
+ * Look up the submissions that belong to a batchId. Batches are tagged in
+ * the activity_logs table via metadata.batchId at submission time.
+ */
+export async function getBatchSubmissionIds(batchId: string): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const logs = await db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.type, "batch_submitted"))
+      .orderBy(desc(activityLogs.createdAt));
+    for (const log of logs) {
+      if (!log.metadata) continue;
+      try {
+        const meta = JSON.parse(log.metadata);
+        if (meta.batchId === batchId && Array.isArray(meta.results)) {
+          return meta.results
+            .filter((r: any) => r?.submissionId)
+            .map((r: any) => Number(r.submissionId));
+        }
+      } catch {
+        // ignore malformed metadata
+      }
+    }
+    return [];
+  } catch (error) {
+    console.error("[Database] Failed to fetch batch submission ids:", error);
     return [];
   }
 }

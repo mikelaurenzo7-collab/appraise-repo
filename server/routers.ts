@@ -25,6 +25,11 @@ import {
   getFilingTierBySubmission,
   createFilingTier,
   getDb,
+  listUserFilings,
+  listFilingQueue,
+  assignQueueItem,
+  completeQueueItem,
+  getBatchSubmissionIds,
 } from "./db";
 import { eq } from "drizzle-orm";
 import { filingTiers } from "../drizzle/schema";
@@ -44,8 +49,8 @@ import {
 } from "./services/chat";
 import { invokeLLM } from "./_core/llm";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
-import { adminRouter } from "./routers/admin";
 import { countiesRouter } from "./routers/counties";
+import { enforceRateLimit } from "./_core/rateLimit";
 
 // Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
 // is missing (e.g. during tests or first-time local setup). The first payment
@@ -95,7 +100,12 @@ export const appRouter = router({
         phone: z.string().optional(),
         filingMethod: z.enum(["poa", "pro-se", "none"]).default("poa"),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        enforceRateLimit(ctx, {
+          scope: "submitAddress",
+          max: 5,
+          windowMs: 60_000,
+        });
         try {
           const addressParts = input.address.split(",").map((p) => p.trim());
           const fullAddress = addressParts[0] || input.address;
@@ -281,6 +291,14 @@ export const appRouter = router({
           activityLogs: logs,
         };
       }),
+
+    // Filing status view — one row per submission with the latest POA filing +
+    // outcome joined in. Powers the /filing-status page.
+    getFilings: protectedProcedure.query(async ({ ctx }) => {
+      const email = ctx.user.email || "";
+      if (!email) return [];
+      return listUserFilings(email);
+    }),
   }),
 
   // ─── CHAT (LEAD CAPTURE + FAQ) ──────────────────────────────────────────
@@ -299,7 +317,12 @@ export const appRouter = router({
             .max(CHAT_MAX_MESSAGES),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        enforceRateLimit(ctx, {
+          scope: "chat.ask",
+          max: 20,
+          windowMs: 60_000,
+        });
         let clean;
         try {
           clean = sanitizeMessages(input.messages);
@@ -751,18 +774,66 @@ export const appRouter = router({
         };
       }),
 
-    // Get batch status
+    // Get batch status — aggregates every submission tied to the batch
     getBatchStatus: protectedProcedure
       .input(z.object({ batchId: z.string() }))
-      .query(async ({ input, ctx }) => {
-        // In production, store batch metadata in database
-        // For now, return placeholder
+      .query(async ({ input }) => {
+        const ids = await getBatchSubmissionIds(input.batchId);
+        if (ids.length === 0) {
+          return {
+            batchId: input.batchId,
+            status: "not-found" as const,
+            totalProperties: 0,
+            completedCount: 0,
+            failedCount: 0,
+            pendingCount: 0,
+            submissions: [] as Array<{
+              submissionId: number;
+              address: string;
+              status: string;
+              potentialSavings: number | null;
+            }>,
+          };
+        }
+
+        const submissions = await Promise.all(ids.map(getPropertySubmissionById));
+        const resolved = submissions.filter(
+          (s): s is NonNullable<typeof s> => s !== null && s !== undefined
+        );
+
+        const completedStatuses = new Set([
+          "analyzed",
+          "contacted",
+          "appeal-filed",
+          "hearing-scheduled",
+          "won",
+        ]);
+        const failedStatuses = new Set(["lost", "withdrawn", "archived"]);
+
+        const completedCount = resolved.filter((s) => completedStatuses.has(s.status)).length;
+        const failedCount = resolved.filter((s) => failedStatuses.has(s.status)).length;
+        const pendingCount = resolved.length - completedCount - failedCount;
+
+        const status: "completed" | "processing" | "failed" =
+          completedCount === resolved.length
+            ? "completed"
+            : failedCount === resolved.length
+              ? "failed"
+              : "processing";
+
         return {
           batchId: input.batchId,
-          status: "processing",
-          totalProperties: 0,
-          completedCount: 0,
-          failedCount: 0,
+          status,
+          totalProperties: resolved.length,
+          completedCount,
+          failedCount,
+          pendingCount,
+          submissions: resolved.map((s) => ({
+            submissionId: s.id,
+            address: s.address,
+            status: s.status,
+            potentialSavings: s.potentialSavings ?? null,
+          })),
         };
       }),
   }),
@@ -967,6 +1038,58 @@ export const appRouter = router({
         });
 
         return { success: true, message: "Analysis re-triggered" };
+      }),
+
+    // ─── PARALEGALS QUEUE ────────────────────────────────────────────────
+    listFilingQueue: adminProcedure.query(async () => {
+      return listFilingQueue();
+    }),
+
+    assignFiling: adminProcedure
+      .input(z.object({ queueId: z.number(), assignedTo: z.string().min(1).max(255) }))
+      .mutation(async ({ ctx, input }) => {
+        const updated = await assignQueueItem(input.queueId, input.assignedTo);
+        if (!updated) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Queue item not found or database unavailable",
+          });
+        }
+        await persistActivityLog({
+          type: "paralegal_assigned",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Filing queue item #${input.queueId} assigned to ${input.assignedTo}`,
+          metadata: JSON.stringify({ queueId: input.queueId, assignedTo: input.assignedTo }),
+          status: "success",
+        });
+        return updated;
+      }),
+
+    completeFiling: adminProcedure
+      .input(
+        z.object({
+          queueId: z.number(),
+          notes: z.string().max(2000).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const updated = await completeQueueItem(input.queueId, input.notes);
+        if (!updated) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Queue item not found or database unavailable",
+          });
+        }
+        await persistActivityLog({
+          type: "paralegal_completed",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Filing queue item #${input.queueId} marked complete`,
+          metadata: JSON.stringify({ queueId: input.queueId }),
+          status: "success",
+        });
+        return updated;
       }),
   }),
 });

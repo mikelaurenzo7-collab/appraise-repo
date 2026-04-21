@@ -171,3 +171,12 @@
 - [x] Add Google Places address autocomplete to GetStarted form
 - [x] Keyboard navigation (arrow keys, enter, escape) in autocomplete dropdown
 - [x] Premium theme styling for autocomplete suggestions
+
+## Final Production Polish (this pass)
+- [x] Wire FilingStatus page to real `user.getFilings` query (was mock data)
+- [x] Wire ParalegalsDashboard to real `admin.listFilingQueue` + assignFiling/completeFiling mutations (was mock data)
+- [x] Add /paralegals route so the dashboard is reachable
+- [x] Replace placeholder `payments.getBatchStatus` with real submission aggregation via activity-log lookup
+- [x] Remove dead `adminRouter` import from main router
+- [x] Add token-bucket rate limiter (`_core/rateLimit.ts`) and apply to `submitAddress` + `chat.ask` public mutations
+- [x] Add tests for rate limiter (6), filings/queue/batch endpoints (9) — 15 new tests, suite now 142 passing
