@@ -509,6 +509,30 @@ export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkf
                 </ul>
               </div>
 
+              <div className="bg-[#7C3AED]/10 border border-[#7C3AED] rounded-lg p-6">
+                <h3 className="text-white font-semibold mb-4">Schedule Your Hearing</h3>
+                <p className="text-[#CBD5E1] text-sm mb-4">
+                  Once the Appraisal Review Board schedules your hearing, you'll receive a notification. You can view and manage your hearing date below.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[#CBD5E1] text-sm font-medium">Preferred Hearing Date</label>
+                    <input
+                      type="date"
+                      className="w-full mt-2 px-4 py-2 bg-[#1E293B] border border-[#7C3AED] rounded text-white"
+                      disabled
+                      placeholder="Will be assigned by ARB"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[#CBD5E1] text-sm font-medium">Representation</label>
+                    <select className="w-full mt-2 px-4 py-2 bg-[#1E293B] border border-[#7C3AED] rounded text-white">
+                      <option>{filingMethod === "poa" ? "We represent you" : "You represent yourself (we coach)"}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <Button
                 onClick={() => (window.location.href = "/dashboard")}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold py-3"

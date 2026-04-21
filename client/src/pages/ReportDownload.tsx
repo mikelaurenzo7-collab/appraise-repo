@@ -80,6 +80,11 @@ export default function ReportDownload() {
   );
 
   const [triggered, setTriggered] = useState(false);
+  const [reportPreferences, setReportPreferences] = useState({
+    includePhotos: true,
+    includeComparables: true,
+    format: "pdf" as const,
+  });
   useEffect(() => {
     if (downloadQuery.data?.url && !triggered) {
       setTriggered(true);
@@ -143,6 +148,36 @@ export default function ReportDownload() {
           {statusQuery.error && jobId !== null && (
             <div className="p-4 rounded bg-red-50 text-red-700 text-sm">
               {statusQuery.error.message}
+            </div>
+          )}
+
+          {!isPolling && !failed && completed && (
+            <div className="mb-6 p-4 rounded-lg bg-slate-50 border border-slate-200">
+              <h3 className="font-semibold text-slate-900 mb-4">Report Preferences</h3>
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reportPreferences.includePhotos}
+                    onChange={(e) =>
+                      setReportPreferences({ ...reportPreferences, includePhotos: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded border-slate-300"
+                  />
+                  <span className="text-slate-700">Include property photos</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reportPreferences.includeComparables}
+                    onChange={(e) =>
+                      setReportPreferences({ ...reportPreferences, includeComparables: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded border-slate-300"
+                  />
+                  <span className="text-slate-700">Include comparable sales analysis</span>
+                </label>
+              </div>
             </div>
           )}
 
