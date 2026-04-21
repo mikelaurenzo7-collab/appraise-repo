@@ -29,6 +29,15 @@ import { queueReportGeneration } from "./services/reportJobQueue";
 import { getReportJobById, getReportJobBySubmissionId } from "./db";
 import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
 import { storagePut, storageGet } from "./storage";
+import {
+  CHAT_MAX_CHARS_PER_MESSAGE,
+  CHAT_MAX_MESSAGES,
+  ChatValidationError,
+  buildLLMMessages,
+  extractContactInfo,
+  sanitizeMessages,
+} from "./services/chat";
+import { invokeLLM } from "./_core/llm";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 // Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
@@ -263,6 +272,86 @@ export const appRouter = router({
           outcome: outcome || null,
           activityLogs: logs,
         };
+      }),
+  }),
+
+  // ─── CHAT (LEAD CAPTURE + FAQ) ──────────────────────────────────────────
+  chat: router({
+    ask: publicProcedure
+      .input(
+        z.object({
+          messages: z
+            .array(
+              z.object({
+                role: z.enum(["user", "assistant"]),
+                content: z.string().max(CHAT_MAX_CHARS_PER_MESSAGE),
+              })
+            )
+            .min(1)
+            .max(CHAT_MAX_MESSAGES),
+        })
+      )
+      .mutation(async ({ input }) => {
+        let clean;
+        try {
+          clean = sanitizeMessages(input.messages);
+        } catch (err) {
+          if (err instanceof ChatValidationError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+          }
+          throw err;
+        }
+
+        const llmMessages = buildLLMMessages(clean);
+
+        let reply = "";
+        try {
+          const result = await invokeLLM({
+            messages: llmMessages,
+            maxTokens: 400,
+          });
+          const content = result.choices[0]?.message?.content;
+          reply =
+            typeof content === "string"
+              ? content
+              : Array.isArray(content)
+                ? content
+                    .map((p) => ("text" in p && p.text ? p.text : ""))
+                    .join("")
+                : "";
+          reply = reply.trim();
+        } catch (err) {
+          console.error("[chat.ask] invokeLLM failed:", err);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Chat is temporarily unavailable. Please try again.",
+          });
+        }
+
+        if (!reply) {
+          reply =
+            "I'm having trouble answering that right now. Could you rephrase, or head to /get-started for a free analysis?";
+        }
+
+        // Fire-and-forget lead notification when the user has volunteered an
+        // email or phone. Failing to notify should not break the chat.
+        const contact = extractContactInfo(clean);
+        let leadCaptured = false;
+        if (contact.email || contact.phone) {
+          leadCaptured = true;
+          const lastUser = clean.filter((m) => m.role === "user").pop()?.content ?? "";
+          const title = "New chat lead captured";
+          const content = [
+            `Email: ${contact.email ?? "(none)"}`,
+            `Phone: ${contact.phone ?? "(none)"}`,
+            `Last message: ${lastUser.slice(0, 280)}`,
+          ].join("\n");
+          void notifyOwner({ title, content }).catch((err) => {
+            console.warn("[chat.ask] notifyOwner failed:", err);
+          });
+        }
+
+        return { reply, leadCaptured, contact };
       }),
   }),
 

@@ -21,6 +21,7 @@ import Testimonials from "./pages/Testimonials";
 import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
 import ReportDownload from "./pages/ReportDownload";
+import LeadChatWidget from "./components/LeadChatWidget";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -58,6 +59,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <LeadChatWidget />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

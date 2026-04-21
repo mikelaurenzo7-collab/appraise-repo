@@ -108,7 +108,7 @@
 - [x] Build testimonials/case studies page with real outcome data
 - [x] Add Stripe integration for contingency fee collection (25%)
 - [x] Build blog/resources section (SEO content, state guides)
-- [ ] Add chatbot widget for lead capture and FAQ
+- [x] Add chatbot widget for lead capture and FAQ (floating LeadChatWidget + chat.ask endpoint + FAQ system prompt + lead notify)
 
 ## Premium Theme & Visual Design (NEW)
 - [x] Redesign with Electric Purple + Deep Teal + Gold color scheme
