@@ -24,6 +24,10 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PropertyMapView from "@/components/PropertyMapView";
 import { trpc } from "@/lib/trpc";
+import {
+  computePipelineState,
+  type PipelineStageState,
+} from "../../../shared/analysisProgress";
 
 function ScoreGauge({ score }: { score: number }) {
   const color =
@@ -80,9 +84,10 @@ export default function AnalysisResults() {
   const { data, isLoading, error } = trpc.properties.getAnalysis.useQuery(
     { submissionId: submissionId! },
     { enabled: !!submissionId, refetchInterval: (query) => {
-      // Poll every 3 seconds while still analyzing
+      // Poll every 1.5s while analyzing so users see stage transitions
+      // as the pipeline emits them.
       const status = query.state.data?.submission?.status;
-      return status === "pending" || status === "analyzing" ? 3000 : false;
+      return status === "pending" || status === "analyzing" ? 1500 : false;
     }}
   );
 
@@ -126,42 +131,146 @@ export default function AnalysisResults() {
   const isAnalyzing = submission?.status === "pending" || submission?.status === "analyzing";
 
   if (isAnalyzing) {
+    const pipeline = computePipelineState(
+      (data?.activityLogs ?? []) as Array<{
+        type: string;
+        status?: string | null;
+        durationMs?: number | null;
+        description?: string | null;
+        createdAt?: Date | string;
+      }>,
+      { submissionStatus: submission?.status }
+    );
+    const completed = pipeline.filter((s) => s.status === "completed").length;
+    const progressPct = Math.round((completed / pipeline.length) * 100);
+    const hasError = pipeline.some((s) => s.status === "error");
+
     return (
       <div className="min-h-screen bg-[#F1F5F9]">
         <Navbar />
         <section className="pt-32 pb-20">
-          <div className="container max-w-2xl text-center">
-            <div className="relative mx-auto mb-6 w-20 h-20">
-              <div className="absolute inset-0 rounded-full border-4 border-[#F1F5F9]" />
-              <div className="absolute inset-0 rounded-full border-4 border-t-[#7C3AED] animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <BarChart3 size={28} className="text-[#7C3AED]" />
+          <div className="container max-w-2xl">
+            <div className="text-center mb-8">
+              <div className="relative mx-auto mb-6 w-20 h-20">
+                <div className="absolute inset-0 rounded-full border-4 border-[#F1F5F9]" />
+                <div className="absolute inset-0 rounded-full border-4 border-t-[#7C3AED] animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <BarChart3 size={28} className="text-[#7C3AED]" />
+                </div>
+              </div>
+              <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-2">
+                {hasError ? "Analysis hit a snag" : "Analyzing Your Property"}
+              </h1>
+              <p className="text-[#64748B] max-w-md mx-auto">
+                {hasError
+                  ? "We'll retry automatically. You can safely leave this page — we'll email you when it's ready."
+                  : "Live pipeline status — this typically takes 30–60 seconds."}
+              </p>
+            </div>
+
+            {/* Progress bar */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2 text-xs text-[#64748B] uppercase tracking-widest">
+                <span>Pipeline progress</span>
+                <span className="font-data">{progressPct}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-[#E2E8F0] overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-[#7C3AED] to-[#0D9488] transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
               </div>
             </div>
-            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Analyzing Your Property</h1>
-            <p className="text-[#64748B] text-lg mb-8 max-w-md mx-auto">
-              Our AI is pulling assessor records, comparable sales, and market data for your property. This typically takes 30-60 seconds.
-            </p>
 
-            <div className="max-w-md mx-auto space-y-3">
-              {[
-                { label: "Pulling assessor records", done: true },
-                { label: "Querying comparable sales", done: submission?.status === "analyzing" },
-                { label: "Running AI valuation model", done: false },
-                { label: "Generating appeal analysis", done: false },
-              ].map((step, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white border border-[#E2E8F0]">
-                  {step.done ? (
-                    <CheckCircle2 size={18} className="text-green-500 shrink-0" />
-                  ) : (
-                    <div className="w-[18px] h-[18px] rounded-full border-2 border-[#E2E8F0] shrink-0" />
-                  )}
-                  <span className={`text-sm ${step.done ? "text-[#0F172A]" : "text-[#94A3B8]"}`}>
-                    {step.label}
-                  </span>
-                </div>
-              ))}
+            {/* Stage list driven by real activity logs */}
+            <div className="space-y-2 mb-8">
+              {pipeline.map((stage: PipelineStageState) => {
+                const cls =
+                  stage.status === "completed"
+                    ? "bg-white border-green-200"
+                    : stage.status === "running"
+                      ? "bg-white border-[#7C3AED] ring-1 ring-[#7C3AED]/20"
+                      : stage.status === "error"
+                        ? "bg-red-50 border-red-200"
+                        : "bg-white border-[#E2E8F0]";
+                return (
+                  <div
+                    key={stage.key}
+                    className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${cls}`}
+                  >
+                    <div className="shrink-0 mt-0.5">
+                      {stage.status === "completed" ? (
+                        <CheckCircle2 size={20} className="text-green-500" />
+                      ) : stage.status === "running" ? (
+                        <Loader2 size={20} className="text-[#7C3AED] animate-spin" />
+                      ) : stage.status === "error" ? (
+                        <AlertTriangle size={20} className="text-red-600" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-[#E2E8F0]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`text-sm font-semibold ${
+                            stage.status === "pending" ? "text-[#94A3B8]" : "text-[#0F172A]"
+                          }`}
+                        >
+                          {stage.label}
+                        </span>
+                        {stage.status === "completed" && stage.durationMs !== undefined && (
+                          <span className="text-xs text-[#94A3B8]">
+                            {(stage.durationMs / 1000).toFixed(1)}s
+                          </span>
+                        )}
+                        {stage.status === "running" && (
+                          <span className="text-xs text-[#7C3AED] uppercase tracking-widest">
+                            running
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`text-xs mt-0.5 leading-relaxed ${
+                          stage.status === "error" ? "text-red-600" : "text-[#64748B]"
+                        }`}
+                      >
+                        {stage.errorMessage || stage.description}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Live activity stream — shows the raw events as they arrive */}
+            {data?.activityLogs && data.activityLogs.length > 0 && (
+              <div className="p-4 rounded-lg bg-[#0F172A] text-white/90">
+                <div className="flex items-center gap-2 mb-3 text-xs uppercase tracking-widest text-white/60">
+                  <Activity size={12} />
+                  Live Event Stream
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto text-xs font-mono">
+                  {data.activityLogs
+                    .slice()
+                    .reverse()
+                    .map((log: any, i: number) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <span className="text-[#7C3AED] shrink-0">
+                          {new Date(log.createdAt).toLocaleTimeString()}
+                        </span>
+                        <span
+                          className={`shrink-0 ${
+                            log.status === "error" ? "text-red-400" : "text-[#0D9488]"
+                          }`}
+                        >
+                          {log.type.replace(/_/g, " ")}
+                        </span>
+                        <span className="text-white/70 truncate">{log.description}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
         <Footer />

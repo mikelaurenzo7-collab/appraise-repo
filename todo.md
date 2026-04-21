@@ -104,7 +104,7 @@
 - [x] Build property portfolio page (multi-property management for investors)
 - [x] Add appeal outcome update flow (RecordOutcomeModal with 25% contingency calc)
 - [x] Polish GetStarted form (multi-step, property type selector, progress steps)
-- [ ] Add real-time analysis status page with streaming LLM output
+- [x] Add real-time analysis status page driven by live activity-log stream (pipeline stage panel + progress bar + live event log, 1.5s poll)
 - [x] Build testimonials/case studies page with real outcome data
 - [x] Add Stripe integration for contingency fee collection (25%)
 - [x] Build blog/resources section (SEO content, state guides)
