@@ -345,12 +345,40 @@ export async function sendAppealResultEmail(data: AppealResultEmail): Promise<bo
  */
 async function sendEmail(template: EmailTemplate): Promise<boolean> {
   try {
-    // For now, log the email (in production, integrate with email service)
-    console.log(`[Email] Sending to ${template.to}: ${template.subject}`);
-    // TODO: Integrate with actual email service (SendGrid, Mailgun, etc.)
+    // Use Manus built-in email service via Forge API
+    const forgeApiUrl = process.env.BUILT_IN_FORGE_API_URL;
+    const forgeApiKey = process.env.BUILT_IN_FORGE_API_KEY;
+
+    if (!forgeApiUrl || !forgeApiKey) {
+      console.warn("[Email] Forge API credentials not configured, logging email only");
+      console.log(`[Email] To: ${template.to}`);
+      console.log(`[Email] Subject: ${template.subject}`);
+      return true;
+    }
+
+    const response = await fetch(`${forgeApiUrl}/email/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${forgeApiKey}`,
+      },
+      body: JSON.stringify({
+        to: template.to,
+        subject: template.subject,
+        html: template.html,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`[Email] Failed to send: ${response.status} ${error}`);
+      return false;
+    }
+
+    console.log(`[Email] Successfully sent to ${template.to}: ${template.subject}`);
     return true;
   } catch (error) {
-    console.error("Failed to send email:", error);
+    console.error("[Email] Error sending email:", error);
     return false;
   }
 }

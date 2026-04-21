@@ -42,7 +42,7 @@
 - [ ] Batch processing tRPC endpoints and UI
 - [x] Persistent outcome tracking database (appeal_outcomes table)
 - [x] Response caching with TTL (api_cache table with DB-backed eviction)
-- [ ] Email delivery service integration
+- [x] Email delivery service integration (Forge API + fallback logging + 10 tests)
 - [x] PDF report generation pipeline (50-60 pages, comprehensive)
 - [ ] Appeal filing workflow UI
 - [x] State-specific deadline calendar
