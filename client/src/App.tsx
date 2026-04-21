@@ -21,6 +21,7 @@ import Testimonials from "./pages/Testimonials";
 import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
 import ReportDownload from "./pages/ReportDownload";
+import FilingStatus from "./pages/FilingStatus";
 import LeadChatWidget from "./components/LeadChatWidget";
 
 function Router() {
@@ -42,6 +43,7 @@ function Router() {
       <Route path="/blog" component={Blog} />
       <Route path="/testimonials" component={Testimonials} />
       <Route path="/batch" component={BatchProcessing} />
+      <Route path="/filing-status" component={FilingStatus} />
       <Route path="/report" component={ReportDownload} />
       <Route path="/appeal-workflow/:submissionId">
         {(params) => <AppealFilingWorkflow submissionId={params.submissionId} />}
