@@ -348,21 +348,69 @@ export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkf
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="text-[#10B981] shrink-0 mt-0.5" size={18} />
                     <div>
-                      This county supports automated filing via online portal.
-                      {eligibility.portalUrl && (
-                        <>
-                          {" "}
-                          <a
-                            href={eligibility.portalUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline inline-flex items-center gap-1"
-                          >
-                            Portal <ExternalLink size={12} />
-                          </a>
-                          .
-                        </>
-                      )}
+                      {(() => {
+                        const channel = (eligibility as any).selectedChannel as
+                          | "portal"
+                          | "mail_certified"
+                          | "mail_first_class"
+                          | "email"
+                          | "unsupported"
+                          | undefined;
+                        if (channel === "portal") {
+                          return (
+                            <>
+                              <strong>Automated portal filing.</strong> We&apos;ll
+                              submit through your county&apos;s online portal using
+                              the taxpayer PIN you provide. You&apos;ll get a
+                              county confirmation number the same day.
+                              {eligibility.portalUrl && (
+                                <>
+                                  {" "}
+                                  <a
+                                    href={eligibility.portalUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="underline inline-flex items-center gap-1"
+                                  >
+                                    Portal <ExternalLink size={12} />
+                                  </a>
+                                </>
+                              )}
+                            </>
+                          );
+                        }
+                        if (channel === "mail_certified") {
+                          return (
+                            <>
+                              <strong>Certified mail with return receipt.</strong>{" "}
+                              We print your appeal packet and mail it certified
+                              via USPS. You get a tracking number, and the county
+                              signs for delivery. Arrives within 3–5 business days.
+                            </>
+                          );
+                        }
+                        if (channel === "mail_first_class") {
+                          return (
+                            <>
+                              <strong>First Class mail with tracking.</strong> We
+                              print your appeal packet and mail it via USPS. You
+                              get a tracking number. Arrives within 3–5 business
+                              days.
+                            </>
+                          );
+                        }
+                        if (channel === "email") {
+                          return (
+                            <>
+                              <strong>Email delivery.</strong> Your county accepts
+                              emailed appeal filings as equivalent to mailed ones.
+                              We&apos;ll send the packet to their official intake
+                              address and cc you.
+                            </>
+                          );
+                        }
+                        return <>This county is supported.</>;
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -555,11 +603,58 @@ export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkf
                       {jobStatusQuery.data?.status ?? "pending"}
                     </span>
                   </p>
+                  {jobStatusQuery.data?.deliveryChannel && (
+                    <p className="text-[#CBD5E1] text-sm">
+                      Delivered via:{" "}
+                      <span className="text-white font-medium">
+                        {jobStatusQuery.data.deliveryChannel === "portal"
+                          ? "County online portal"
+                          : jobStatusQuery.data.deliveryChannel === "mail_certified"
+                            ? "USPS Certified Mail + return receipt"
+                            : jobStatusQuery.data.deliveryChannel === "mail_first_class"
+                              ? "USPS First Class Mail + tracking"
+                              : "Email to county intake address"}
+                      </span>
+                    </p>
+                  )}
                   {jobStatusQuery.data?.portalConfirmationNumber && (
                     <p className="text-[#10B981] text-sm">
                       Portal confirmation:{" "}
                       <span className="font-mono">
                         {jobStatusQuery.data.portalConfirmationNumber}
+                      </span>
+                    </p>
+                  )}
+                  {jobStatusQuery.data?.mailTrackingNumber && (
+                    <p className="text-[#10B981] text-sm">
+                      USPS tracking:{" "}
+                      <a
+                        href={`https://tools.usps.com/go/TrackConfirmAction?tLabels=${jobStatusQuery.data.mailTrackingNumber}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono underline"
+                      >
+                        {jobStatusQuery.data.mailTrackingNumber}
+                      </a>
+                      {jobStatusQuery.data.lobExpectedDeliveryDate && (
+                        <span className="text-[#94A3B8]">
+                          {" · expected "}
+                          {new Date(
+                            jobStatusQuery.data.lobExpectedDeliveryDate
+                          ).toLocaleDateString()}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {jobStatusQuery.data?.emailMessageId && (
+                    <p className="text-[#10B981] text-sm">
+                      Emailed to{" "}
+                      <span className="font-mono">
+                        {jobStatusQuery.data.emailRecipient}
+                      </span>
+                      <span className="text-[#94A3B8]"> · message id{" "}</span>
+                      <span className="font-mono text-xs">
+                        {jobStatusQuery.data.emailMessageId}
                       </span>
                     </p>
                   )}

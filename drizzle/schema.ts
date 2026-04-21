@@ -297,6 +297,33 @@ export const counties = mysqlTable("counties", {
   filingWindowStart: varchar("filingWindowStart", { length: 10 }), // MM-DD annually
   filingWindowEnd: varchar("filingWindowEnd", { length: 10 }), // MM-DD annually
 
+  // Delivery dispatcher. The filing queue picks the channel based on what
+  // each county will actually accept. `unsupported` means we generate a
+  // PDF packet only and do not charge the filing fee.
+  preferredChannel: mysqlEnum("preferredChannel", [
+    "portal",
+    "mail_certified",
+    "mail_first_class",
+    "email",
+    "unsupported",
+  ]).default("mail_certified").notNull(),
+  fallbackChannel: mysqlEnum("fallbackChannel", [
+    "mail_certified",
+    "mail_first_class",
+    "email",
+    "unsupported",
+  ]).default("mail_certified"),
+  // Structured mailing address for the assessor / ARB. Used by the Lob
+  // letter API. Kept denormalized on the county row for simplicity.
+  mailingAddressName: varchar("mailingAddressName", { length: 255 }),
+  mailingAddressLine1: varchar("mailingAddressLine1", { length: 200 }),
+  mailingAddressLine2: varchar("mailingAddressLine2", { length: 200 }),
+  mailingAddressCity: varchar("mailingAddressCity", { length: 100 }),
+  mailingAddressState: varchar("mailingAddressState", { length: 2 }),
+  mailingAddressZip: varchar("mailingAddressZip", { length: 10 }),
+  // Official intake email for counties that accept email filings.
+  intakeEmail: varchar("intakeEmail", { length: 320 }),
+
   // Contact info
   assessorName: varchar("assessorName", { length: 255 }),
   assessorPhone: varchar("assessorPhone", { length: 20 }),
@@ -397,8 +424,18 @@ export const filingJobs = mysqlTable("filing_jobs", {
   id: int("id").autoincrement().primaryKey(),
   submissionId: int("submissionId").notNull(),
   userId: int("userId").notNull(),
-  recipeId: int("recipeId").notNull(),
+  // recipeId is nullable — only populated when delivery channel is "portal".
+  recipeId: int("recipeId"),
   authorizationId: int("authorizationId").notNull(),
+
+  // Which delivery channel was used for this specific job. Populated by
+  // the dispatcher at job start, after eligibility resolution.
+  deliveryChannel: mysqlEnum("deliveryChannel", [
+    "portal",
+    "mail_certified",
+    "mail_first_class",
+    "email",
+  ]),
 
   status: mysqlEnum("status", [
     "pending",
@@ -413,10 +450,17 @@ export const filingJobs = mysqlTable("filing_jobs", {
   // for now stored as opaque JSON so we can wipe on completion).
   inputs: text("inputs"),
 
-  // Filing results.
+  // Unified filing artifacts. Exactly which fields are populated depends
+  // on the delivery channel — e.g. portal runs populate the screenshot +
+  // conf number, Lob mail runs populate mailTrackingNumber + lobLetterId.
   portalConfirmationNumber: varchar("portalConfirmationNumber", { length: 255 }),
   finalScreenshotKey: varchar("finalScreenshotKey", { length: 500 }),
   executionLogKey: varchar("executionLogKey", { length: 500 }),
+  mailTrackingNumber: varchar("mailTrackingNumber", { length: 64 }),
+  lobLetterId: varchar("lobLetterId", { length: 64 }),
+  lobExpectedDeliveryDate: timestamp("lobExpectedDeliveryDate"),
+  emailMessageId: varchar("emailMessageId", { length: 255 }),
+  emailRecipient: varchar("emailRecipient", { length: 320 }),
   errorMessage: text("errorMessage"),
 
   // Lifecycle.

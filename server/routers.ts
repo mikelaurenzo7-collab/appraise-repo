@@ -1418,19 +1418,15 @@ export const appRouter = router({
           });
         }
 
+        // Portal is optional — if the county uses a mail or email channel,
+        // no recipe is needed. Only pin a recipe when one exists.
         const recipe = await getActiveRecipeForCounty(input.countyId);
-        if (!recipe) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: "No active filing recipe for this county",
-          });
-        }
 
         const queued = await queueFilingJob({
           submissionId: input.submissionId,
           userId: ctx.user.id,
           countyId: input.countyId,
-          recipeId: recipe.id,
+          recipeId: recipe?.id,
           authorizationId: auth.id,
           inputs: input.inputs,
         });
@@ -1450,9 +1446,15 @@ export const appRouter = router({
           jobId: job.id,
           submissionId: job.submissionId,
           status: job.status,
+          deliveryChannel: job.deliveryChannel ?? null,
           portalConfirmationNumber: job.portalConfirmationNumber ?? null,
           finalScreenshotKey: job.finalScreenshotKey ?? null,
           executionLogKey: job.executionLogKey ?? null,
+          mailTrackingNumber: job.mailTrackingNumber ?? null,
+          lobLetterId: job.lobLetterId ?? null,
+          lobExpectedDeliveryDate: job.lobExpectedDeliveryDate ?? null,
+          emailMessageId: job.emailMessageId ?? null,
+          emailRecipient: job.emailRecipient ?? null,
           errorMessage: job.errorMessage ?? null,
           queuedAt: job.queuedAt,
           startedAt: job.startedAt ?? null,

@@ -201,7 +201,22 @@
 - [x] Draft recipes for Travis / Harris / Miami-Dade (verificationStatus: draft, queue refuses to run in production without ALLOW_DRAFT_RECIPES=1)
 - [x] Tests: recipe engine (13), pricing pivot + scrivener + refund + eligibility gating (15) — suite now 170 passing / 4 skipped
 
-## Visual makeover (this pass)
+## Multi-channel delivery dispatcher (this pass)
+- [x] Schema: counties.preferredChannel + fallbackChannel + mailing address + intakeEmail
+- [x] Schema: filing_jobs.deliveryChannel + mailTrackingNumber + lobLetterId + lobExpectedDeliveryDate + emailMessageId + emailRecipient
+- [x] services/lobDelivery.ts — Lob Letters API wrapper with deterministic stub mode (LOB_STUB=1 or missing key). Supports certified_return_receipt, certified, first_class.
+- [x] services/emailDelivery.ts — wraps Forge email with attachment support; stub mode; buildAppealEmailBody helper for county-intake emails
+- [x] services/deliveryDispatcher.ts — resolveChannel (portal / mail_certified / mail_first_class / email / unsupported) + dispatchFiling (fetches appeal PDF and routes to the right service)
+- [x] services/filingJobQueue.ts — rewritten to call dispatcher; channel-agnostic queue, persists channel-specific artifacts per row
+- [x] db.getCountyEligibility now returns selectedChannel so the UI can preview which channel will run
+- [x] filings.submit no longer requires a portal recipe (mail/email paths skip it)
+- [x] filings.getJobStatus returns deliveryChannel + mail/email artifact fields
+- [x] AppealFilingWorkflow eligibility step shows channel-specific copy ("USPS Certified Mail + return receipt", "County online portal", "Email delivery")
+- [x] AppealFilingWorkflow tracking step shows USPS tracking number with USPS.com deep link, expected delivery date, email message id + recipient
+- [x] Seed updates: Travis/Harris/Miami-Dade now carry preferredChannel + mailingAddress so they can fall back to certified mail when portal recipes aren't verified
+- [x] Tests: deliveryDispatcher.test.ts (15): resolveChannel matrix, Lob stub determinism, email stub + body builder, dispatchFiling happy paths for mail_certified + email, unsupported refusal, missing-PDF refusal
+
+## Visual makeover (previous pass)
 - [x] Home hero: removed stock photo, built type-driven + live-filing data-card hero
 - [x] Loud yellow statement band between hero and stats
 - [x] Stats bar reworked to reflect real operating posture (3 counties live, 4m median filing time, 60-day MBG)

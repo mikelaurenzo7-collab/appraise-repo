@@ -1200,6 +1200,15 @@ export type CountyEligibility = {
   hasActiveRecipe: boolean;
   withinFilingWindow: boolean;
   reasonsIneligible: string[];
+  // Which channel we actually plan to use if the user proceeds. Lets the
+  // UI show "We'll file via certified mail" or "We'll file through the
+  // online portal" before the user authorizes or pays.
+  selectedChannel:
+    | "portal"
+    | "mail_certified"
+    | "mail_first_class"
+    | "email"
+    | "unsupported";
 };
 
 function monthDayWithinWindow(start: string | null | undefined, end: string | null | undefined, today = new Date()): boolean {
@@ -1223,16 +1232,66 @@ export async function getCountyEligibility(countyId: number): Promise<CountyElig
       hasActiveRecipe: false,
       withinFilingWindow: false,
       reasonsIneligible: ["County not found"],
+      selectedChannel: "unsupported",
     };
   }
   const recipe = await getActiveRecipeForCounty(countyId);
   const withinFilingWindow = monthDayWithinWindow(county.filingWindowStart ?? null, county.filingWindowEnd ?? null);
-  if (!county.poaEligible) reasons.push("County is not POA-eligible in our jurisdiction matrix");
-  if (!county.onlinePortalOnly) reasons.push("County does not support end-to-end online filing");
-  if (!recipe) reasons.push("No active filing recipe for this county");
-  if (recipe && recipe.verificationStatus === "draft") reasons.push("Recipe is not verified against the live portal");
-  if (recipe && recipe.verificationStatus === "broken") reasons.push("Recipe is currently broken pending fix");
   if (!withinFilingWindow) reasons.push("Outside the annual filing window");
+
+  // Channel resolution mirrors services/deliveryDispatcher.resolveChannel.
+  // We keep the logic in both places because `getCountyEligibility` has to
+  // stay dependency-light (db.ts doesn't import services) — but the two
+  // MUST stay consistent or the user sees a different channel at preview
+  // vs. at filing time.
+  const preferred = county.preferredChannel;
+  const hasMailingAddress =
+    !!county.mailingAddressLine1 &&
+    !!county.mailingAddressCity &&
+    !!county.mailingAddressState &&
+    !!county.mailingAddressZip;
+  const hasEmail = !!county.intakeEmail && county.intakeEmail.includes("@");
+  const recipeUsable =
+    !!recipe &&
+    (recipe.verificationStatus === "verified" ||
+      recipe.verificationStatus === "staging" ||
+      process.env.ALLOW_DRAFT_RECIPES === "1");
+
+  let selected: CountyEligibility["selectedChannel"] = "unsupported";
+  if (preferred === "portal" && recipeUsable) {
+    selected = "portal";
+  } else if (preferred === "email" && hasEmail) {
+    selected = "email";
+  } else if (
+    (preferred === "mail_certified" || preferred === "mail_first_class") &&
+    hasMailingAddress
+  ) {
+    selected = preferred;
+  } else {
+    // Fall back.
+    const fb = county.fallbackChannel;
+    if (fb === "email" && hasEmail) selected = "email";
+    else if (
+      (fb === "mail_certified" || fb === "mail_first_class") &&
+      hasMailingAddress
+    )
+      selected = fb;
+  }
+
+  if (selected === "unsupported") {
+    reasons.push("No viable delivery channel configured for this county");
+    if (!hasMailingAddress) reasons.push("No county mailing address on file");
+    if (!hasEmail && preferred === "email")
+      reasons.push("County intake email not configured");
+    if (preferred === "portal" && !recipeUsable) {
+      if (!recipe) reasons.push("No active filing recipe for this county");
+      else if (recipe.verificationStatus === "draft")
+        reasons.push("Recipe is not verified against the live portal");
+      else if (recipe.verificationStatus === "broken")
+        reasons.push("Recipe is currently broken pending fix");
+    }
+  }
+
   return {
     poaEligible: Boolean(county.poaEligible),
     onlinePortalOnly: Boolean(county.onlinePortalOnly),
@@ -1240,5 +1299,6 @@ export async function getCountyEligibility(countyId: number): Promise<CountyElig
     hasActiveRecipe: Boolean(recipe),
     withinFilingWindow,
     reasonsIneligible: reasons,
+    selectedChannel: selected,
   };
 }

@@ -1,32 +1,26 @@
 /**
  * Filing job queue — DB-backed, polling-style workflow that picks up
- * pending filing jobs and runs them through the Playwright executor.
+ * pending filing jobs and hands them to the delivery dispatcher.
  *
- * The queue mirrors reportJobQueue.ts. On a production deployment the
- * processor should run in a dedicated worker process (one container, one
- * browser) so concurrent filings do not fight for Chromium resources.
+ * The queue is channel-agnostic: it updates lifecycle state (pending →
+ * processing → completed | failed) and persists whichever channel-
+ * specific artifacts the dispatcher returned. Which channel actually
+ * ran (portal / certified mail / first-class mail / email) is decided
+ * inside deliveryDispatcher.ts based on the county's configuration.
  */
 
 import {
   createFilingJob,
   getFilingJobById,
-  getActiveRecipeForCounty,
   listPendingFilingJobs,
   updateFilingJob,
   persistActivityLog,
-  getPropertySubmissionById,
-  getPropertyAnalysisBySubmissionId,
-  getReportJobBySubmissionId,
   getScrivenerAuthorizationById,
+  getCountyById,
+  getPropertySubmissionById,
 } from "../db";
-import { storagePut, storageGet } from "../storage";
-import {
-  parseRecipe,
-  planRecipe,
-  type Recipe,
-  type RecipeInputs,
-  RecipeInputError,
-} from "./filingRecipeEngine";
+import { storagePut } from "../storage";
+import { dispatchFiling, resolveChannel } from "./deliveryDispatcher";
 
 export type QueuedFilingJob = {
   jobId: number;
@@ -37,7 +31,12 @@ export interface QueueFilingOptions {
   submissionId: number;
   userId: number;
   countyId: number;
-  recipeId: number;
+  /**
+   * Optional recipeId to pin. If omitted the dispatcher picks the active
+   * recipe at run time. We still record it at queue time so we know
+   * which recipe version was current when the user authorized the job.
+   */
+  recipeId?: number;
   authorizationId: number;
   /**
    * User-provided inputs for the recipe (account number, taxpayer PIN, etc).
@@ -50,7 +49,7 @@ export async function queueFilingJob(options: QueueFilingOptions): Promise<Queue
   const job = await createFilingJob({
     submissionId: options.submissionId,
     userId: options.userId,
-    recipeId: options.recipeId,
+    recipeId: options.recipeId ?? null,
     authorizationId: options.authorizationId,
     status: "pending",
     inputs: JSON.stringify(options.inputs),
@@ -62,77 +61,10 @@ export async function queueFilingJob(options: QueueFilingOptions): Promise<Queue
     actor: "user",
     actorId: options.userId,
     description: `Filing job #${job.id} queued for county ${options.countyId}`,
-    metadata: JSON.stringify({ jobId: job.id, recipeId: options.recipeId }),
+    metadata: JSON.stringify({ jobId: job.id, recipeId: options.recipeId ?? null }),
     status: "success",
   });
   return { jobId: job.id, submissionId: options.submissionId };
-}
-
-/**
- * Build the RecipeInputs object by merging:
- *   - the submission and analysis rows from the database
- *   - the per-run inputs the user provided (PIN, account number, etc.)
- */
-async function buildRecipeInputs(
-  submissionId: number,
-  perRunInputs: Record<string, string | number | null>
-): Promise<{
-  inputs: RecipeInputs;
-  reportPdfBuffer: Buffer | null;
-  reportPdfFilename: string | null;
-}> {
-  const submission = await getPropertySubmissionById(submissionId);
-  if (!submission) throw new Error(`Submission ${submissionId} not found`);
-  const analysis = await getPropertyAnalysisBySubmissionId(submissionId);
-  const reportJob = await getReportJobBySubmissionId(submissionId);
-
-  let reportPdfBuffer: Buffer | null = null;
-  let reportPdfFilename: string | null = null;
-  let reportPdfUrl: string | null = null;
-
-  if (reportJob?.reportKey) {
-    try {
-      const { url } = await storageGet(reportJob.reportKey);
-      reportPdfUrl = url;
-      // Fetch the PDF so the executor can upload it to the portal.
-      const resp = await fetch(url);
-      if (resp.ok) {
-        reportPdfBuffer = Buffer.from(await resp.arrayBuffer());
-        reportPdfFilename = `AppraiseAI-Report-${submission.id}.pdf`;
-      }
-    } catch (err) {
-      console.warn("[FilingQueue] Could not fetch report PDF:", err);
-    }
-  }
-
-  const inputs: RecipeInputs = {
-    user: {
-      ownerEmail: submission.email,
-      ownerName: (perRunInputs.ownerName as string | undefined) ?? submission.email?.split("@")[0],
-      address: submission.address,
-      city: submission.city ?? undefined,
-      state: submission.state ?? undefined,
-      zip: submission.zipCode ?? undefined,
-      accountNumber: perRunInputs.accountNumber as string | undefined,
-      taxpayerPin: perRunInputs.taxpayerPin as string | undefined,
-    },
-    analysis: {
-      marketValueEstimate: analysis?.marketValueEstimate ?? submission.marketValue ?? undefined,
-      assessmentGap: analysis?.assessmentGap ?? undefined,
-      appealStrengthScore: submission.appealStrengthScore ?? undefined,
-    },
-    submission: {
-      assessedValue: submission.assessedValue ?? undefined,
-      propertyType: submission.propertyType ?? undefined,
-      squareFeet: submission.squareFeet ?? undefined,
-      yearBuilt: submission.yearBuilt ?? undefined,
-    },
-    report: {
-      pdfUrl: reportPdfUrl,
-    },
-  };
-
-  return { inputs, reportPdfBuffer, reportPdfFilename };
 }
 
 /**
@@ -142,10 +74,6 @@ export async function processOnePendingJob(): Promise<boolean> {
   const pending = await listPendingFilingJobs(1);
   if (pending.length === 0) return false;
   const job = pending[0];
-
-  const recipe = await getActiveRecipeForCounty(/* countyId derived below */ 0);
-  // Re-load by the specific recipeId actually tied to the job so we honor
-  // the pinned version even if a newer recipe was activated since queuing.
   const row = await getFilingJobById(job.id);
   if (!row) return false;
 
@@ -154,7 +82,6 @@ export async function processOnePendingJob(): Promise<boolean> {
     startedAt: new Date(),
   });
 
-  // Load authorization (must exist and match submission).
   const auth = await getScrivenerAuthorizationById(row.authorizationId);
   if (!auth || auth.submissionId !== row.submissionId) {
     await updateFilingJob(row.id, {
@@ -165,104 +92,126 @@ export async function processOnePendingJob(): Promise<boolean> {
     return true;
   }
 
-  // Load recipe from the pinned recipeId. We shortcut and re-query the
-  // active recipe for the county if the pinned recipe is no longer active.
-  const dbHelpers = await import("../db");
-  const dbInstance = await dbHelpers.getDb();
-  let recipeRow: any = null;
-  if (dbInstance) {
-    const { filingRecipes } = await import("../../drizzle/schema");
-    const { eq } = await import("drizzle-orm");
-    recipeRow = await dbInstance.select().from(filingRecipes).where(eq(filingRecipes.id, row.recipeId)).limit(1).then((r: any) => r[0]);
-  }
-  if (!recipeRow) {
+  const submission = await getPropertySubmissionById(row.submissionId);
+  if (!submission) {
     await updateFilingJob(row.id, {
       status: "failed",
-      errorMessage: "Recipe not found",
-      completedAt: new Date(),
-    });
-    return true;
-  }
-  if (recipeRow.verificationStatus === "draft" && process.env.ALLOW_DRAFT_RECIPES !== "1") {
-    await updateFilingJob(row.id, {
-      status: "failed",
-      errorMessage: "Refused to run draft recipe in production. Set ALLOW_DRAFT_RECIPES=1 to override (staging only).",
+      errorMessage: "Submission not found",
       completedAt: new Date(),
     });
     return true;
   }
 
-  let recipeParsed: Recipe;
-  try {
-    recipeParsed = parseRecipe(recipeRow.steps);
-    recipeParsed.portalUrl = recipeRow.portalUrl;
-    recipeParsed.countyId = recipeRow.countyId;
-    recipeParsed.version = recipeRow.version;
-  } catch (err) {
+  // Resolve the county. Filings are queued with the taxpayer's chosen
+  // county ID; fall back to looking it up via the county name on the
+  // submission if no county_id was stored directly.
+  const countyId = await resolveCountyIdForJob(row);
+  if (!countyId) {
     await updateFilingJob(row.id, {
       status: "failed",
-      errorMessage: err instanceof Error ? err.message : "Recipe parse failed",
+      errorMessage: "No county could be associated with this filing",
       completedAt: new Date(),
     });
     return true;
   }
 
-  const perRunInputs = row.inputs ? (JSON.parse(row.inputs) as Record<string, string | number | null>) : {};
-  let planned;
+  const perRunInputs: Record<string, string | number | null> = row.inputs
+    ? (JSON.parse(row.inputs) as Record<string, string | number | null>)
+    : {};
+
   try {
-    const built = await buildRecipeInputs(row.submissionId, perRunInputs);
-    planned = planRecipe(recipeParsed, built.inputs);
-    // Executor is loaded lazily.
-    const { executeRecipe } = await import("./playwrightExecutor");
-    const result = await executeRecipe(planned.steps, {
-      reportPdfBuffer: built.reportPdfBuffer ?? undefined,
-      reportPdfFilename: built.reportPdfFilename ?? undefined,
-    });
-    let screenshotKey: string | undefined;
-    if (result.finalScreenshot) {
-      const key = `filings/${row.submissionId}/${row.id}-confirmation.png`;
-      const { key: storedKey } = await storagePut(key, result.finalScreenshot, "image/png");
-      screenshotKey = storedKey;
+    // Resolve the channel once for logging, then dispatch.
+    const county = await getCountyById(countyId);
+    const channel = county ? await resolveChannel(county) : "unsupported";
+
+    if (channel === "unsupported") {
+      await updateFilingJob(row.id, {
+        status: "failed",
+        errorMessage: "County is not supported for automated filing",
+        completedAt: new Date(),
+      });
+      return true;
     }
-    const logKey = `filings/${row.submissionId}/${row.id}-log.json`;
-    const { key: storedLogKey } = await storagePut(
-      logKey,
-      Buffer.from(JSON.stringify(result.executionLog, null, 2)),
-      "application/json"
-    );
 
-    await updateFilingJob(row.id, {
-      status: result.success ? "completed" : "failed",
-      completedAt: new Date(),
-      portalConfirmationNumber: result.portalConfirmationNumber,
-      finalScreenshotKey: screenshotKey,
-      executionLogKey: storedLogKey,
-      errorMessage: result.errorMessage,
-      // Wipe inputs so any PIN/account number is gone after the run.
-      inputs: null,
+    const dispatchResult = await dispatchFiling({
+      job: row,
+      countyId,
+      perRunInputs,
     });
+
+    // Persist channel-specific artifacts.
+    const updates: Parameters<typeof updateFilingJob>[1] = {
+      status: dispatchResult.success ? "completed" : "failed",
+      completedAt: new Date(),
+      deliveryChannel: dispatchResult.channelUsed,
+      errorMessage: dispatchResult.errorMessage,
+      // Always wipe the per-run inputs when we're done (PIN, account #).
+      inputs: null,
+    };
+
+    // Portal artifacts — screenshot + execution log to S3.
+    if (dispatchResult.portalConfirmationNumber) {
+      updates.portalConfirmationNumber = dispatchResult.portalConfirmationNumber;
+    }
+    if (dispatchResult.portalScreenshot) {
+      const key = `filings/${row.submissionId}/${row.id}-confirmation.png`;
+      const { key: storedKey } = await storagePut(
+        key,
+        dispatchResult.portalScreenshot,
+        "image/png"
+      );
+      updates.finalScreenshotKey = storedKey;
+    }
+    if (dispatchResult.portalExecutionLog) {
+      const logKey = `filings/${row.submissionId}/${row.id}-log.json`;
+      const { key: storedLogKey } = await storagePut(
+        logKey,
+        Buffer.from(JSON.stringify(dispatchResult.portalExecutionLog, null, 2)),
+        "application/json"
+      );
+      updates.executionLogKey = storedLogKey;
+    }
+
+    // Mail artifacts.
+    if (dispatchResult.mailTrackingNumber) {
+      updates.mailTrackingNumber = dispatchResult.mailTrackingNumber;
+    }
+    if (dispatchResult.lobLetterId) {
+      updates.lobLetterId = dispatchResult.lobLetterId;
+    }
+    if (dispatchResult.lobExpectedDeliveryDate) {
+      updates.lobExpectedDeliveryDate = dispatchResult.lobExpectedDeliveryDate;
+    }
+
+    // Email artifacts.
+    if (dispatchResult.emailMessageId) {
+      updates.emailMessageId = dispatchResult.emailMessageId;
+    }
+    if (dispatchResult.emailRecipient) {
+      updates.emailRecipient = dispatchResult.emailRecipient;
+    }
+
+    await updateFilingJob(row.id, updates);
 
     await persistActivityLog({
       submissionId: row.submissionId,
-      type: result.success ? "filing_succeeded" : "filing_failed",
+      type: dispatchResult.success ? "filing_succeeded" : "filing_failed",
       actor: "system",
-      description: result.success
-        ? `Filing #${row.id} submitted successfully`
-        : `Filing #${row.id} failed: ${result.errorMessage}`,
+      description: dispatchResult.success
+        ? `Filing #${row.id} delivered via ${dispatchResult.channelUsed}`
+        : `Filing #${row.id} failed (${dispatchResult.channelUsed}): ${dispatchResult.errorMessage ?? "unknown error"}`,
       metadata: JSON.stringify({
         jobId: row.id,
-        confirmationNumber: result.portalConfirmationNumber,
+        channel: dispatchResult.channelUsed,
+        trackingNumber: dispatchResult.mailTrackingNumber,
+        confirmationNumber: dispatchResult.portalConfirmationNumber,
+        messageId: dispatchResult.emailMessageId,
       }),
-      status: result.success ? "success" : "error",
+      status: dispatchResult.success ? "success" : "error",
     });
     return true;
   } catch (err) {
-    const message =
-      err instanceof RecipeInputError
-        ? `Missing required taxpayer input: ${err.missingField}`
-        : err instanceof Error
-          ? err.message
-          : String(err);
+    const message = err instanceof Error ? err.message : String(err);
     await updateFilingJob(row.id, {
       status: "failed",
       completedAt: new Date(),
@@ -270,6 +219,50 @@ export async function processOnePendingJob(): Promise<boolean> {
     });
     return true;
   }
+}
+
+/**
+ * Try hard to associate a filing job with a county ID. Current flow
+ * records the countyId on the job's activity-log metadata; we fall back
+ * to a best-effort lookup if needed.
+ */
+async function resolveCountyIdForJob(row: { id: number; submissionId: number; recipeId: number | null }): Promise<number | null> {
+  // Case 1: job pinned a recipeId — load the recipe row to get its county.
+  if (row.recipeId) {
+    const dbHelpers = await import("../db");
+    const dbInstance = await dbHelpers.getDb();
+    if (dbInstance) {
+      const { filingRecipes } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const recipe = await dbInstance
+        .select()
+        .from(filingRecipes)
+        .where(eq(filingRecipes.id, row.recipeId))
+        .limit(1)
+        .then((r: any) => r[0]);
+      if (recipe?.countyId) return recipe.countyId as number;
+    }
+  }
+
+  // Case 2: look it up by submission.county + state.
+  const dbHelpers = await import("../db");
+  const submission = await dbHelpers.getPropertySubmissionById(row.submissionId);
+  if (submission?.county && submission.state) {
+    const dbInstance = await dbHelpers.getDb();
+    if (dbInstance) {
+      const { counties } = await import("../../drizzle/schema");
+      const { and, eq } = await import("drizzle-orm");
+      const match = await dbInstance
+        .select()
+        .from(counties)
+        .where(and(eq(counties.state, submission.state), eq(counties.countyName, submission.county)))
+        .limit(1)
+        .then((r: any) => r[0]);
+      if (match?.id) return match.id as number;
+    }
+  }
+
+  return null;
 }
 
 export async function processPendingFilingJobs(max = 2): Promise<number> {
