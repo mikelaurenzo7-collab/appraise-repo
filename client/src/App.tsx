@@ -20,6 +20,7 @@ import Blog from "./pages/Blog";
 import Testimonials from "./pages/Testimonials";
 import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
+import ReportDownload from "./pages/ReportDownload";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/blog" component={Blog} />
       <Route path="/testimonials" component={Testimonials} />
       <Route path="/batch" component={BatchProcessing} />
+      <Route path="/report" component={ReportDownload} />
       <Route path="/appeal-workflow/:submissionId" component={(props) => (
         <AppealFilingWorkflow
           submissionId={props.params.submissionId}

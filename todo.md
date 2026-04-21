@@ -161,8 +161,11 @@
 - [x] Fix submissionId null serialization bug in submitAddress endpoint (returns [Max Depth])
 - [x] Implement async PDF generation job queue with 24-hour SLA guarantee
 - [x] Add email notification system for report completion
-- [ ] Create report download page with S3 presigned URLs
-- [ ] Test end-to-end: submit property → analysis → report generation → email → download
+- [x] Create report download page with S3 presigned URLs (/report?jobId=X or ?submissionId=Y)
+- [x] Fix escaped template literals in sendReportCompletionEmail (emails were rendering literal "${data.userName}")
+- [x] Fix Stripe module-load crash so test suite can import routers (lazy init)
+- [x] Deployment-readiness API key tests no longer fail local runs — skip when env missing
+- [ ] Test end-to-end: submit property → analysis → report generation → email → download (manual QA still pending)
 
 ## UX Enhancements (COMPLETED)
 - [x] Add Google Places address autocomplete to GetStarted form

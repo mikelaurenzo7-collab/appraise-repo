@@ -2,7 +2,14 @@ import express, { Request, Response } from "express";
 import Stripe from "stripe";
 import { updateAppealOutcome, getAppealOutcomeBySubmissionId } from "../db";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
+  _stripe = new Stripe(key);
+  return _stripe;
+}
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 /**
@@ -24,7 +31,7 @@ export function registerStripeWebhook(app: express.Application) {
       let event: Stripe.Event;
 
       try {
-        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+        event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
       } catch (err: any) {
         console.error("[Stripe Webhook] Signature verification failed:", err.message);
         return res.status(400).json({ error: "Webhook signature verification failed" });

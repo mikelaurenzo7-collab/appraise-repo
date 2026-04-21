@@ -167,11 +167,15 @@ async function processReportJobAsync(jobId: number): Promise<void> {
         minute: "2-digit",
       });
 
+      const appBaseUrl = process.env.APP_BASE_URL || "https://appraise-ai.manus.space";
+      const downloadPageUrl = `${appBaseUrl.replace(/\/+$/, "")}/report?jobId=${jobId}`;
+
       await sendReportCompletionEmail({
         userEmail: submission.email,
         userName: submission.email.split("@")[0],
         propertyAddress: submission.address,
         reportUrl: url,
+        downloadPageUrl,
         appealStrengthScore: submission.appealStrengthScore || 0,
         downloadExpiresAt: expiresAtStr,
       });

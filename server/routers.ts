@@ -25,12 +25,27 @@ import {
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 import { queueReportGeneration } from "./services/reportJobQueue";
-import { getReportJobById } from "./db";
+import { getReportJobById, getReportJobBySubmissionId } from "./db";
 import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
-import { storagePut } from "./storage";
+import { storagePut, storageGet } from "./storage";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+// Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
+// is missing (e.g. during tests or first-time local setup). The first payment
+// endpoint call will surface a clear error instead.
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Stripe is not configured (STRIPE_SECRET_KEY missing).",
+    });
+  }
+  _stripe = new Stripe(key);
+  return _stripe;
+}
 
 // Admin-only middleware
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -263,7 +278,7 @@ export const appRouter = router({
         const chargeAmount = Math.max(contingencyFee, minCharge);
 
         // Create checkout session
-        const session = await stripe.checkout.sessions.create({
+        const session = await getStripe().checkout.sessions.create({
           payment_method_types: ["card"],
           mode: "payment",
           customer_email: ctx.user.email || undefined,
@@ -299,7 +314,7 @@ export const appRouter = router({
 
     // Get payment history
     getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
-      const charges = await stripe.charges.list({
+      const charges = await getStripe().charges.list({
         limit: 50,
       });
 
@@ -454,6 +469,50 @@ export const appRouter = router({
           expiresAt: job.expiresAt,
           retryCount: job.retryCount,
           maxRetries: job.maxRetries,
+        };
+      }),
+
+    // Fetch a fresh presigned download URL for a completed report.
+    // Accepts either a jobId or submissionId; the user must own the job.
+    getReportDownloadUrl: protectedProcedure
+      .input(
+        z.object({
+          jobId: z.number().optional(),
+          submissionId: z.number().optional(),
+        }).refine(v => v.jobId !== undefined || v.submissionId !== undefined, {
+          message: "Provide jobId or submissionId",
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const job = input.jobId
+          ? await getReportJobById(input.jobId)
+          : await getReportJobBySubmissionId(input.submissionId!);
+
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Report job not found" });
+        if (job.userId !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your report" });
+        }
+        if (job.status !== "completed" || !job.reportKey) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Report is not ready (status: ${job.status})`,
+          });
+        }
+
+        const submission = await getPropertySubmissionById(job.submissionId);
+        const addressSlug = submission?.address
+          ? submission.address.replace(/[^A-Za-z0-9]+/g, "-")
+          : `submission-${job.submissionId}`;
+        const dateStr = new Date().toISOString().split("T")[0];
+
+        const { url } = await storageGet(job.reportKey);
+        return {
+          jobId: job.id,
+          submissionId: job.submissionId,
+          url,
+          fileName: `AppraiseAI-Report-${addressSlug}-${dateStr}.pdf`,
+          sizeBytes: job.sizeBytes ?? null,
+          completedAt: job.completedAt ?? null,
         };
       }),
 
