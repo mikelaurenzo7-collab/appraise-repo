@@ -1,12 +1,13 @@
-#!/usr/bin/env node
 /**
- * Seed counties table with filing information
- * Run: node server/seeds/seed-counties.mjs
+ * Admin-only endpoints
+ * Requires admin role
  */
 
-import mysql from "mysql2/promise";
-
-// County seed data inline
+import { router, protectedProcedure } from "../_core/trpc";
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { getDb } from "../db";
+import { counties } from "../../drizzle/schema";
 
 const COUNTY_SEED = [
   {
@@ -277,62 +278,45 @@ const COUNTY_SEED = [
   },
 ];
 
-async function seedCounties() {
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || "localhost",
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "appraise_ai",
-  });
-
-  try {
-    console.log("[Seed] Starting county data population...");
-
-    for (const county of COUNTY_SEED) {
-      const query = `
-        INSERT INTO counties 
-        (state, countyName, countyCode, poaDeadlineDays, proSeDeadlineDays, 
-         hasOnlinePortal, portalUrl, acceptsEmail, acceptsMail, acceptsInPerson,
-         assessorName, assessorPhone, hearingFormat, hearingScheduleDays, 
-         requiresAttorney, formTemplateUrl, formTemplateName)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        portalUrl = VALUES(portalUrl),
-        assessorPhone = VALUES(assessorPhone),
-        hearingScheduleDays = VALUES(hearingScheduleDays)
-      `;
-
-      await connection.execute(query, [
-        county.state,
-        county.countyName,
-        county.countyCode,
-        county.poaDeadlineDays,
-        county.proSeDeadlineDays,
-        county.hasOnlinePortal,
-        county.portalUrl,
-        county.acceptsEmail,
-        county.acceptsMail,
-        county.acceptsInPerson,
-        county.assessorName,
-        county.assessorPhone,
-        county.hearingFormat,
-        county.hearingScheduleDays,
-        county.requiresAttorney,
-        county.formTemplateUrl,
-        county.formTemplateName,
-      ]);
-
-      console.log(`✓ Seeded ${county.state} - ${county.countyName}`);
+export const adminRouter = router({
+  /**
+   * Seed counties database (admin only)
+   */
+  seedCounties: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Admin access required",
+      });
     }
 
-    console.log("[Seed] County data population complete!");
-    console.log(`[Seed] Total counties seeded: ${COUNTY_SEED.length}`);
-  } catch (error) {
-    console.error("[Seed] Error seeding counties:", error);
-    process.exit(1);
-  } finally {
-    await connection.end();
-  }
-}
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
 
-seedCounties();
+    try {
+      let seeded = 0;
+      for (const county of COUNTY_SEED) {
+        await db.insert(counties).values(county as any).onDuplicateKeyUpdate({
+          set: {
+            portalUrl: county.portalUrl,
+            assessorPhone: county.assessorPhone,
+            hearingScheduleDays: county.hearingScheduleDays,
+          },
+        });
+        seeded++;
+      }
+
+      return {
+        success: true,
+        message: `Seeded ${seeded} counties successfully`,
+        count: seeded,
+      };
+    } catch (error) {
+      console.error("[Admin] Error seeding counties:", error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to seed counties",
+      });
+    }
+  }),
+});

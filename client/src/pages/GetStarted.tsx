@@ -104,7 +104,24 @@ export default function GetStarted() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [filingMethod, setFilingMethod] = useState<"poa" | "pro-se" | "none">("poa");
+  const [selectedCountyId, setSelectedCountyId] = useState<number | null>(null);
   const [, navigate] = useLocation();
+
+  // Get high-impact states
+  const statesQuery = trpc.counties.getHighImpactStates.useQuery();
+  const [selectedState, setSelectedState] = useState("TX");
+  
+  // Get counties for selected state
+  const countiesQuery = trpc.counties.listCountiesByState.useQuery(
+    { state: selectedState },
+    { enabled: !!selectedState }
+  );
+
+  // Generate form for selected county and tier
+  const formQuery = trpc.counties.generateForm.useQuery(
+    { countyId: selectedCountyId || 0, tier: filingMethod as "poa" | "pro-se" },
+    { enabled: !!selectedCountyId && filingMethod !== "none" }
+  );
 
 
   const submitMutation = trpc.properties.submitAddress.useMutation({
@@ -129,6 +146,10 @@ export default function GetStarted() {
     if (step === 2) {
       if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         toast.error("Please enter a valid email address");
+        return;
+      }
+      if (filingMethod !== "none" && !selectedCountyId) {
+        toast.error("Please select your county");
         return;
       }
     }
@@ -319,6 +340,55 @@ export default function GetStarted() {
                   You can change this after reviewing your analysis. No commitment required.
                 </p>
               </div>
+
+              {/* County Selection (if filing) */}
+              {filingMethod !== "none" && (
+                <div>
+                  <label className="block text-sm font-semibold text-[#0F172A] mb-3">
+                    Select Your County <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* State selector */}
+                    <select
+                      value={selectedState}
+                      onChange={(e) => {
+                        setSelectedState(e.target.value);
+                        setSelectedCountyId(null);
+                      }}
+                      className="col-span-full px-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
+                    >
+                      {statesQuery.data?.map((state: any) => (
+                        <option key={state.code} value={state.code}>
+                          {state.name} ({state.code})
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* County selector */}
+                    {countiesQuery.data && countiesQuery.data.length > 0 ? (
+                      countiesQuery.data.map((county: any) => (
+                        <button
+                          key={county.id}
+                          type="button"
+                          onClick={() => setSelectedCountyId(county.id)}
+                          className={`p-3 rounded-lg border-2 text-left transition-all text-sm ${
+                            selectedCountyId === county.id
+                              ? "border-[#7C3AED] bg-[#7C3AED]/5"
+                              : "border-[#E2E8F0] bg-white hover:border-[#7C3AED]/40"
+                          }`}
+                        >
+                          <div className="font-semibold text-[#0F172A]">{county.countyName}</div>
+                          <div className="text-xs text-[#64748B] mt-0.5">Filing deadline: {county.poaDeadlineDays} days</div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-sm text-[#64748B] text-center py-4">
+                        Loading counties...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button

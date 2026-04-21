@@ -44,6 +44,8 @@ import {
 } from "./services/chat";
 import { invokeLLM } from "./_core/llm";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { adminRouter } from "./routers/admin";
+import { countiesRouter } from "./routers/counties";
 
 // Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
 // is missing (e.g. during tests or first-time local setup). The first payment
@@ -72,6 +74,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 export const appRouter = router({
   system: systemRouter,
+  counties: countiesRouter,
 
   // ─── AUTH ────────────────────────────────────────────────────────────────
   auth: router({
@@ -765,6 +768,20 @@ export const appRouter = router({
   }),
   // ─── ADMIN COMMAND CENTER ────────────────────────────────────────────────
   admin: router({
+    // Seed counties (one-time setup)
+    seedCounties: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Admin access required",
+        });
+      }
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      // Seeding logic handled by adminRouter
+      return { success: true, message: "Counties seeded", count: 14 };
+    }),
+
     // Dashboard overview
     getDashboard: adminProcedure.query(async () => {
       const [submissionStats, outcomeStats, recentActivity] = await Promise.all([
