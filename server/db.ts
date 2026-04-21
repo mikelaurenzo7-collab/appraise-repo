@@ -13,6 +13,11 @@ import {
   poaFilings, POAFiling, InsertPOAFiling,
   proSeFilings, ProSeFiling, InsertProSeFiling,
   paralegalsQueue, ParalegalsQueueItem, InsertParalegalsQueueItem,
+  filingRecipes, FilingRecipe, InsertFilingRecipe,
+  scrivenerAuthorizations, ScrivenerAuthorization, InsertScrivenerAuthorization,
+  filingJobs, FilingJob, InsertFilingJob,
+  refundRequests, RefundRequest, InsertRefundRequest,
+  stripeEventsProcessed, InsertStripeEventProcessed,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -974,4 +979,266 @@ export async function getBatchSubmissionIds(batchId: string): Promise<number[]> 
     console.error("[Database] Failed to fetch batch submission ids:", error);
     return [];
   }
+}
+
+// ─── FILING RECIPES ─────────────────────────────────────────────────────────
+
+export async function getActiveRecipeForCounty(countyId: number): Promise<FilingRecipe | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = await db.select().from(filingRecipes)
+      .where(and(eq(filingRecipes.countyId, countyId), eq(filingRecipes.active, true)))
+      .orderBy(desc(filingRecipes.version))
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    console.error("[FilingRecipes] Failed to load recipe:", error);
+    return null;
+  }
+}
+
+export async function upsertRecipe(recipe: InsertFilingRecipe): Promise<FilingRecipe | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    // Deactivate older active recipes for this county
+    await db.update(filingRecipes)
+      .set({ active: false })
+      .where(eq(filingRecipes.countyId, recipe.countyId));
+    const result = await db.insert(filingRecipes).values({ ...recipe, active: true });
+    const id = (result as any).insertId;
+    return await db.select().from(filingRecipes).where(eq(filingRecipes.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingRecipes] Failed to upsert recipe:", error);
+    return null;
+  }
+}
+
+// ─── SCRIVENER AUTHORIZATIONS ───────────────────────────────────────────────
+
+export async function createScrivenerAuthorization(
+  auth: InsertScrivenerAuthorization
+): Promise<ScrivenerAuthorization | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(scrivenerAuthorizations).values(auth);
+    const id = (result as any).insertId;
+    return await db.select().from(scrivenerAuthorizations)
+      .where(eq(scrivenerAuthorizations.id, id))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[ScrivenerAuth] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getScrivenerAuthorizationById(id: number): Promise<ScrivenerAuthorization | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(scrivenerAuthorizations)
+      .where(eq(scrivenerAuthorizations.id, id))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[ScrivenerAuth] Failed to fetch:", error);
+    return null;
+  }
+}
+
+// ─── FILING JOBS ────────────────────────────────────────────────────────────
+
+export async function createFilingJob(job: InsertFilingJob): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(filingJobs).values(job);
+    const id = (result as any).insertId;
+    return await db.select().from(filingJobs).where(eq(filingJobs.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingJob] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getFilingJobById(id: number): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(filingJobs).where(eq(filingJobs.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingJob] Failed to fetch:", error);
+    return null;
+  }
+}
+
+export async function getFilingJobBySubmissionId(submissionId: number): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(filingJobs)
+      .where(eq(filingJobs.submissionId, submissionId))
+      .orderBy(desc(filingJobs.createdAt))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingJob] Failed to fetch by submission:", error);
+    return null;
+  }
+}
+
+export async function updateFilingJob(id: number, updates: Partial<InsertFilingJob>): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db.update(filingJobs).set(updates).where(eq(filingJobs.id, id));
+    return getFilingJobById(id);
+  } catch (error) {
+    console.error("[FilingJob] Failed to update:", error);
+    return null;
+  }
+}
+
+export async function listPendingFilingJobs(limit = 5): Promise<FilingJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(filingJobs)
+      .where(eq(filingJobs.status, "pending"))
+      .orderBy(filingJobs.queuedAt)
+      .limit(limit);
+  } catch (error) {
+    console.error("[FilingJob] Failed to list pending:", error);
+    return [];
+  }
+}
+
+// ─── REFUND REQUESTS ────────────────────────────────────────────────────────
+
+export async function createRefundRequest(req: InsertRefundRequest): Promise<RefundRequest | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(refundRequests).values(req);
+    const id = (result as any).insertId;
+    return await db.select().from(refundRequests).where(eq(refundRequests.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getRefundRequestBySubmissionId(submissionId: number): Promise<RefundRequest | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(refundRequests)
+      .where(eq(refundRequests.submissionId, submissionId))
+      .orderBy(desc(refundRequests.createdAt))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to fetch:", error);
+    return null;
+  }
+}
+
+export async function listPendingRefundRequests(): Promise<RefundRequest[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(refundRequests)
+      .where(eq(refundRequests.status, "pending"))
+      .orderBy(refundRequests.requestedAt);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to list pending:", error);
+    return [];
+  }
+}
+
+export async function updateRefundRequest(id: number, updates: Partial<InsertRefundRequest>): Promise<RefundRequest | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db.update(refundRequests).set(updates).where(eq(refundRequests.id, id));
+    return await db.select().from(refundRequests).where(eq(refundRequests.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to update:", error);
+    return null;
+  }
+}
+
+// ─── STRIPE WEBHOOK IDEMPOTENCY ─────────────────────────────────────────────
+
+export async function recordStripeEvent(eventId: string, eventType: string): Promise<"recorded" | "duplicate"> {
+  const db = await getDb();
+  if (!db) return "recorded"; // fail open when DB is unavailable; webhook side will log
+  try {
+    await db.insert(stripeEventsProcessed).values({
+      eventId,
+      eventType,
+    });
+    return "recorded";
+  } catch (error) {
+    // MySQL duplicate-key error => we've already handled this event.
+    const code = (error as any)?.code;
+    if (code === "ER_DUP_ENTRY" || code === 1062) return "duplicate";
+    console.error("[StripeEvents] Failed to record event:", error);
+    return "recorded";
+  }
+}
+
+// ─── COUNTY ELIGIBILITY ─────────────────────────────────────────────────────
+
+export type CountyEligibility = {
+  poaEligible: boolean;
+  onlinePortalOnly: boolean;
+  pinOnlyLogin: boolean;
+  hasActiveRecipe: boolean;
+  withinFilingWindow: boolean;
+  reasonsIneligible: string[];
+};
+
+function monthDayWithinWindow(start: string | null | undefined, end: string | null | undefined, today = new Date()): boolean {
+  if (!start || !end) return true; // no window configured means always-on
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  const now = `${mm}-${dd}`;
+  if (start <= end) return now >= start && now <= end;
+  // Window wraps the year boundary
+  return now >= start || now <= end;
+}
+
+export async function getCountyEligibility(countyId: number): Promise<CountyEligibility> {
+  const reasons: string[] = [];
+  const county = await getCountyById(countyId);
+  if (!county) {
+    return {
+      poaEligible: false,
+      onlinePortalOnly: false,
+      pinOnlyLogin: false,
+      hasActiveRecipe: false,
+      withinFilingWindow: false,
+      reasonsIneligible: ["County not found"],
+    };
+  }
+  const recipe = await getActiveRecipeForCounty(countyId);
+  const withinFilingWindow = monthDayWithinWindow(county.filingWindowStart ?? null, county.filingWindowEnd ?? null);
+  if (!county.poaEligible) reasons.push("County is not POA-eligible in our jurisdiction matrix");
+  if (!county.onlinePortalOnly) reasons.push("County does not support end-to-end online filing");
+  if (!recipe) reasons.push("No active filing recipe for this county");
+  if (recipe && recipe.verificationStatus === "draft") reasons.push("Recipe is not verified against the live portal");
+  if (recipe && recipe.verificationStatus === "broken") reasons.push("Recipe is currently broken pending fix");
+  if (!withinFilingWindow) reasons.push("Outside the annual filing window");
+  return {
+    poaEligible: Boolean(county.poaEligible),
+    onlinePortalOnly: Boolean(county.onlinePortalOnly),
+    pinOnlyLogin: Boolean(county.pinOnlyLogin),
+    hasActiveRecipe: Boolean(recipe),
+    withinFilingWindow,
+    reasonsIneligible: reasons,
+  };
 }

@@ -30,7 +30,7 @@ export default function PaymentHistory() {
       <div>
         <h2 className="text-2xl font-bold text-purple-600 mb-2">Payment History</h2>
         <p className="text-gray-600">
-          Track all your contingency fee payments for certified appraisal reports
+          Track all your flat-fee filing payments and refunds
         </p>
       </div>
 
@@ -125,10 +125,12 @@ export default function PaymentHistory() {
       )}
 
       <Card className="bg-purple-50 border-purple-200 p-4">
-        <h3 className="font-semibold text-purple-900 mb-2">About Contingency Fees</h3>
+        <h3 className="font-semibold text-purple-900 mb-2">About Our Flat Fee</h3>
         <p className="text-sm text-purple-800">
-          We charge 25% of your first-year tax savings as our contingency fee. This means you only
-          pay when we win your appeal and save you money. No upfront costs, no risk.
+          AppraiseAI charges a flat software fee by assessed-value tier
+          ($79 / $149 / $299). If the county doesn&apos;t reduce your
+          assessment after we file, request a refund within 60 days of the
+          decision.
         </p>
       </Card>
     </div>

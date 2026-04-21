@@ -12,9 +12,9 @@ const GREETING: Message = {
 
 const SUGGESTED = [
   "How much could I save?",
-  "What's the 25% contingency fee?",
+  "How does the money-back guarantee work?",
   "How long does an appeal take?",
-  "Do you cover my state?",
+  "Do you cover my county?",
 ];
 
 const LS_KEY = "appraise.chatMessages";

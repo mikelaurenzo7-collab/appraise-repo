@@ -172,11 +172,41 @@
 - [x] Keyboard navigation (arrow keys, enter, escape) in autocomplete dropdown
 - [x] Premium theme styling for autocomplete suggestions
 
-## Final Production Polish (this pass)
+## Final Production Polish
 - [x] Wire FilingStatus page to real `user.getFilings` query (was mock data)
 - [x] Wire ParalegalsDashboard to real `admin.listFilingQueue` + assignFiling/completeFiling mutations (was mock data)
 - [x] Add /paralegals route so the dashboard is reachable
 - [x] Replace placeholder `payments.getBatchStatus` with real submission aggregation via activity-log lookup
 - [x] Remove dead `adminRouter` import from main router
 - [x] Add token-bucket rate limiter (`_core/rateLimit.ts`) and apply to `submitAddress` + `chat.ask` public mutations
-- [x] Add tests for rate limiter (6), filings/queue/batch endpoints (9) — 15 new tests, suite now 142 passing
+- [x] Add tests for rate limiter (6), filings/queue/batch endpoints (9)
+
+## Pivot: software tool, not a law firm (this pass)
+- [x] Schema: counties.poaEligible / onlinePortalOnly / pinOnlyLogin / filingWindow{Start,End}
+- [x] Schema: new filing_recipes, scrivener_authorizations, filing_jobs, refund_requests, stripe_events_processed tables
+- [x] Recipe engine: parser + planner + hashers (`services/filingRecipeEngine.ts`)
+- [x] Playwright executor (lazy-loaded) (`services/playwrightExecutor.ts`)
+- [x] Filing job queue mirroring reportJobQueue (`services/filingJobQueue.ts`)
+- [x] tRPC filings router: getAuthorizationText, authorize, checkEligibility, submit, getJobStatus, getJobForSubmission
+- [x] tRPC counties.getEligibility eligibility check
+- [x] Stripe webhook idempotency via stripe_events_processed
+- [x] Flat-fee pricing (shared/pricing.ts): $79 / $149 / $299 by assessed value
+- [x] payments.listTiers, payments.createCheckoutSession (flat), payments.requestRefund, payments.getRefundStatus
+- [x] admin.listRefundRequests + admin.decideRefund (executes Stripe refund)
+- [x] ScrivenerAuthorization component (typed name + scroll proof + IP + UA + text hash)
+- [x] AppealFilingWorkflow rewritten to 6-step pro-se flow: review → eligibility → taxpayer details → authorize → pay → track
+- [x] Privacy / Terms / Disclaimer pages + footer links wired
+- [x] Marketing copy pivot across Home, TaxAppeals, HowItWorks, About, GetStarted, AnalysisResults, Pricing, PaymentHistory, LeadChatWidget, Footer
+- [x] LLM guardrails: chat system prompt UPL hardened; appraisalAnalyzer prompts moved to data-only voice
+- [x] Draft recipes for Travis / Harris / Miami-Dade (verificationStatus: draft, queue refuses to run in production without ALLOW_DRAFT_RECIPES=1)
+- [x] Tests: recipe engine (13), pricing pivot + scrivener + refund + eligibility gating (15) — suite now 170 passing / 4 skipped
+
+## Visual makeover (this pass)
+- [x] Home hero: removed stock photo, built type-driven + live-filing data-card hero
+- [x] Loud yellow statement band between hero and stats
+- [x] Stats bar reworked to reflect real operating posture (3 counties live, 4m median filing time, 60-day MBG)
+- [x] Tax-appeals feature section: replaced "legal document" photo with gradient confirmation-receipt card
+- [x] Nationwide map stock image replaced with live counties table (live / staging / queued)
+- [x] How It Works side-panel: replaced stock AI image with terminal-style analysis panel
+- [x] Final CTA: removed savings-graphic stock image; pure-CSS texture
+- [x] Footer trust-badges rewritten ("Software, not a law firm" / "Money-back guarantee" / "Scrivener authorization")

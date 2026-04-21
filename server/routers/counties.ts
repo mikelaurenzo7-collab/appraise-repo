@@ -6,7 +6,12 @@
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { generateCountyForm, generateFilingChecklist } from "../services/formGenerator";
-import { getCountyById, listCountiesByState, createFilingTier } from "../db";
+import {
+  getCountyById,
+  listCountiesByState,
+  createFilingTier,
+  getCountyEligibility,
+} from "../db";
 
 export const countiesRouter = router({
   /**
@@ -89,5 +94,16 @@ export const countiesRouter = router({
       // This would query the database with LIKE
       // For now, returning mock data
       return [];
+    }),
+
+  /**
+   * Eligibility check — is this county currently serviceable via our
+   * Playwright automation? Used by the client before showing the POA
+   * filing CTA or the fallback "guided pro se by mail" flow.
+   */
+  getEligibility: publicProcedure
+    .input(z.object({ countyId: z.number() }))
+    .query(async ({ input }) => {
+      return getCountyEligibility(input.countyId);
     }),
 });

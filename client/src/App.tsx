@@ -23,6 +23,7 @@ import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
 import ReportDownload from "./pages/ReportDownload";
 import FilingStatus from "./pages/FilingStatus";
+import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
 import LeadChatWidget from "./components/LeadChatWidget";
 
 function Router() {
@@ -50,6 +51,9 @@ function Router() {
       <Route path="/appeal-workflow/:submissionId">
         {(params) => <AppealFilingWorkflow submissionId={params.submissionId} />}
       </Route>
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/disclaimer" component={Disclaimer} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -1,5 +1,27 @@
-import { useState } from "react";
-import { ChevronRight, CheckCircle2, FileText, Signature, Clock, AlertCircle, Loader2 } from "lucide-react";
+/**
+ * AppealFilingWorkflow — pro-se automated filing flow.
+ *
+ * Six steps:
+ *   1. Review analysis
+ *   2. Confirm county eligibility for automated filing (or fall back to
+ *      guided mail-in)
+ *   3. Provide taxpayer details the recipe needs (PIN / account number)
+ *   4. Scrivener authorization (records consent)
+ *   5. Flat-fee checkout (Stripe)
+ *   6. Track automated filing status (polls filings.getJobStatus)
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  ChevronRight,
+  CheckCircle2,
+  FileText,
+  Clock,
+  AlertCircle,
+  Loader2,
+  ShieldCheck,
+  ExternalLink,
+} from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,45 +29,21 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { ScrivenerAuthorization } from "@/components/ScrivenerAuthorization";
+import { toast } from "sonner";
 
 interface WorkflowStep {
   id: number;
   title: string;
-  description: string;
-  icon: React.ReactNode;
 }
 
 const steps: WorkflowStep[] = [
-  {
-    id: 1,
-    title: "Review Analysis",
-    description: "Review your appraisal report and appeal strength score",
-    icon: <FileText size={24} />,
-  },
-  {
-    id: 2,
-    title: "Choose Filing Method",
-    description: "Select Power of Attorney or Pro Se filing",
-    icon: <AlertCircle size={24} />,
-  },
-  {
-    id: 3,
-    title: "Sign Documents",
-    description: "Sign required documents electronically",
-    icon: <Signature size={24} />,
-  },
-  {
-    id: 4,
-    title: "Confirm & Pay",
-    description: "Confirm details and complete payment",
-    icon: <CheckCircle2 size={24} />,
-  },
-  {
-    id: 5,
-    title: "Track Appeal",
-    description: "Monitor your appeal status in real-time",
-    icon: <Clock size={24} />,
-  },
+  { id: 1, title: "Review" },
+  { id: 2, title: "Eligibility" },
+  { id: 3, title: "Taxpayer details" },
+  { id: 4, title: "Authorize" },
+  { id: 5, title: "Pay" },
+  { id: 6, title: "File" },
 ];
 
 interface AppealFilingWorkflowProps {
@@ -55,57 +53,76 @@ interface AppealFilingWorkflowProps {
 export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkflowProps) {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const parsedSubmissionId = parseInt(submissionId, 10);
-  const submissionIdIsValid = Number.isFinite(parsedSubmissionId) && parsedSubmissionId > 0;
+  const valid = Number.isFinite(parsedSubmissionId) && parsedSubmissionId > 0;
 
   const detailQuery = trpc.user.getSubmissionDetail.useQuery(
     { submissionId: parsedSubmissionId },
-    { enabled: isAuthenticated && submissionIdIsValid, retry: false }
+    { enabled: isAuthenticated && valid, retry: false }
+  );
+  const submission = detailQuery.data?.submission;
+
+  // County is recorded on the submission as a free-text field, but the
+  // filing pipeline needs a numeric countyId. We surface this state so the
+  // UI can ask the user to pick their county explicitly.
+  const statesQuery = trpc.counties.getHighImpactStates.useQuery();
+  const [selectedState, setSelectedState] = useState<string>("");
+  const countiesQuery = trpc.counties.listCountiesByState.useQuery(
+    { state: selectedState },
+    { enabled: selectedState.length === 2 }
+  );
+  const [selectedCountyId, setSelectedCountyId] = useState<number | null>(null);
+
+  const eligibilityQuery = trpc.filings.checkEligibility.useQuery(
+    { submissionId: parsedSubmissionId, countyId: selectedCountyId ?? 0 },
+    { enabled: valid && selectedCountyId !== null }
+  );
+
+  const [taxpayerPin, setTaxpayerPin] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+
+  const [authorizationId, setAuthorizationId] = useState<number | null>(null);
+  const [filingJobId, setFilingJobId] = useState<number | null>(null);
+
+  const createCheckoutMutation = trpc.payments.createCheckoutSession.useMutation();
+  const submitFilingMutation = trpc.filings.submit.useMutation({
+    onSuccess: (result) => {
+      setFilingJobId(result.jobId);
+      setCurrentStep(6);
+    },
+    onError: (err) => toast.error(err.message || "Could not submit filing"),
+  });
+
+  const jobStatusQuery = trpc.filings.getJobStatus.useQuery(
+    { jobId: filingJobId ?? 0 },
+    {
+      enabled: filingJobId !== null,
+      refetchInterval: 5_000,
+    }
   );
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [filingMethod, setFilingMethod] = useState<"poa" | "pro_se" | null>(null);
-  const [documentsSigned, setDocumentsSigned] = useState(false);
+  const [paid, setPaid] = useState(false);
 
-  const createCheckoutMutation = trpc.payments.createCheckoutSession.useMutation();
+  const propertyAddress = useMemo(() => {
+    if (!submission) return "";
+    return [submission.address, submission.city, submission.state, submission.zipCode]
+      .filter(Boolean)
+      .join(", ");
+  }, [submission]);
 
-  const submission = detailQuery.data?.submission;
-  const propertyAddress = submission
-    ? [submission.address, submission.city, submission.state, submission.zipCode].filter(Boolean).join(", ")
-    : "";
-  const appealStrengthScore = submission?.appealStrengthScore ?? 0;
-  // Prefer real potential savings from analysis; fall back to strength-based estimate.
-  const estimatedSavings = submission?.potentialSavings && submission.potentialSavings > 0
-    ? submission.potentialSavings
-    : appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000;
-  const contingencyFee = Math.round(estimatedSavings * 0.25);
+  const appealStrength = submission?.appealStrengthScore ?? 0;
+  const potentialSavings = submission?.potentialSavings ?? null;
 
-  const handleGenerateDocuments = async () => {
-    if (!filingMethod) return;
-    // Documents are prepared server-side on demand; advance the workflow.
-    setCurrentStep(3);
-  };
-
-  const handleSignDocuments = () => {
-    setDocumentsSigned(true);
-    setCurrentStep(4);
-  };
-
-  const handleConfirmAndPay = async () => {
-    try {
-      const response = await createCheckoutMutation.mutateAsync({
-        submissionId: parsedSubmissionId,
-        annualTaxSavings: estimatedSavings,
-      });
-
-      if (response.url) {
-        window.open(response.url, "_blank");
-      }
-
-      setCurrentStep(5);
-    } catch (error) {
-      console.error("Failed to create checkout session:", error);
+  // Detect the ?payment=success redirect-back from Stripe so we advance
+  // past the checkout step automatically.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") === "success") {
+      setPaid(true);
+      setCurrentStep(6);
     }
-  };
+  }, []);
 
   if (authLoading || (isAuthenticated && detailQuery.isLoading)) {
     return (
@@ -121,21 +138,27 @@ export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkf
         <Navbar />
         <div className="container py-20 text-center max-w-xl">
           <h1 className="text-3xl font-bold text-white mb-4">Sign in to file your appeal</h1>
-          <p className="text-[#CBD5E1] mb-8">You need an account to access the appeal workflow.</p>
-          <Link href="/" className="btn-gold px-6 py-3 rounded font-semibold inline-block">Back to Home</Link>
+          <p className="text-[#CBD5E1] mb-8">
+            You need an account to file your appeal.
+          </p>
+          <Link href="/" className="btn-gold px-6 py-3 rounded font-semibold inline-block">
+            Back to Home
+          </Link>
         </div>
         <Footer />
       </div>
     );
   }
 
-  if (!submissionIdIsValid || detailQuery.error || !submission) {
+  if (!valid || detailQuery.error || !submission) {
     return (
       <div className="min-h-screen bg-[#0F172A]">
         <Navbar />
         <div className="container py-20 text-center max-w-xl">
           <AlertCircle size={48} className="text-amber-400 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-white mb-4">We couldn&apos;t load this submission</h1>
+          <h1 className="text-3xl font-bold text-white mb-4">
+            We couldn&apos;t load this submission
+          </h1>
           <p className="text-[#CBD5E1] mb-6">
             {detailQuery.error?.message ||
               "That submission ID isn't valid or you don't have access to it."}
@@ -149,395 +172,410 @@ export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkf
     );
   }
 
+  const eligibility = eligibilityQuery.data;
+  const ineligibleReasons = eligibility?.reasonsIneligible ?? [];
+  const canAutomate = ineligibleReasons.length === 0;
+
+  const handlePay = async () => {
+    try {
+      const result = await createCheckoutMutation.mutateAsync({
+        submissionId: parsedSubmissionId,
+      });
+      if (result.url) window.open(result.url, "_blank");
+    } catch (err) {
+      toast.error("Could not start checkout");
+    }
+  };
+
+  const handleSubmitFiling = () => {
+    if (!authorizationId || !selectedCountyId) return;
+    submitFilingMutation.mutate({
+      submissionId: parsedSubmissionId,
+      countyId: selectedCountyId,
+      authorizationId,
+      inputs: {
+        taxpayerPin: taxpayerPin.trim(),
+        accountNumber: accountNumber.trim(),
+        ownerName: ownerName.trim() || undefined,
+      } as Record<string, string | number | null>,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[#0F172A] py-12">
       <div className="container max-w-4xl">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-black text-white mb-2">File Your Appeal</h1>
+        <div className="mb-10">
+          <h1 className="text-4xl font-black text-white mb-2">File your appeal</h1>
           <p className="text-[#CBD5E1]">
-            {propertyAddress} • Appeal Strength: <span className="font-bold text-[#7C3AED]">{appealStrengthScore}%</span>
+            {propertyAddress} • Appeal strength:{" "}
+            <span className="font-bold text-[#7C3AED]">{appealStrength}%</span>
           </p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="mb-12">
-          <div className="flex items-center justify-between mb-8">
-            {steps.map((step, idx) => (
-              <div key={step.id} className="flex items-center flex-1">
+        <div className="mb-10 flex items-center justify-between">
+          {steps.map((step, idx) => (
+            <div key={step.id} className="flex items-center flex-1">
+              <div
+                className={`flex items-center justify-center w-10 h-10 rounded-full font-bold transition-all ${
+                  currentStep >= step.id
+                    ? "bg-[#7C3AED] text-white"
+                    : "bg-[#334155] text-[#94A3B8]"
+                }`}
+                title={step.title}
+              >
+                {currentStep > step.id ? <CheckCircle2 size={18} /> : step.id}
+              </div>
+              {idx < steps.length - 1 && (
                 <div
-                  className={`flex items-center justify-center w-12 h-12 rounded-full font-bold text-lg transition-all ${
-                    currentStep >= step.id
-                      ? "bg-[#7C3AED] text-white"
-                      : "bg-[#334155] text-[#94A3B8]"
+                  className={`flex-1 h-1 mx-2 rounded ${
+                    currentStep > step.id ? "bg-[#7C3AED]" : "bg-[#334155]"
                   }`}
-                >
-                  {currentStep > step.id ? <CheckCircle2 size={24} /> : step.id}
-                </div>
-                {idx < steps.length - 1 && (
-                  <div
-                    className={`flex-1 h-1 mx-2 rounded ${
-                      currentStep > step.id ? "bg-[#7C3AED]" : "bg-[#334155]"
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Step Labels */}
-          <div className="grid grid-cols-5 gap-4">
-            {steps.map((step) => (
-              <div key={step.id} className="text-center">
-                <p className="text-sm font-semibold text-white">{step.title}</p>
-              </div>
-            ))}
-          </div>
+                />
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* Step Content */}
         <Card className="bg-[#1E293B] border-[#334155] p-8 mb-8">
-          {/* Step 1: Review Analysis */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                  <FileText className="text-[#7C3AED]" />
-                  Review Your Analysis
-                </h2>
-                <p className="text-[#CBD5E1] mb-6">
-                  Your AI-powered appraisal analysis is ready. Review the key findings below before proceeding with your appeal.
-                </p>
-              </div>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <FileText className="text-[#7C3AED]" />
+                Review your analysis
+              </h2>
+              <p className="text-[#CBD5E1]">
+                Our data shows the gap between your assessment and market value.
+                We translate this into an appeal form the county portal accepts.
+                This page does not provide legal advice about your specific case.
+              </p>
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
-                  <p className="text-[#94A3B8] text-sm uppercase font-semibold mb-2">Appeal Strength</p>
-                  <p className="text-4xl font-bold text-[#7C3AED]">{appealStrengthScore}%</p>
+                  <p className="text-[#94A3B8] text-sm uppercase font-semibold mb-2">
+                    Appeal strength
+                  </p>
+                  <p className="text-4xl font-bold text-[#7C3AED]">{appealStrength}%</p>
                   <p className="text-[#CBD5E1] text-sm mt-2">
-                    {appealStrengthScore >= 70
-                      ? "Strong chance of success"
-                      : appealStrengthScore >= 40
-                        ? "Moderate appeal potential"
-                        : "Weak but worth pursuing"}
+                    {appealStrength >= 70
+                      ? "Strong data basis for an appeal"
+                      : appealStrength >= 40
+                        ? "Moderate data basis"
+                        : "Weak data basis — appeal still possible but less certain"}
                   </p>
                 </div>
 
                 <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
-                  <p className="text-[#94A3B8] text-sm uppercase font-semibold mb-2">Estimated Savings</p>
-                  <p className="text-4xl font-bold text-[#10B981]">
-                    ${estimatedSavings.toLocaleString()}
-                    <span className="text-2xl text-[#94A3B8] font-normal">/yr</span>
+                  <p className="text-[#94A3B8] text-sm uppercase font-semibold mb-2">
+                    Estimated annual savings
                   </p>
-                  <p className="text-[#CBD5E1] text-sm mt-2">Potential annual tax savings</p>
+                  <p className="text-4xl font-bold text-[#10B981]">
+                    {potentialSavings ? `$${potentialSavings.toLocaleString()}` : "—"}
+                  </p>
+                  <p className="text-[#CBD5E1] text-sm mt-2">
+                    Estimate only. Actual savings depend on the county decision.
+                  </p>
                 </div>
-              </div>
-
-              <div className="bg-[#0D9488]/10 border border-[#0D9488] rounded-lg p-6">
-                <p className="text-[#CBD5E1]">
-                  Your comprehensive appraisal report includes comparable sales analysis, property valuation, and appeal strategy recommendations. This report will be submitted with your appeal to the local assessor's office.
-                </p>
               </div>
 
               <Button
                 onClick={() => setCurrentStep(2)}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold py-3"
               >
-                Continue to Filing Method <ChevronRight size={20} />
+                Continue <ChevronRight size={20} />
               </Button>
             </div>
           )}
 
-          {/* Step 2: Choose Filing Method */}
           {currentStep === 2 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                  <AlertCircle className="text-[#7C3AED]" />
-                  Choose Your Filing Method
-                </h2>
-                <p className="text-[#CBD5E1] mb-6">
-                  Select how you'd like to file your appeal. We can represent you or help you file yourself.
-                </p>
-              </div>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <ShieldCheck className="text-[#7C3AED]" />
+                Is your county eligible for automated filing?
+              </h2>
+              <p className="text-[#CBD5E1]">
+                We automate the filing directly through your county&apos;s online
+                portal. If your county isn&apos;t supported yet, we&apos;ll give you
+                a ready-to-mail pro-se packet instead.
+              </p>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Power of Attorney */}
-                <div
-                  onClick={() => setFilingMethod("poa")}
-                  className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
-                    filingMethod === "poa"
-                      ? "bg-[#7C3AED]/10 border-[#7C3AED]"
-                      : "bg-[#0F172A] border-[#334155] hover:border-[#7C3AED]"
-                  }`}
-                >
-                  <h3 className="text-xl font-bold text-white mb-2">Power of Attorney</h3>
-                  <p className="text-[#CBD5E1] text-sm mb-4">
-                    We represent you before the assessor's office and at all hearings. You don't need to attend.
-                  </p>
-                  <ul className="space-y-2 text-sm text-[#CBD5E1]">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-[#10B981]" />
-                      Full legal representation
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-[#10B981]" />
-                      We attend all hearings
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-[#10B981]" />
-                      No win, no fee
-                    </li>
-                  </ul>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-[#CBD5E1] mb-1 block">State</label>
+                  <select
+                    value={selectedState}
+                    onChange={(e) => {
+                      setSelectedState(e.target.value);
+                      setSelectedCountyId(null);
+                    }}
+                    className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded text-white"
+                  >
+                    <option value="">Select state…</option>
+                    {(statesQuery.data ?? []).map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-
-                {/* Pro Se Filing */}
-                <div
-                  onClick={() => setFilingMethod("pro_se")}
-                  className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
-                    filingMethod === "pro_se"
-                      ? "bg-[#7C3AED]/10 border-[#7C3AED]"
-                      : "bg-[#0F172A] border-[#334155] hover:border-[#7C3AED]"
-                  }`}
-                >
-                  <h3 className="text-xl font-bold text-white mb-2">Pro Se Filing</h3>
-                  <p className="text-[#CBD5E1] text-sm mb-4">
-                    We prepare all documents and coach you through the process. You represent yourself.
-                  </p>
-                  <ul className="space-y-2 text-sm text-[#CBD5E1]">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-[#10B981]" />
-                      Complete document package
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-[#10B981]" />
-                      Expert coaching & support
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-[#10B981]" />
-                      You attend hearing
-                    </li>
-                  </ul>
+                <div>
+                  <label className="text-sm text-[#CBD5E1] mb-1 block">County</label>
+                  <select
+                    value={selectedCountyId ?? ""}
+                    onChange={(e) =>
+                      setSelectedCountyId(e.target.value ? Number(e.target.value) : null)
+                    }
+                    disabled={!selectedState}
+                    className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded text-white disabled:opacity-40"
+                  >
+                    <option value="">Select county…</option>
+                    {(countiesQuery.data ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.countyName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
+
+              {eligibilityQuery.isLoading && selectedCountyId && (
+                <div className="flex items-center gap-2 text-[#CBD5E1] text-sm">
+                  <Loader2 className="animate-spin" size={14} /> Checking eligibility…
+                </div>
+              )}
+
+              {eligibility && canAutomate && (
+                <div className="bg-[#10B981]/10 border border-[#10B981] rounded-lg p-4 text-[#CBD5E1] text-sm">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="text-[#10B981] shrink-0 mt-0.5" size={18} />
+                    <div>
+                      This county supports automated filing via online portal.
+                      {eligibility.portalUrl && (
+                        <>
+                          {" "}
+                          <a
+                            href={eligibility.portalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline inline-flex items-center gap-1"
+                          >
+                            Portal <ExternalLink size={12} />
+                          </a>
+                          .
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {eligibility && !canAutomate && (
+                <div className="bg-amber-500/10 border border-amber-400 rounded-lg p-4 text-[#CBD5E1] text-sm">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="text-amber-400 shrink-0 mt-0.5" size={18} />
+                    <div>
+                      <p className="mb-2 font-semibold">
+                        Automated filing isn&apos;t available yet for this county:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        {ineligibleReasons.map((r) => (
+                          <li key={r}>{r}</li>
+                        ))}
+                      </ul>
+                      <p className="mt-3">
+                        We&apos;ll instead generate a pro-se filing packet you can
+                        print, sign, and mail. Head to your{" "}
+                        <Link href="/dashboard" className="underline">
+                          dashboard
+                        </Link>{" "}
+                        to download it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Button
-                onClick={handleGenerateDocuments}
-                disabled={!filingMethod}
+                onClick={() => setCurrentStep(3)}
+                disabled={!canAutomate}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold py-3 disabled:opacity-50"
               >
-                Continue to Document Review
-                <ChevronRight size={20} />
+                Continue <ChevronRight size={20} />
               </Button>
             </div>
           )}
 
-          {/* Step 3: Sign Documents */}
           {currentStep === 3 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Signature className="text-[#7C3AED]" />
-                  Sign Documents
-                </h2>
-                <p className="text-[#CBD5E1] mb-6">
-                  Review and sign the required documents for your {filingMethod === "poa" ? "Power of Attorney" : "Pro Se"} filing.
-                </p>
-              </div>
+              <h2 className="text-2xl font-bold text-white">
+                Taxpayer details for your county portal
+              </h2>
+              <p className="text-[#CBD5E1] text-sm">
+                Your county&apos;s online filing portal needs a few identifiers from
+                your assessment notice. These are used once, for this filing only,
+                and are wiped from our system once the filing completes.
+              </p>
 
               <div className="space-y-4">
-                <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
-                  <div className="flex items-start gap-4">
-                    <FileText className="text-[#7C3AED] flex-shrink-0 mt-1" />
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-white mb-1">Appraisal Report</h3>
-                      <p className="text-[#CBD5E1] text-sm">
-                        Your comprehensive 50-60 page professional appraisal report with comparable sales analysis and valuation methodology.
-                      </p>
-                    </div>
-                    <CheckCircle2 size={24} className="text-[#10B981] flex-shrink-0" />
-                  </div>
+                <div>
+                  <label className="text-sm text-[#CBD5E1] mb-1 block">
+                    Taxpayer PIN (from assessment notice)
+                  </label>
+                  <input
+                    type="text"
+                    value={taxpayerPin}
+                    onChange={(e) => setTaxpayerPin(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded text-white"
+                    autoComplete="off"
+                    placeholder="e.g. 8F3-291-442"
+                  />
                 </div>
-
-                {filingMethod === "poa" && (
-                  <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
-                    <div className="flex items-start gap-4">
-                      <Signature className="text-[#7C3AED] flex-shrink-0 mt-1" />
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white mb-1">Power of Attorney Form</h3>
-                        <p className="text-[#CBD5E1] text-sm">
-                          Legal document authorizing us to represent you before the assessor's office and appeal board.
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleSignDocuments}
-                        disabled={documentsSigned}
-                        className="flex-shrink-0 bg-[#7C3AED] hover:bg-[#6D28D9]"
-                      >
-                        {documentsSigned ? "Signed" : "Sign"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {filingMethod === "pro_se" && (
-                  <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
-                    <div className="flex items-start gap-4">
-                      <FileText className="text-[#7C3AED] flex-shrink-0 mt-1" />
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white mb-1">Pro Se Filing Packet</h3>
-                        <p className="text-[#CBD5E1] text-sm">
-                          Complete package with all required forms, instructions, and cover letters for your jurisdiction.
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleSignDocuments}
-                        disabled={documentsSigned}
-                        className="flex-shrink-0 bg-[#7C3AED] hover:bg-[#6D28D9]"
-                      >
-                        {documentsSigned ? "Reviewed" : "Review"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <label className="text-sm text-[#CBD5E1] mb-1 block">
+                    Property account number
+                  </label>
+                  <input
+                    type="text"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded text-white"
+                    autoComplete="off"
+                    placeholder="e.g. R000123456"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-[#CBD5E1] mb-1 block">
+                    Full legal name of owner (optional, defaults to your email handle)
+                  </label>
+                  <input
+                    type="text"
+                    value={ownerName}
+                    onChange={(e) => setOwnerName(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded text-white"
+                    autoComplete="off"
+                  />
+                </div>
               </div>
 
               <Button
                 onClick={() => setCurrentStep(4)}
-                disabled={!documentsSigned}
+                disabled={taxpayerPin.trim().length < 3 || accountNumber.trim().length < 3}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold py-3 disabled:opacity-50"
               >
-                Continue to Confirmation <ChevronRight size={20} />
+                Continue <ChevronRight size={20} />
               </Button>
             </div>
           )}
 
-          {/* Step 4: Confirm & Pay */}
           {currentStep === 4 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-4">Confirm & Pay</h2>
-                <p className="text-[#CBD5E1] mb-6">
-                  Review your appeal details and complete payment to file your appeal.
-                </p>
-              </div>
-
-              <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155] space-y-4">
-                <div className="flex justify-between items-center pb-4 border-b border-[#334155]">
-                  <span className="text-[#CBD5E1]">Filing Method</span>
-                  <span className="font-semibold text-white">
-                    {filingMethod === "poa" ? "Power of Attorney" : "Pro Se Filing"}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pb-4 border-b border-[#334155]">
-                  <span className="text-[#CBD5E1]">Property</span>
-                  <span className="font-semibold text-white">{propertyAddress}</span>
-                </div>
-
-                <div className="flex justify-between items-center pb-4 border-b border-[#334155]">
-                  <span className="text-[#CBD5E1]">Appeal Strength</span>
-                  <span className="font-semibold text-[#7C3AED]">{appealStrengthScore}%</span>
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-b border-[#334155] pb-4">
-                  <span className="text-[#CBD5E1]">Estimated Annual Savings</span>
-                  <span className="font-semibold text-[#10B981]">${estimatedSavings.toLocaleString()}</span>
-                </div>
-
-                <div className="flex justify-between items-center pt-4">
-                  <span className="text-[#CBD5E1] font-semibold">Contingency Fee (25%)</span>
-                  <div className="text-2xl font-bold text-[#FBBF24]">
-                    ${contingencyFee.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#0D9488]/10 border border-[#0D9488] rounded-lg p-6">
-                <p className="text-[#CBD5E1] text-sm">
-                  <strong>No win, no fee:</strong> You only pay the contingency fee if we successfully reduce your property tax assessment. If we don't win, you pay nothing.
-                </p>
-              </div>
-
-              <Button
-                onClick={handleConfirmAndPay}
-                className="w-full bg-[#10B981] hover:bg-[#059669] text-white font-semibold py-3"
-              >
-                Proceed to Payment <ChevronRight size={20} />
-              </Button>
+              <h2 className="text-2xl font-bold text-white">Authorize this filing</h2>
+              <ScrivenerAuthorization
+                submissionId={parsedSubmissionId}
+                onAuthorized={(id) => {
+                  setAuthorizationId(id);
+                  setCurrentStep(5);
+                }}
+              />
             </div>
           )}
 
-          {/* Step 5: Track Appeal */}
           {currentStep === 5 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Clock className="text-[#10B981]" />
-                  Your Appeal is Filed!
-                </h2>
-                <p className="text-[#CBD5E1] mb-6">
-                  Your appeal has been successfully submitted. Track your status below.
+              <h2 className="text-2xl font-bold text-white">Pay filing fee</h2>
+              <p className="text-[#CBD5E1] text-sm">
+                Flat-fee pricing based on your property&apos;s assessed value.
+                60-day money-back guarantee if your appeal doesn&apos;t reduce
+                your assessment.
+              </p>
+
+              <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
+                <p className="text-[#CBD5E1] text-sm mb-2">
+                  Click pay to open secure checkout in a new tab. Come back here
+                  afterwards — we&apos;ll detect the success redirect and start
+                  the filing automatically.
                 </p>
               </div>
 
-              <div className="bg-[#10B981]/10 border border-[#10B981] rounded-lg p-6">
-                <p className="text-[#CBD5E1] mb-4">
-                  <strong>What happens next:</strong>
-                </p>
-                <ul className="space-y-2 text-[#CBD5E1]">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 size={20} className="text-[#10B981] flex-shrink-0 mt-0.5" />
-                    <span>Your appeal is submitted to the local assessor's office</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Clock size={20} className="text-[#FBBF24] flex-shrink-0 mt-0.5" />
-                    <span>Appraisal Review Board schedules hearing (typically 30-60 days)</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Signature size={20} className="text-[#7C3AED] flex-shrink-0 mt-0.5" />
-                    <span>
-                      {filingMethod === "poa"
-                        ? "We represent you at the hearing"
-                        : "You attend the hearing with our coaching"}
+              {!paid ? (
+                <Button
+                  onClick={handlePay}
+                  disabled={createCheckoutMutation.isPending}
+                  className="w-full bg-[#10B981] hover:bg-[#059669] text-white font-semibold py-3"
+                >
+                  {createCheckoutMutation.isPending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="animate-spin" size={16} /> Opening checkout…
                     </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 size={20} className="text-[#10B981] flex-shrink-0 mt-0.5" />
-                    <span>Decision issued within 30 days of hearing</span>
-                  </li>
-                </ul>
-              </div>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      Pay filing fee <ChevronRight size={18} />
+                    </span>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSubmitFiling}
+                  disabled={submitFilingMutation.isPending || !authorizationId}
+                  className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold py-3"
+                >
+                  {submitFilingMutation.isPending
+                    ? "Submitting filing…"
+                    : "Submit automated filing"}
+                </Button>
+              )}
+            </div>
+          )}
 
-              <div className="bg-[#7C3AED]/10 border border-[#7C3AED] rounded-lg p-6">
-                <h3 className="text-white font-semibold mb-4">Schedule Your Hearing</h3>
-                <p className="text-[#CBD5E1] text-sm mb-4">
-                  Once the Appraisal Review Board schedules your hearing, you'll receive a notification. You can view and manage your hearing date below.
-                </p>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[#CBD5E1] text-sm font-medium">Preferred Hearing Date</label>
-                    <input
-                      type="date"
-                      className="w-full mt-2 px-4 py-2 bg-[#1E293B] border border-[#7C3AED] rounded text-white"
-                      disabled
-                      placeholder="Will be assigned by ARB"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[#CBD5E1] text-sm font-medium">Representation</label>
-                    <select className="w-full mt-2 px-4 py-2 bg-[#1E293B] border border-[#7C3AED] rounded text-white">
-                      <option>{filingMethod === "poa" ? "We represent you" : "You represent yourself (we coach)"}</option>
-                    </select>
-                  </div>
+          {currentStep === 6 && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <Clock className="text-[#10B981]" />
+                Filing in progress
+              </h2>
+              {!filingJobId && paid && (
+                <Button
+                  onClick={handleSubmitFiling}
+                  disabled={submitFilingMutation.isPending || !authorizationId}
+                  className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold py-3"
+                >
+                  {submitFilingMutation.isPending
+                    ? "Submitting filing…"
+                    : "Submit automated filing"}
+                </Button>
+              )}
+
+              {filingJobId && (
+                <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155] space-y-3">
+                  <p className="text-[#CBD5E1] text-sm">
+                    Filing job #{filingJobId}
+                  </p>
+                  <p className="text-white font-semibold">
+                    Status:{" "}
+                    <span className="text-[#7C3AED] capitalize">
+                      {jobStatusQuery.data?.status ?? "pending"}
+                    </span>
+                  </p>
+                  {jobStatusQuery.data?.portalConfirmationNumber && (
+                    <p className="text-[#10B981] text-sm">
+                      Portal confirmation:{" "}
+                      <span className="font-mono">
+                        {jobStatusQuery.data.portalConfirmationNumber}
+                      </span>
+                    </p>
+                  )}
+                  {jobStatusQuery.data?.errorMessage && (
+                    <p className="text-red-400 text-sm">
+                      {jobStatusQuery.data.errorMessage}
+                    </p>
+                  )}
                 </div>
-              </div>
+              )}
 
               <Button
                 onClick={() => (window.location.href = "/dashboard")}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold py-3"
               >
-                Go to Dashboard <ChevronRight size={20} />
+                Go to dashboard <ChevronRight size={20} />
               </Button>
             </div>
           )}

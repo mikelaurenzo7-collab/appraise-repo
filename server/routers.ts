@@ -51,6 +51,25 @@ import { invokeLLM } from "./_core/llm";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { countiesRouter } from "./routers/counties";
 import { enforceRateLimit } from "./_core/rateLimit";
+import {
+  PRICING_TIERS,
+  selectPricingTier,
+  SCRIVENER_AUTHORIZATION_TEXT,
+} from "../shared/pricing";
+import {
+  createScrivenerAuthorization,
+  getScrivenerAuthorizationById,
+  getCountyEligibility,
+  getActiveRecipeForCounty,
+  createRefundRequest,
+  getRefundRequestBySubmissionId,
+  listPendingRefundRequests,
+  updateRefundRequest,
+  getFilingJobById,
+  getFilingJobBySubmissionId,
+} from "./db";
+import { hashAuthorizationText } from "./services/filingRecipeEngine";
+import { queueFilingJob } from "./services/filingJobQueue";
 
 // Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
 // is missing (e.g. during tests or first-time local setup). The first payment
@@ -388,19 +407,44 @@ export const appRouter = router({
 
   // ─── PAYMENTS (STRIPE) ──────────────────────────────────────────────────
   payments: router({
-    // Create checkout session for certified report
-    createCheckoutSession: protectedProcedure
-      .input(z.object({
-        submissionId: z.number(),
-        annualTaxSavings: z.number().min(0),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        // Calculate 25% contingency fee
-        const contingencyFee = Math.round(input.annualTaxSavings * 0.25 * 100);
-        const minCharge = 5000; // $50 minimum
-        const chargeAmount = Math.max(contingencyFee, minCharge);
+    // List the public pricing tiers so the UI can render them from a single
+    // source of truth (shared/pricing.ts).
+    listTiers: publicProcedure.query(() => {
+      return PRICING_TIERS.map((t) => ({
+        id: t.id,
+        label: t.label,
+        priceCents: t.priceCents,
+        price: t.priceCents / 100,
+        assessedValueMaxCents: t.assessedValueMaxCents,
+        blurb: t.blurb,
+      }));
+    }),
 
-        // Create checkout session
+    // Flat-fee checkout: we no longer take contingency. The fee is indexed
+    // by the property's assessed value and refundable under the
+    // money-back guarantee if the appeal does not reduce the assessment.
+    createCheckoutSession: protectedProcedure
+      .input(
+        z.object({
+          submissionId: z.number(),
+          // Optional override for callers who want to preview a tier before
+          // the submission has an assessed value recorded.
+          overrideTier: z.enum(["starter", "standard", "premium"]).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        }
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+
+        const tier = input.overrideTier
+          ? PRICING_TIERS.find((t) => t.id === input.overrideTier) ?? PRICING_TIERS[0]
+          : selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
+
         const session = await getStripe().checkout.sessions.create({
           payment_method_types: ["card"],
           mode: "payment",
@@ -411,10 +455,10 @@ export const appRouter = router({
               price_data: {
                 currency: "usd",
                 product_data: {
-                  name: "AppraiseAI Certified Appraisal Report",
-                  description: `25% contingency fee on $${(input.annualTaxSavings / 100).toFixed(2)} annual tax savings`,
+                  name: `AppraiseAI ${tier.label} Filing`,
+                  description: `Pro-se property tax appeal filing. ${tier.blurb}. 60-day money-back guarantee.`,
                 },
-                unit_amount: chargeAmount,
+                unit_amount: tier.priceCents,
               },
               quantity: 1,
             },
@@ -424,15 +468,87 @@ export const appRouter = router({
           metadata: {
             submissionId: input.submissionId.toString(),
             userId: ctx.user.id.toString(),
-            annualTaxSavings: input.annualTaxSavings.toString(),
+            tierId: tier.id,
+            pricingModel: "flat-fee",
           },
+        });
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "checkout_started",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Flat-fee checkout started (${tier.label}, $${tier.priceCents / 100})`,
+          metadata: JSON.stringify({ tierId: tier.id, priceCents: tier.priceCents }),
+          status: "success",
         });
 
         return {
           sessionId: session.id,
           url: session.url,
-          chargeAmount: chargeAmount / 100,
+          chargeAmount: tier.priceCents / 100,
+          tier: tier.id,
         };
+      }),
+
+    // Request a refund under the money-back guarantee. Admin approves,
+    // the webhook executes the refund. A submission can have at most one
+    // active refund request at a time.
+    requestRefund: protectedProcedure
+      .input(
+        z.object({
+          submissionId: z.number(),
+          reason: z.string().min(10).max(1000),
+          stripeChargeId: z.string().optional(),
+          stripePaymentIntentId: z.string().optional(),
+          amountCents: z.number().int().positive(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+        const existing = await getRefundRequestBySubmissionId(input.submissionId);
+        if (existing && (existing.status === "pending" || existing.status === "approved")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Refund already ${existing.status} for this submission`,
+          });
+        }
+        const req = await createRefundRequest({
+          submissionId: input.submissionId,
+          userId: ctx.user.id,
+          stripeChargeId: input.stripeChargeId,
+          stripePaymentIntentId: input.stripePaymentIntentId,
+          amountCents: input.amountCents,
+          reason: input.reason,
+          status: "pending",
+        });
+        if (!req) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not record refund" });
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "refund_requested",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Refund requested: $${(input.amountCents / 100).toFixed(2)}`,
+          metadata: JSON.stringify({ refundId: req.id, reason: input.reason }),
+          status: "success",
+        });
+        return req;
+      }),
+
+    getRefundStatus: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+        const existing = await getRefundRequestBySubmissionId(input.submissionId);
+        return existing ?? null;
       }),
 
     // Get payment history
@@ -1040,6 +1156,86 @@ export const appRouter = router({
         return { success: true, message: "Analysis re-triggered" };
       }),
 
+    // ─── REFUND ADMINISTRATION ───────────────────────────────────────────
+    listRefundRequests: adminProcedure.query(async () => {
+      return listPendingRefundRequests();
+    }),
+
+    decideRefund: adminProcedure
+      .input(
+        z.object({
+          refundId: z.number(),
+          decision: z.enum(["approved", "denied"]),
+          adminNotes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const updated = await updateRefundRequest(input.refundId, {
+          status: input.decision,
+          adminNotes: input.adminNotes,
+          decidedAt: new Date(),
+          decidedBy: ctx.user.id,
+        });
+        if (!updated) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Refund request not found" });
+        }
+        if (input.decision === "approved") {
+          // Execute refund against Stripe if we have a payment reference.
+          try {
+            if (updated.stripePaymentIntentId) {
+              const refund = await getStripe().refunds.create({
+                payment_intent: updated.stripePaymentIntentId,
+                amount: updated.amountCents,
+                metadata: {
+                  refundRequestId: updated.id.toString(),
+                  submissionId: updated.submissionId.toString(),
+                },
+              });
+              await updateRefundRequest(updated.id, {
+                status: "refunded",
+                refundedAt: new Date(),
+                stripeRefundId: refund.id,
+              });
+            } else if (updated.stripeChargeId) {
+              const refund = await getStripe().refunds.create({
+                charge: updated.stripeChargeId,
+                amount: updated.amountCents,
+                metadata: {
+                  refundRequestId: updated.id.toString(),
+                  submissionId: updated.submissionId.toString(),
+                },
+              });
+              await updateRefundRequest(updated.id, {
+                status: "refunded",
+                refundedAt: new Date(),
+                stripeRefundId: refund.id,
+              });
+            } else {
+              await updateRefundRequest(updated.id, {
+                status: "failed",
+                adminNotes: [input.adminNotes, "No Stripe reference; manual refund required"].filter(Boolean).join("\n"),
+              });
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            await updateRefundRequest(updated.id, {
+              status: "failed",
+              adminNotes: [input.adminNotes, `Stripe refund failed: ${message}`].filter(Boolean).join("\n"),
+            });
+          }
+        }
+        await persistActivityLog({
+          submissionId: updated.submissionId,
+          type: input.decision === "approved" ? "refund_approved" : "refund_denied",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Refund #${updated.id} ${input.decision}`,
+          metadata: JSON.stringify({ refundId: updated.id, amountCents: updated.amountCents }),
+          status: "success",
+        });
+        return updated;
+      }),
+
     // ─── PARALEGALS QUEUE ────────────────────────────────────────────────
     listFilingQueue: adminProcedure.query(async () => {
       return listFilingQueue();
@@ -1090,6 +1286,192 @@ export const appRouter = router({
           status: "success",
         });
         return updated;
+      }),
+  }),
+
+  // ─── FILINGS (PLAYWRIGHT AUTOMATION) ─────────────────────────────────────
+  filings: router({
+    // Return the canonical scrivener authorization text so the client can
+    // render exactly what gets hashed and stored. Versioned implicitly by
+    // the hash — if the text changes, the hash changes, and existing
+    // authorizations are clearly pinned to the text they approved.
+    getAuthorizationText: publicProcedure.query(() => ({
+      text: SCRIVENER_AUTHORIZATION_TEXT,
+      textHash: hashAuthorizationText(SCRIVENER_AUTHORIZATION_TEXT),
+    })),
+
+    // Record a scrivener authorization. The client must POST the exact
+    // text they displayed; we verify the hash matches ours before storing.
+    authorize: protectedProcedure
+      .input(
+        z.object({
+          submissionId: z.number(),
+          typedName: z.string().min(2).max(255),
+          authorizationText: z.string().min(100).max(5000),
+          scrolledToEnd: z.boolean(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+        const hash = hashAuthorizationText(input.authorizationText);
+        const canonicalHash = hashAuthorizationText(SCRIVENER_AUTHORIZATION_TEXT);
+        if (hash !== canonicalHash) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Authorization text does not match the canonical version. Refresh and try again.",
+          });
+        }
+
+        const forwarded = ctx.req.headers["x-forwarded-for"];
+        const ip = typeof forwarded === "string"
+          ? forwarded.split(",")[0].trim()
+          : Array.isArray(forwarded)
+            ? forwarded[0]
+            : ctx.req.socket?.remoteAddress || undefined;
+        const userAgent = (ctx.req.headers["user-agent"] as string | undefined)?.slice(0, 512);
+
+        const auth = await createScrivenerAuthorization({
+          submissionId: input.submissionId,
+          userId: ctx.user.id,
+          typedName: input.typedName,
+          ipAddress: ip,
+          userAgent,
+          authorizationText: input.authorizationText,
+          authorizationTextHash: hash,
+          scrolledToEnd: input.scrolledToEnd,
+        });
+        if (!auth) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not record authorization" });
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "scrivener_authorized",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Scrivener authorization signed by ${input.typedName}`,
+          metadata: JSON.stringify({ authId: auth.id, ip, textHash: hash }),
+          status: "success",
+        });
+        return auth;
+      }),
+
+    // Eligibility check — combines county flags with submission context.
+    checkEligibility: protectedProcedure
+      .input(z.object({ submissionId: z.number(), countyId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+        const eligibility = await getCountyEligibility(input.countyId);
+        const recipe = await getActiveRecipeForCounty(input.countyId);
+        return {
+          ...eligibility,
+          recipeVerificationStatus: recipe?.verificationStatus ?? null,
+          portalUrl: recipe?.portalUrl ?? null,
+        };
+      }),
+
+    // Submit a filing. Validates: ownership, eligibility, prior
+    // authorization, paid status (we do not run filings for unpaid
+    // submissions), and enqueues the Playwright job.
+    submit: protectedProcedure
+      .input(
+        z.object({
+          submissionId: z.number(),
+          countyId: z.number(),
+          authorizationId: z.number(),
+          // Per-run inputs — PIN, account number, etc. Wiped after job
+          // completes. Allows string and number.
+          inputs: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        enforceRateLimit(ctx, {
+          scope: "filings.submit",
+          max: 3,
+          windowMs: 60_000,
+        });
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+
+        const eligibility = await getCountyEligibility(input.countyId);
+        if (eligibility.reasonsIneligible.length > 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Not eligible for automated filing: ${eligibility.reasonsIneligible.join("; ")}`,
+          });
+        }
+
+        const auth = await getScrivenerAuthorizationById(input.authorizationId);
+        if (!auth || auth.submissionId !== input.submissionId) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "A scrivener authorization is required before filing",
+          });
+        }
+
+        const recipe = await getActiveRecipeForCounty(input.countyId);
+        if (!recipe) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "No active filing recipe for this county",
+          });
+        }
+
+        const queued = await queueFilingJob({
+          submissionId: input.submissionId,
+          userId: ctx.user.id,
+          countyId: input.countyId,
+          recipeId: recipe.id,
+          authorizationId: auth.id,
+          inputs: input.inputs,
+        });
+
+        return queued;
+      }),
+
+    getJobStatus: protectedProcedure
+      .input(z.object({ jobId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const job = await getFilingJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+        if (job.userId !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your job" });
+        }
+        return {
+          jobId: job.id,
+          submissionId: job.submissionId,
+          status: job.status,
+          portalConfirmationNumber: job.portalConfirmationNumber ?? null,
+          finalScreenshotKey: job.finalScreenshotKey ?? null,
+          executionLogKey: job.executionLogKey ?? null,
+          errorMessage: job.errorMessage ?? null,
+          queuedAt: job.queuedAt,
+          startedAt: job.startedAt ?? null,
+          completedAt: job.completedAt ?? null,
+          retryCount: job.retryCount,
+          maxRetries: job.maxRetries,
+        };
+      }),
+
+    getJobForSubmission: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+        const job = await getFilingJobBySubmissionId(input.submissionId);
+        return job ?? null;
       }),
   }),
 });
