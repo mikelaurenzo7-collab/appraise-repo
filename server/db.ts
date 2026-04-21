@@ -8,6 +8,11 @@ import {
   activityLogs, InsertActivityLog,
   apiCache, InsertApiCache,
   reportJobs, InsertReportJob, ReportJob,
+  counties, County, InsertCounty,
+  filingTiers, FilingTier, InsertFilingTier,
+  poaFilings, POAFiling, InsertPOAFiling,
+  proSeFilings, ProSeFiling, InsertProSeFiling,
+  paralegalsQueue, ParalegalsQueueItem, InsertParalegalsQueueItem,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -516,5 +521,221 @@ export async function cleanupExpiredReportJobs(): Promise<number> {
   } catch (error) {
     console.error("[ReportJob] Failed to cleanup expired:", error);
     return 0;
+  }
+}
+
+
+// ─── COUNTIES ────────────────────────────────────────────────────────────────
+
+export async function getCounty(state: string, countyName: string): Promise<County | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(counties)
+      .where(and(
+        eq(counties.state, state),
+        eq(counties.countyName, countyName)
+      ))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[County] Failed to get county:", error);
+    return null;
+  }
+}
+
+export async function getCountyById(id: number): Promise<County | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(counties)
+      .where(eq(counties.id, id))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[County] Failed to get county by ID:", error);
+    return null;
+  }
+}
+
+export async function listCountiesByState(state: string): Promise<County[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(counties)
+      .where(eq(counties.state, state))
+      .orderBy(counties.countyName);
+  } catch (error) {
+    console.error("[County] Failed to list counties:", error);
+    return [];
+  }
+}
+
+export async function createCounty(county: InsertCounty): Promise<County | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(counties).values(county);
+    const id = (result as any).insertId;
+    return await getCountyById(id);
+  } catch (error) {
+    console.error("[County] Failed to create county:", error);
+    return null;
+  }
+}
+
+// ─── FILING TIERS ────────────────────────────────────────────────────────────
+
+export async function createFilingTier(tier: InsertFilingTier): Promise<FilingTier | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(filingTiers).values(tier);
+    const id = (result as any).insertId;
+    return await db.select().from(filingTiers)
+      .where(eq(filingTiers.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[FilingTier] Failed to create tier:", error);
+    return null;
+  }
+}
+
+export async function getFilingTierBySubmission(submissionId: number): Promise<FilingTier | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(filingTiers)
+      .where(eq(filingTiers.submissionId, submissionId))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[FilingTier] Failed to get tier:", error);
+    return null;
+  }
+}
+
+// ─── POA FILINGS ─────────────────────────────────────────────────────────────
+
+export async function createPOAFiling(filing: InsertPOAFiling): Promise<POAFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(poaFilings).values(filing);
+    const id = (result as any).insertId;
+    return await db.select().from(poaFilings)
+      .where(eq(poaFilings.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[POAFiling] Failed to create filing:", error);
+    return null;
+  }
+}
+
+export async function getPOAFilingBySubmission(submissionId: number): Promise<POAFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(poaFilings)
+      .where(eq(poaFilings.submissionId, submissionId))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[POAFiling] Failed to get filing:", error);
+    return null;
+  }
+}
+
+export async function listPendingPOAFilings(): Promise<POAFiling[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(poaFilings)
+      .where(eq(poaFilings.status, "pending"))
+      .orderBy(poaFilings.createdAt);
+  } catch (error) {
+    console.error("[POAFiling] Failed to list pending:", error);
+    return [];
+  }
+}
+
+// ─── PRO SE FILINGS ──────────────────────────────────────────────────────────
+
+export async function createProSeFiling(filing: InsertProSeFiling): Promise<ProSeFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(proSeFilings).values(filing);
+    const id = (result as any).insertId;
+    return await db.select().from(proSeFilings)
+      .where(eq(proSeFilings.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[ProSeFiling] Failed to create filing:", error);
+    return null;
+  }
+}
+
+export async function getProSeFilingBySubmission(submissionId: number): Promise<ProSeFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(proSeFilings)
+      .where(eq(proSeFilings.submissionId, submissionId))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[ProSeFiling] Failed to get filing:", error);
+    return null;
+  }
+}
+
+// ─── PARALEGALS QUEUE ────────────────────────────────────────────────────────
+
+export async function addToParalegalsQueue(item: InsertParalegalsQueueItem): Promise<ParalegalsQueueItem | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(paralegalsQueue).values(item);
+    const id = (result as any).insertId;
+    return await db.select().from(paralegalsQueue)
+      .where(eq(paralegalsQueue.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to add item:", error);
+    return null;
+  }
+}
+
+export async function listQueuedItems(): Promise<ParalegalsQueueItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(paralegalsQueue)
+      .where(eq(paralegalsQueue.status, "queued"))
+      .orderBy(paralegalsQueue.priority, paralegalsQueue.queuedAt);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to list queued:", error);
+    return [];
+  }
+}
+
+export async function listParalegalsWorkload(paralegalName: string): Promise<ParalegalsQueueItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(paralegalsQueue)
+      .where(and(
+        eq(paralegalsQueue.assignedTo, paralegalName),
+        eq(paralegalsQueue.status, "in-progress")
+      ))
+      .orderBy(paralegalsQueue.deadline);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to list workload:", error);
+    return [];
   }
 }

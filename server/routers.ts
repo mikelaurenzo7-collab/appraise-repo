@@ -22,11 +22,16 @@ import {
   persistActivityLog,
   evictExpiredCache,
   getSubmissionPhotos,
+  getFilingTierBySubmission,
+  createFilingTier,
+  getDb,
 } from "./db";
+import { eq } from "drizzle-orm";
+import { filingTiers } from "../drizzle/schema";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 import { queueReportGeneration } from "./services/reportJobQueue";
-import { getReportJobById, getReportJobBySubmissionId } from "./db";
+import { getReportJobById, getReportJobBySubmissionId, getDb as getDbForReports } from "./db";
 import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
 import { storagePut, storageGet } from "./storage";
 import {
@@ -515,6 +520,62 @@ export const appRouter = router({
           url,
           key,
           fileName: `AppraiseAI-Report-${submission.address.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`,
+        };
+      }),
+
+    // Tier selection & pricing
+    selectTier: protectedProcedure
+      .input(z.object({
+        submissionId: z.number(),
+        tier: z.enum(["poa", "pro-se"]),
+        countyId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+
+        const existingTier = await db.select().from(filingTiers)
+          .where(eq(filingTiers.submissionId, input.submissionId))
+          .limit(1);
+
+        if (existingTier.length > 0) {
+          await db.update(filingTiers)
+            .set({ tier: input.tier, updatedAt: new Date() })
+            .where(eq(filingTiers.submissionId, input.submissionId));
+        } else {
+          await db.insert(filingTiers).values({
+            submissionId: input.submissionId,
+            tier: input.tier,
+            proSePrice: 14900,
+            contingencyPercentage: 25,
+            paymentStatus: "pending",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+
+        return { success: true, tier: input.tier };
+      }),
+
+    // Get tier info & pricing
+    getTierInfo: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return null;
+
+        const tier = await db.select().from(filingTiers)
+          .where(eq(filingTiers.submissionId, input.submissionId))
+          .limit(1)
+          .then(r => r[0] || null);
+
+        if (!tier) return null;
+
+        return {
+          tier: tier.tier,
+          proSePrice: tier.proSePrice ? tier.proSePrice / 100 : 149,
+          contingencyPercentage: tier.contingencyPercentage || 25,
+          paymentStatus: tier.paymentStatus,
         };
       }),
 

@@ -45,6 +45,8 @@ const FILING_METHODS = [
     icon: <Scale size={20} />,
     desc: "We act as your legal representative. Full service — we prepare, file, and attend hearings on your behalf.",
     badge: "Most Popular",
+    price: "25% contingency",
+    priceDesc: "Only pay if we win",
     badgeColor: "bg-[#7C3AED] text-[#020617]",
   },
   {
@@ -53,6 +55,8 @@ const FILING_METHODS = [
     icon: <FileText size={20} />,
     desc: "You file yourself. We prepare all documents, coach you through the process, and support you at the hearing.",
     badge: "DIY + Support",
+    price: "$149",
+    priceDesc: "One-time fee",
     badgeColor: "bg-[#0F172A] text-white",
   },
   {
@@ -61,6 +65,8 @@ const FILING_METHODS = [
     icon: <Zap size={20} />,
     desc: "Get the AI appraisal and appeal analysis. Decide later whether to file.",
     badge: "Free",
+    price: "Free",
+    priceDesc: "No commitment",
     badgeColor: "bg-green-100 text-green-800",
   },
 ];
@@ -295,6 +301,12 @@ export default function GetStarted() {
                             </span>
                           </div>
                           <p className="text-xs text-[#64748B] leading-relaxed">{method.desc}</p>
+                          {(method as any).price && (
+                            <div className="mt-2 pt-2 border-t border-[#E2E8F0]">
+                              <div className="text-sm font-bold text-[#0F172A]">{(method as any).price}</div>
+                              <div className="text-xs text-[#94A3B8]">{(method as any).priceDesc}</div>
+                            </div>
+                          )}
                         </div>
                         {filingMethod === method.value && (
                           <CheckCircle2 size={16} className="text-[#7C3AED] shrink-0 mt-1" />
