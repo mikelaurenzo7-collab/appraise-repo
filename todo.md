@@ -256,3 +256,9 @@
 - [x] Enhance chat widget for paid users (provide detailed analysis insights, market data, strategy recommendations vs. FAQ-only for free users)
 - [x] Add paid-user detection logic (check submission payment status via useAuth)
 - [x] Test paid vs. free user experiences (223 tests passing)
+
+## Phase 8: Admin Payment Bypass (COMPLETED)
+- [x] Add admin role payment bypass to createCheckoutSession
+- [x] Admins skip Stripe and go directly to dashboard with chargeAmount=0
+- [x] Log admin bypass in activity log for audit trail
+- [x] All 223 tests passing

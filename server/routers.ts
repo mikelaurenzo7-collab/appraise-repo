@@ -486,6 +486,25 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
 
+        // ADMIN BYPASS: Admins skip payment and go directly to dashboard
+        if (ctx.user.role === "admin") {
+          await persistActivityLog({
+            submissionId: input.submissionId,
+            type: "checkout_completed",
+            actor: "admin",
+            actorId: ctx.user.id,
+            description: "Admin payment bypass - no Stripe charge",
+            metadata: JSON.stringify({ bypassReason: "admin_testing" }),
+            status: "success",
+          });
+          return {
+            sessionId: "admin-bypass-" + input.submissionId,
+            url: `${ctx.req.headers.origin}/dashboard?payment=success&submissionId=${input.submissionId}&adminBypass=true`,
+            chargeAmount: 0,
+            tier: "admin-bypass",
+          };
+        }
+
         const tier = input.overrideTier
           ? PRICING_TIERS.find((t) => t.id === input.overrideTier) ?? PRICING_TIERS[0]
           : selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
