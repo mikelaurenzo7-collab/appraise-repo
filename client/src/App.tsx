@@ -23,14 +23,17 @@ import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
 import ReportDownload from "./pages/ReportDownload";
 import FilingStatus from "./pages/FilingStatus";
+
 import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
 import LeadChatWidget from "./components/LeadChatWidget";
+import { useAuth } from "./_core/hooks/useAuth";
 
 function Router() {
+  const { isAuthenticated } = useAuth();
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" render={() => (isAuthenticated ? <UserDashboard /> : <Home />)} />
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/tax-appeals" component={TaxAppeals} />
       <Route path="/pricing" component={Pricing} />
@@ -41,7 +44,7 @@ function Router() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/paralegals" component={ParalegalsDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
-      <Route path="/portfolio" component={PortfolioDashboard} />
+      {/* Portfolio route removed - dashboard is now the primary hub */}
       <Route path="/payments" component={PaymentHistory} />
       <Route path="/blog" component={Blog} />
       <Route path="/testimonials" component={Testimonials} />
