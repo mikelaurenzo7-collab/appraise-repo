@@ -118,12 +118,25 @@ export default function PropertyMapView({
         ? "bg-green-600"
         : "bg-blue-600";
 
-    div.innerHTML = `
-      <div class="${bgColor} text-white px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap">
-        ${label}
-      </div>
-      ${price ? `<div class="text-xs font-semibold text-gray-900 bg-white px-1.5 py-0.5 rounded">$${(price / 1000).toFixed(0)}K</div>` : ""}
-    `;
+    // Build children with textContent — never innerHTML with interpolated
+    // values. If `label` ever comes from user input (addresses, property
+    // nicknames, etc.), innerHTML would open an XSS hole.
+    const badge = document.createElement("div");
+    badge.className = `${bgColor} text-white px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap`;
+    badge.textContent = label;
+    div.appendChild(badge);
+
+    if (price) {
+      const priceEl = document.createElement("div");
+      priceEl.className = "text-xs font-semibold text-gray-900 bg-white px-1.5 py-0.5 rounded";
+      priceEl.textContent = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        notation: "compact",
+        maximumFractionDigits: 0,
+      }).format(price);
+      div.appendChild(priceEl);
+    }
 
     return div;
   };

@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+
+# Keep auth-gated and transactional pages out of the index.
+# They're not useful in search, and they leak internal UX paths.
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /paralegals
+Disallow: /payments
+Disallow: /portfolio
+Disallow: /filing-status
+Disallow: /report
+Disallow: /appeal-workflow
+Disallow: /analysis
+Disallow: /api/
+
+Sitemap: https://appraise-ai.manus.space/sitemap.xml

@@ -104,6 +104,40 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 /**
+ * Money-back-guarantee window, in days. The Terms page commits to 60 days,
+ * and every refund path (user-initiated + admin auto-create) enforces it.
+ */
+export const REFUND_WINDOW_DAYS = 60;
+const REFUND_WINDOW_MS = REFUND_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Latest of filing dispatch timestamp or submission creation. Filings can
+ * land after the submission (queued work), and the guarantee clock should
+ * start when the service was actually rendered. Falls back to submission
+ * createdAt when no filing has run yet.
+ */
+function refundAnchorDate(
+  submission: { createdAt?: Date | string | null } | null | undefined,
+  filingJob: { createdAt?: Date | string | null } | null | undefined
+): Date | null {
+  const toDate = (v: Date | string | null | undefined): Date | null => {
+    if (!v) return null;
+    const d = v instanceof Date ? v : new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const filingAt = toDate(filingJob?.createdAt);
+  const submissionAt = toDate(submission?.createdAt);
+  if (filingAt && submissionAt) {
+    return filingAt.getTime() >= submissionAt.getTime() ? filingAt : submissionAt;
+  }
+  return filingAt ?? submissionAt;
+}
+
+function refundWindowRemaining(anchor: Date): number {
+  return Math.max(0, REFUND_WINDOW_MS - (Date.now() - anchor.getTime()));
+}
+
+/**
  * Auto-create a refund request after an admin records an appeal_denied
  * outcome. The guarantee only applies when a filing actually ran — if
  * the user never paid/filed, we don't create a refund. The refund is
@@ -118,6 +152,21 @@ async function maybeAutoRequestRefund(submissionId: number, adminUserId: number)
   if (existing && existing.status !== "denied" && existing.status !== "failed") return;
   const submission = await getPropertySubmissionById(submissionId);
   if (!submission) return;
+
+  // Don't auto-create refunds for outcomes recorded after the 60-day window.
+  // Admins can still issue out-of-policy refunds manually via decideRefund.
+  const anchor = refundAnchorDate(submission, filingJob);
+  if (anchor && refundWindowRemaining(anchor) === 0) {
+    await persistActivityLog({
+      submissionId,
+      type: "refund_auto_skipped_out_of_window",
+      actor: "system",
+      description: `Auto-refund skipped: outside ${REFUND_WINDOW_DAYS}-day guarantee window.`,
+      metadata: JSON.stringify({ anchor: anchor.toISOString() }),
+      status: "success",
+    });
+    return;
+  }
 
   const tier = selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
 
@@ -490,33 +539,43 @@ export const appRouter = router({
           ? PRICING_TIERS.find((t) => t.id === input.overrideTier) ?? PRICING_TIERS[0]
           : selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
 
-        const session = await getStripe().checkout.sessions.create({
-          payment_method_types: ["card"],
-          mode: "payment",
-          customer_email: ctx.user.email || undefined,
-          client_reference_id: ctx.user.id.toString(),
-          line_items: [
-            {
-              price_data: {
-                currency: "usd",
-                product_data: {
-                  name: `AppraiseAI ${tier.label} Filing`,
-                  description: `Pro-se property tax appeal filing. ${tier.blurb}. 60-day money-back guarantee.`,
+        // Idempotency key: a double-click or retry within the same 5-minute
+        // bucket returns the same Checkout Session instead of creating a new
+        // one (which would let Stripe race two charges). Different minute
+        // bucket = intentional new session (user abandoned + came back).
+        const bucket = Math.floor(Date.now() / (5 * 60 * 1000));
+        const idempotencyKey = `checkout:${ctx.user.id}:${input.submissionId}:${tier.id}:${bucket}`;
+
+        const session = await getStripe().checkout.sessions.create(
+          {
+            payment_method_types: ["card"],
+            mode: "payment",
+            customer_email: ctx.user.email || undefined,
+            client_reference_id: ctx.user.id.toString(),
+            line_items: [
+              {
+                price_data: {
+                  currency: "usd",
+                  product_data: {
+                    name: `AppraiseAI ${tier.label} Filing`,
+                    description: `Pro-se property tax appeal filing. ${tier.blurb}. 60-day money-back guarantee.`,
+                  },
+                  unit_amount: tier.priceCents,
                 },
-                unit_amount: tier.priceCents,
+                quantity: 1,
               },
-              quantity: 1,
+            ],
+            success_url: `${ctx.req.headers.origin}/dashboard?payment=success&submissionId=${input.submissionId}`,
+            cancel_url: `${ctx.req.headers.origin}/analysis?id=${input.submissionId}`,
+            metadata: {
+              submissionId: input.submissionId.toString(),
+              userId: ctx.user.id.toString(),
+              tierId: tier.id,
+              pricingModel: "flat-fee",
             },
-          ],
-          success_url: `${ctx.req.headers.origin}/dashboard?payment=success&submissionId=${input.submissionId}`,
-          cancel_url: `${ctx.req.headers.origin}/analysis?id=${input.submissionId}`,
-          metadata: {
-            submissionId: input.submissionId.toString(),
-            userId: ctx.user.id.toString(),
-            tierId: tier.id,
-            pricingModel: "flat-fee",
           },
-        });
+          { idempotencyKey }
+        );
 
         await persistActivityLog({
           submissionId: input.submissionId,
@@ -561,6 +620,20 @@ export const appRouter = router({
             code: "CONFLICT",
             message: `Refund already ${existing.status} for this submission`,
           });
+        }
+        // Enforce the 60-day money-back guarantee window. Admins can bypass
+        // for out-of-policy refunds via direct decideRefund. The anchor is
+        // the later of filing-dispatch or submission creation, so the clock
+        // starts when the service was rendered, not when the user signed up.
+        if (ctx.user.role !== "admin") {
+          const filingJob = await getFilingJobBySubmissionId(input.submissionId);
+          const anchor = refundAnchorDate(submission, filingJob);
+          if (anchor && refundWindowRemaining(anchor) === 0) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `The ${REFUND_WINDOW_DAYS}-day money-back guarantee window has closed for this submission. Please contact support@appraise-ai.com if you believe an exception applies.`,
+            });
+          }
         }
         const req = await createRefundRequest({
           submissionId: input.submissionId,

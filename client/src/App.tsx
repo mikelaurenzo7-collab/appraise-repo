@@ -18,6 +18,7 @@ import DeadlineCalendar from "./pages/DeadlineCalendar";
 import Portfolio from "./pages/Portfolio";
 import PaymentHistory from "./pages/PaymentHistory";
 import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 import Testimonials from "./pages/Testimonials";
 import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
@@ -44,6 +45,9 @@ function Router() {
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/payments" component={PaymentHistory} />
       <Route path="/blog" component={Blog} />
+      <Route path="/blog/:id">
+        {(params) => <BlogPost id={params.id} />}
+      </Route>
       <Route path="/testimonials" component={Testimonials} />
       <Route path="/batch" component={BatchProcessing} />
       <Route path="/filing-status" component={FilingStatus} />

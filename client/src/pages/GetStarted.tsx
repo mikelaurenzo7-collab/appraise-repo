@@ -29,6 +29,8 @@ import Footer from "@/components/Footer";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { AnalyticsEvent, track } from "@/lib/analytics";
 
 const PROPERTY_TYPES = [
   { value: "residential", label: "Residential", icon: <HomeIcon size={20} />, desc: "Single-family home, condo, townhouse" },
@@ -98,6 +100,11 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 }
 
 export default function GetStarted() {
+  usePageMeta({
+    title: "Get Started — Property Tax Appeal",
+    description: "Enter your property address and get an instant AI appraisal. Flat fee, 60-day money-back guarantee.",
+    canonicalPath: "/get-started",
+  });
   const [step, setStep] = useState(1);
   const [address, setAddress] = useState("");
   const [propertyType, setPropertyType] = useState("residential");
@@ -106,6 +113,16 @@ export default function GetStarted() {
   const [filingMethod, setFilingMethod] = useState<"poa" | "pro-se" | "none">("poa");
   const [selectedCountyId, setSelectedCountyId] = useState<number | null>(null);
   const [, navigate] = useLocation();
+
+  // Fire once when the user first interacts (not on mount), so page views
+  // don't inflate the form-start count.
+  const [formStartTracked, setFormStartTracked] = useState(false);
+  useEffect(() => {
+    if (!formStartTracked && (address.length > 0 || email.length > 0)) {
+      track(AnalyticsEvent.FormStart);
+      setFormStartTracked(true);
+    }
+  }, [address, email, formStartTracked]);
 
   // Get high-impact states
   const statesQuery = trpc.counties.getHighImpactStates.useQuery();
@@ -126,6 +143,11 @@ export default function GetStarted() {
 
   const submitMutation = trpc.properties.submitAddress.useMutation({
     onSuccess: (data) => {
+      track(AnalyticsEvent.FormSubmit, {
+        submissionId: data.submissionId ?? null,
+        filingMethod,
+        propertyType,
+      });
       toast.success("Analysis started! Redirecting...");
       if (data.submissionId) {
         navigate(`/analysis?id=${data.submissionId}`);
@@ -153,6 +175,7 @@ export default function GetStarted() {
         return;
       }
     }
+    track(AnalyticsEvent.FormStepComplete, { step });
     setStep((s) => s + 1);
   };
 

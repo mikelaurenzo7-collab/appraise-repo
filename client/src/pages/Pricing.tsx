@@ -3,8 +3,14 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { PRICING_TIERS, MONEY_BACK_GUARANTEE_COPY } from "../../../shared/pricing";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function Pricing() {
+  usePageMeta({
+    title: "Pricing — Flat-fee Property Tax Appeal",
+    description: "Starter $79, Standard $149, Premium $299. Flat fee indexed to your property's assessed value. 60-day money-back guarantee.",
+    canonicalPath: "/pricing",
+  });
   return (
     <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
