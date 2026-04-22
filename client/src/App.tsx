@@ -33,7 +33,9 @@ function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path="/" render={() => (isAuthenticated ? <UserDashboard /> : <Home />)} />
+      <Route path="/">
+        {isAuthenticated ? <UserDashboard /> : <Home />}
+      </Route>
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/tax-appeals" component={TaxAppeals} />
       <Route path="/pricing" component={Pricing} />
