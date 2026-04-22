@@ -26,6 +26,8 @@ import { Link } from "wouter";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { Copy, CheckCircle } from "lucide-react";
+import { ReportPreviewModal } from "@/components/ReportPreviewModal";
 
 type SubmissionStatus =
   | "pending"
@@ -86,6 +88,66 @@ const mockMarketData = [
   { label: "Success Rate", value: "66.7%", change: "up", icon: Award },
 ];
 
+const mockAppealTimeline = [
+  {
+    date: "Jan 15, 2024",
+    event: "Appeal Filed",
+    status: "completed" as const,
+    details: {
+      filingMethod: "Power of Attorney",
+      county: "Travis County",
+      trackingNumber: "TX-2024-001847",
+      filedWith: "Travis Central Appraisal District",
+      documentLink: "/documents/appeal-form-001847.pdf",
+    },
+  },
+  {
+    date: "Mar 20, 2024",
+    event: "Hearing Scheduled",
+    status: "completed" as const,
+    details: {
+      hearingLocation: "Travis CAD Hearing Room B, 8:30 AM",
+      address: "8949 Burnet Rd, Austin, TX 78758",
+      representation: "Our attorney will represent you",
+      preparedDocuments: "Appraisal report, comparable sales analysis, market data",
+      documentLink: "/documents/hearing-notice-001847.pdf",
+    },
+  },
+  {
+    date: "Apr 10, 2024",
+    event: "Hearing Held",
+    status: "completed" as const,
+    details: {
+      outcome: "Favorable - Assessment reduced",
+      originalAssessment: "$687,000",
+      newAssessment: "$599,000",
+      reduction: "$88,000 (12.8%)",
+      annualTaxSavings: "$2,200",
+      notes: "Appraiser acknowledged comparable sales data was outdated",
+    },
+  },
+  {
+    date: "May 1, 2024",
+    event: "Decision Received",
+    status: "completed" as const,
+    details: {
+      decisionStatus: "APPROVED",
+      effectiveDate: "2024 Tax Year",
+      estimatedSavings: "$2,200 annually",
+      totalSavings: "$88,000 over 40 years",
+      nextSteps: "New assessment will appear on 2024 tax bill",
+      documentLink: "/documents/decision-letter-001847.pdf",
+    },
+  },
+];
+
+const mockReferralStats = {
+  totalReferrals: 12,
+  commissionEarned: 4200,
+  pendingCommission: 1850,
+  referralLink: "https://appraiseai.com/ref/michael-lorenzo",
+};
+
 function StatusBadge({ status }: { status: SubmissionStatus }) {
   const map: Record<SubmissionStatus, { label: string; cls: string; Icon: typeof Clock }> = {
     pending: { label: "Pending", cls: "text-slate-500", Icon: Clock },
@@ -114,6 +176,9 @@ export default function UserDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "all">("all");
+  const [copiedRef, setCopiedRef] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<typeof mockReports[0] | null>(null);
   const itemsPerPage = 6;
 
   if (loading) {
@@ -200,6 +265,211 @@ export default function UserDashboard() {
             <div className="text-sm text-muted-foreground mb-2">Annual Savings</div>
             <div className="text-3xl font-bold text-gold-500">${stats.annualSavings.toLocaleString()}</div>
           </Card>
+        </div>
+
+        {/* Appeal Timeline + Referral Earnings Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+          {/* Appeal Timeline */}
+          <div className="lg:col-span-2">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Recent Appeal Activity</h2>
+            <Card className="bg-card border-border p-6">
+              <div className="space-y-6">
+                {mockAppealTimeline.map((item, idx) => (
+                  <div key={idx}>
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-4 h-4 rounded-full ${
+                          item.status === "completed" ? "bg-teal-500" : "bg-purple-600"
+                        } mt-1 ring-4 ring-card`} />
+                        {idx < mockAppealTimeline.length - 1 && (
+                          <div className="w-0.5 h-16 bg-border mt-2" />
+                        )}
+                      </div>
+                      <div className="pb-4 flex-1">
+                        <div className="text-sm font-bold text-foreground">{item.event}</div>
+                        <div className="text-xs text-muted-foreground mb-3">{item.date}</div>
+
+                        {/* Robust Details for Paid Users */}
+                        {item.details && (
+                          <div className="mt-3 p-3 bg-muted/50 rounded-lg border border-border/50 space-y-2">
+                            {item.details.filingMethod && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Filing Method:</span>
+                                <span className="font-semibold text-foreground">{item.details.filingMethod}</span>
+                              </div>
+                            )}
+                            {item.details.county && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">County:</span>
+                                <span className="font-semibold text-foreground">{item.details.county}</span>
+                              </div>
+                            )}
+                            {item.details.trackingNumber && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Tracking #:</span>
+                                <span className="font-mono font-semibold text-teal-400">{item.details.trackingNumber}</span>
+                              </div>
+                            )}
+                            {item.details.filedWith && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Filed With:</span>
+                                <span className="font-semibold text-foreground">{item.details.filedWith}</span>
+                              </div>
+                            )}
+                            {item.details.hearingLocation && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Hearing:</span>
+                                <span className="font-semibold text-foreground">{item.details.hearingLocation}</span>
+                              </div>
+                            )}
+                            {item.details.address && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Address:</span>
+                                <span className="font-semibold text-foreground">{item.details.address}</span>
+                              </div>
+                            )}
+                            {item.details.representation && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Representation:</span>
+                                <span className="font-semibold text-teal-400">{item.details.representation}</span>
+                              </div>
+                            )}
+                            {item.details.preparedDocuments && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Documents:</span>
+                                <span className="font-semibold text-foreground">{item.details.preparedDocuments}</span>
+                              </div>
+                            )}
+                            {item.details.outcome && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Outcome:</span>
+                                <span className="font-semibold text-teal-400">{item.details.outcome}</span>
+                              </div>
+                            )}
+                            {item.details.originalAssessment && (
+                              <div className="grid grid-cols-2 gap-2 text-xs mt-2 pt-2 border-t border-border/50">
+                                <div>
+                                  <div className="text-muted-foreground">Original Assessment</div>
+                                  <div className="font-bold text-foreground">{item.details.originalAssessment}</div>
+                                </div>
+                                <div>
+                                  <div className="text-muted-foreground">New Assessment</div>
+                                  <div className="font-bold text-teal-400">{item.details.newAssessment}</div>
+                                </div>
+                              </div>
+                            )}
+                            {item.details.reduction && (
+                              <div className="flex justify-between text-xs font-bold mt-2 p-2 bg-teal-500/10 rounded border border-teal-500/30">
+                                <span className="text-muted-foreground">Reduction:</span>
+                                <span className="text-teal-400">{item.details.reduction}</span>
+                              </div>
+                            )}
+                            {item.details.annualTaxSavings && (
+                              <div className="flex justify-between text-xs font-bold mt-2 p-2 bg-gold-400/10 rounded border border-gold-400/30">
+                                <span className="text-muted-foreground">Annual Tax Savings:</span>
+                                <span className="text-gold-400">{item.details.annualTaxSavings}</span>
+                              </div>
+                            )}
+                            {item.details.totalSavings && (
+                              <div className="flex justify-between text-xs font-bold mt-2 p-2 bg-purple-600/10 rounded border border-purple-600/30">
+                                <span className="text-muted-foreground">Total Savings (40yr):</span>
+                                <span className="text-purple-400">{item.details.totalSavings}</span>
+                              </div>
+                            )}
+                            {item.details.decisionStatus && (
+                              <div className="flex justify-between text-xs font-bold mt-2 p-2 bg-teal-500/10 rounded border border-teal-500/30">
+                                <span className="text-muted-foreground">Decision:</span>
+                                <span className="text-teal-400">{item.details.decisionStatus}</span>
+                              </div>
+                            )}
+                            {item.details.effectiveDate && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Effective:</span>
+                                <span className="font-semibold text-foreground">{item.details.effectiveDate}</span>
+                              </div>
+                            )}
+                            {item.details.estimatedSavings && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Est. Savings:</span>
+                                <span className="font-semibold text-teal-400">{item.details.estimatedSavings}</span>
+                              </div>
+                            )}
+                            {item.details.nextSteps && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Next Steps:</span>
+                                <span className="font-semibold text-foreground">{item.details.nextSteps}</span>
+                              </div>
+                            )}
+                            {item.details.notes && (
+                              <div className="text-xs text-muted-foreground italic mt-2 p-2 bg-muted rounded">
+                                💡 {item.details.notes}
+                              </div>
+                            )}
+                            {item.details.documentLink && (
+                              <div className="mt-2 pt-2 border-t border-border/50">
+                                <a
+                                  href={item.details.documentLink}
+                                  className="text-xs font-semibold text-teal-400 hover:text-teal-300 flex items-center gap-1"
+                                >
+                                  <FileText size={12} /> View Document
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {/* Referral Earnings */}
+          <div>
+            <h2 className="text-2xl font-bold text-foreground mb-6">Referral Earnings</h2>
+            <Card className="bg-gradient-to-br from-purple-600/10 to-teal-600/10 border-purple-600/30 p-6">
+              <div className="space-y-4">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Total Earned</div>
+                  <div className="text-3xl font-bold text-gold-400">${mockReferralStats.commissionEarned.toLocaleString()}</div>
+                </div>
+                <div className="border-t border-border pt-4">
+                  <div className="text-xs text-muted-foreground mb-1">Pending Payout</div>
+                  <div className="text-lg font-semibold text-foreground">${mockReferralStats.pendingCommission.toLocaleString()}</div>
+                </div>
+                <div className="border-t border-border pt-4">
+                  <div className="text-xs text-muted-foreground mb-2">Referrals</div>
+                  <div className="text-2xl font-bold text-foreground">{mockReferralStats.totalReferrals}</div>
+                </div>
+                <div className="border-t border-border pt-4">
+                  <div className="text-xs text-muted-foreground mb-2">Your Link</div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={mockReferralStats.referralLink}
+                      readOnly
+                      className="flex-1 px-2 py-1 text-xs bg-background border border-border rounded text-foreground"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(mockReferralStats.referralLink);
+                        setCopiedRef(true);
+                        setTimeout(() => setCopiedRef(false), 2000);
+                      }}
+                      className="p-1 rounded hover:bg-purple-600/20 transition-colors"
+                    >
+                      {copiedRef ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
 
         {/* Market Data */}
@@ -338,6 +608,10 @@ export default function UserDashboard() {
                           variant="outline"
                           size="sm"
                           className="flex-1 bg-background border-border hover:border-purple-600/50"
+                          onClick={() => {
+                            setSelectedReport(report);
+                            setPreviewOpen(true);
+                          }}
                         >
                           <Eye className="w-4 h-4 mr-2" />
                           View
@@ -400,6 +674,17 @@ export default function UserDashboard() {
       </div>
 
       <Footer />
+
+      {/* Report Preview Modal */}
+      {selectedReport && (
+        <ReportPreviewModal
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          reportUrl={`/reports/${selectedReport.id}.pdf`}
+          reportName={`${selectedReport.address} - Appraisal Report`}
+          address={selectedReport.address}
+        />
+      )}
     </div>
   );
 }

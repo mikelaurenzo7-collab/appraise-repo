@@ -3,18 +3,32 @@ import { MessageCircle, X, Minus, CheckCircle2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 
-const GREETING: Message = {
+const GREETING_FREE: Message = {
   role: "assistant",
   content:
     "Hi! I'm AppraiseAI's assistant. Ask me anything about property tax appeals — or share your address and I'll line up a free analysis.",
 };
 
-const SUGGESTED = [
+const GREETING_PAID: Message = {
+  role: "assistant",
+  content:
+    "Welcome back! I'm your AppraiseAI assistant. Ask me anything about your appeals, market analysis, strategy recommendations, or property valuations. I have access to your full analysis data.",
+};
+
+const SUGGESTED_FREE = [
   "How much could I save?",
   "How does the money-back guarantee work?",
   "How long does an appeal take?",
   "Do you cover my county?",
+];
+
+const SUGGESTED_PAID = [
+  "What's my appeal strategy?",
+  "Show me comparable properties",
+  "What's my estimated savings?",
+  "When's my hearing date?",
 ];
 
 const LS_KEY = "appraise.chatMessages";
@@ -29,6 +43,7 @@ const HIDDEN_ROUTES = [
 
 export default function LeadChatWidget() {
   const [location] = useLocation();
+  const { isAuthenticated } = useAuth();
   const hidden = useMemo(
     () => HIDDEN_ROUTES.some((r) => location === r || location.startsWith(`${r}/`)),
     [location]
@@ -38,15 +53,16 @@ export default function LeadChatWidget() {
   const [minimized, setMinimized] = useState(false);
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => {
-    if (typeof window === "undefined") return [GREETING];
+    const greeting = isAuthenticated ? GREETING_PAID : GREETING_FREE;
+    if (typeof window === "undefined") return [greeting];
     try {
       const raw = window.localStorage.getItem(LS_KEY);
-      if (!raw) return [GREETING];
+      if (!raw) return [greeting];
       const parsed = JSON.parse(raw) as Message[];
-      if (!Array.isArray(parsed) || parsed.length === 0) return [GREETING];
+      if (!Array.isArray(parsed) || parsed.length === 0) return [greeting];
       return parsed;
     } catch {
-      return [GREETING];
+      return [greeting];
     }
   });
 
@@ -59,6 +75,9 @@ export default function LeadChatWidget() {
   }, [messages]);
 
   const askMutation = trpc.chat.ask.useMutation();
+
+  // Determine which system prompt to use based on auth status
+  const chatMode = isAuthenticated ? "paid" : "free";
 
   const handleSend = async (content: string) => {
     const next: Message[] = [...messages, { role: "user", content }];
@@ -87,7 +106,8 @@ export default function LeadChatWidget() {
   };
 
   const resetConversation = () => {
-    setMessages([GREETING]);
+    const greeting = isAuthenticated ? GREETING_PAID : GREETING_FREE;
+    setMessages([greeting]);
     setLeadCaptured(false);
     try {
       window.localStorage.removeItem(LS_KEY);
@@ -162,10 +182,10 @@ export default function LeadChatWidget() {
               messages={messages}
               onSendMessage={handleSend}
               isLoading={askMutation.isPending}
-              placeholder="Ask about appeals, savings, or share your address..."
+              placeholder={isAuthenticated ? "Ask about your appeal, strategy, or market data..." : "Ask about appeals, savings, or share your address..."}
               height="100%"
-              emptyStateMessage="Ask about tax appeals"
-              suggestedPrompts={SUGGESTED}
+              emptyStateMessage={isAuthenticated ? "Ask about your appeal details" : "Ask about tax appeals"}
+              suggestedPrompts={isAuthenticated ? SUGGESTED_PAID : SUGGESTED_FREE}
             />
           </div>
 

@@ -250,3 +250,9 @@
 - [x] How It Works side-panel: replaced stock AI image with terminal-style analysis panel
 - [x] Final CTA: removed savings-graphic stock image; pure-CSS texture
 - [x] Footer trust-badges rewritten ("Software, not a law firm" / "Money-back guarantee" / "Scrivener authorization")
+
+## Phase 7: Paid User Enhancements (COMPLETED)
+- [x] Enhance appeal timeline widget with robust details for paid users (financial impact, filing status, deadline tracking, hearing details)
+- [x] Enhance chat widget for paid users (provide detailed analysis insights, market data, strategy recommendations vs. FAQ-only for free users)
+- [x] Add paid-user detection logic (check submission payment status via useAuth)
+- [x] Test paid vs. free user experiences (223 tests passing)
