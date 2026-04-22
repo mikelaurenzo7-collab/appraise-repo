@@ -41,15 +41,40 @@ async function startServer() {
   registerLobWebhook(app);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
-  // Places autocomplete endpoint
+  // Places autocomplete endpoint — public, so rate-limit per IP to prevent
+  // the Forge/Google quota from being scraped.
+  const autocompleteBuckets = new Map<string, { count: number; windowStart: number }>();
+  const AUTOCOMPLETE_MAX = 60;
+  const AUTOCOMPLETE_WINDOW_MS = 60_000;
   app.post("/api/places-autocomplete", async (req, res) => {
     try {
-      const { input } = req.body;
-      if (!input || input.length < 3) {
+      const forwarded = req.headers["x-forwarded-for"];
+      const ip =
+        (typeof forwarded === "string" && forwarded.split(",")[0].trim()) ||
+        (Array.isArray(forwarded) && forwarded[0]) ||
+        req.ip ||
+        req.socket.remoteAddress ||
+        "unknown";
+      const now = Date.now();
+      const bucket = autocompleteBuckets.get(ip);
+      if (!bucket || now - bucket.windowStart >= AUTOCOMPLETE_WINDOW_MS) {
+        autocompleteBuckets.set(ip, { count: 1, windowStart: now });
+      } else if (bucket.count >= AUTOCOMPLETE_MAX) {
+        return res.status(429).json({ predictions: [] });
+      } else {
+        bucket.count += 1;
+      }
+
+      const input = typeof req.body?.input === "string" ? req.body.input : "";
+      const sessionToken =
+        typeof req.body?.sessionToken === "string"
+          ? req.body.sessionToken
+          : undefined;
+      if (input.length < 3) {
         return res.json({ predictions: [] });
       }
       const { getPlacePredictions } = await import("./placesAutocomplete");
-      const predictions = await getPlacePredictions(input);
+      const predictions = await getPlacePredictions(input, { sessionToken });
       res.json({ predictions });
     } catch (error) {
       console.error("[Places Autocomplete Error]", error);
