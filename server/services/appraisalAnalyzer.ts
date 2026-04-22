@@ -55,21 +55,25 @@ ${
 }
     `;
 
-    const prompt = `You are a professional property appraiser and tax appeal expert. Analyze this property data and provide a detailed assessment.
+    const prompt = `You are generating a DATA report for a property owner who is
+considering a pro-se tax-assessment appeal. You are NOT their attorney and you
+do NOT provide case-specific legal advice. Produce descriptive, evidence-based
+fields only. Do not use prescriptive language ("you should…", "argue that…").
+Stick to what the market data shows.
 
 ${dataSummary}
 
-Based on this data, provide a JSON response with:
-1. marketValueEstimate: Your professional estimate of fair market value
-2. assessmentGap: Dollar difference between assessed and market value
-3. assessmentGapPercent: Percentage difference
-4. appealStrengthScore: 0-100 score indicating likelihood of successful appeal
-5. appealStrengthFactors: Array of 3-5 key factors supporting the appeal
-6. recommendedApproach: "poa" (we file), "pro-se" (user files with our help), or "not-recommended"
-7. executiveSummary: 2-3 sentence summary of findings
-8. valuationJustification: Paragraph explaining the valuation methodology
-9. potentialSavings: Estimated annual tax savings if appeal succeeds
-10. nextSteps: Array of 3-4 recommended next steps
+Provide a JSON response with:
+1. marketValueEstimate: Estimated fair market value from the supplied data
+2. assessmentGap: Dollar difference between assessed value and marketValueEstimate
+3. assessmentGapPercent: Percentage difference (gap / assessed value)
+4. appealStrengthScore: 0-100 score describing how supportive the data is
+5. appealStrengthFactors: 3-5 observational, data-based factors (no strategy advice)
+6. recommendedApproach: "poa" (automated online filing), "pro-se" (guided mail-in filing), or "not-recommended"
+7. executiveSummary: 2-3 factual sentences summarizing the data
+8. valuationJustification: Paragraph describing the methodology — which comps, which public records
+9. potentialSavings: Estimated annual tax savings if assessment were reduced to marketValueEstimate
+10. nextSteps: 3-4 informational next steps (e.g. "gather your tax notice", "verify assessed value"), NOT legal strategy
 
 Respond ONLY with valid JSON, no additional text.`;
 
@@ -78,7 +82,7 @@ Respond ONLY with valid JSON, no additional text.`;
         {
           role: "system",
           content:
-            "You are an expert property appraiser and tax appeal specialist. Provide accurate, professional analysis based on market data. Always respond with valid JSON.",
+            "You are a data-analysis engine producing factual property-valuation information. You are not an attorney and do not provide legal advice. Output valid JSON only. Describe what the data shows; never prescribe legal strategy.",
         },
         {
           role: "user",

@@ -25,44 +25,44 @@ const phases = [
     icon: <FileText size={28} />,
     color: "text-[#7C3AED]",
     steps: [
-      { icon: <Shield size={18} />, title: "Sign Power of Attorney", desc: "Authorize AppraiseAI to act as your legal representative before the county assessor and appeal board." },
-      { icon: <FileText size={18} />, title: "Certified Appraisal Report", desc: "Our licensed appraisers produce a USPAP-compliant certified appraisal report — the gold standard evidence for tax appeals." },
-      { icon: <Clock size={18} />, title: "Deadline Tracking", desc: "We monitor your jurisdiction's appeal window and ensure all filings are submitted before the deadline." },
+      { icon: <Shield size={18} />, title: "Scrivener Authorization", desc: "Authorize AppraiseAI to submit the specific form you've reviewed. Per-filing consent — not a blanket POA." },
+      { icon: <FileText size={18} />, title: "Data-Grounded Report", desc: "We assemble a comparable-sales analysis and market-value estimate you can attach as evidence to the county filing." },
+      { icon: <Clock size={18} />, title: "Deadline Tracking", desc: "We monitor your jurisdiction's appeal window and refuse to submit outside it." },
     ],
   },
   {
     phase: "Phase 3",
-    title: "Filing & Representation",
+    title: "Automated Pro-Se Filing",
     icon: <Scale size={28} />,
     color: "text-[#7C3AED]",
     steps: [
-      { icon: <Scale size={18} />, title: "We File Your Appeal", desc: "Our team submits your appeal packet — including the certified appraisal, comparable sales, and legal arguments — to the assessor's office." },
-      { icon: <Users size={18} />, title: "Hearing Representation", desc: "If a hearing is required, we appear on your behalf via power of attorney and present your case to the appeal board." },
-      { icon: <TrendingDown size={18} />, title: "Negotiation & Resolution", desc: "We negotiate your assessed value down and confirm the reduction in writing. You receive your savings confirmation." },
+      { icon: <Scale size={18} />, title: "Our Software Fills The Form", desc: "For supported counties, we use your taxpayer PIN and account number to pre-fill the county's online appeal form." },
+      { icon: <Users size={18} />, title: "You Review, You Authorize", desc: "You review the fully-filled form and sign a per-filing scrivener authorization. Then our Playwright automation submits it for you." },
+      { icon: <TrendingDown size={18} />, title: "Confirmation + Audit Trail", desc: "Portal confirmation number, final screenshot, and execution log saved to your dashboard the moment the county accepts the filing." },
     ],
   },
 ];
 
 const faqs = [
   {
-    q: "What is a power of attorney in the context of property tax appeals?",
-    a: "A limited power of attorney (POA) authorizes AppraiseAI to act as your legal agent specifically for the purpose of filing and prosecuting your property tax appeal. This means we can sign documents, attend hearings, and negotiate on your behalf without you needing to appear.",
+    q: "Is AppraiseAI acting as my legal representative?",
+    a: "No. AppraiseAI is a software tool. You remain the filer of record (pro se). We do not provide case-specific legal advice and we do not represent you in a legal proceeding. The scrivener authorization you sign is a per-filing consent that documents you asked our software to submit a specific form on your behalf — not a blanket power of attorney.",
   },
   {
     q: "What is pro se filing?",
-    a: "Pro se means representing yourself. If you prefer to appear at the hearing yourself, we prepare your entire appeal packet — the certified appraisal, comparable sales analysis, and legal arguments — and coach you on how to present your case. You file and appear; we do all the preparation work.",
+    a: "Pro se means you are representing yourself. You are always allowed to file your own property-tax appeal. AppraiseAI builds the evidence, fills in the county's form, and — for supported counties with online portals — automates the submission through the portal. You review everything before submission.",
   },
   {
     q: "How long does the appeal process take?",
-    a: "The timeline varies by jurisdiction. Most appeals are resolved within 3–6 months. Some counties have informal review processes that can yield results in 4–6 weeks. We track your case and keep you updated throughout.",
+    a: "Filing itself takes about 4 minutes for supported counties. County decisions vary by jurisdiction — most land within 3–6 months of the filing date. Your dashboard tracks every milestone.",
   },
   {
     q: "What if my appeal is denied?",
-    a: "If the initial appeal is denied, we evaluate whether to escalate to the next level of appeal (e.g., state tax court or administrative tribunal) at no additional cost to you. Our contingency fee only applies when we achieve a successful reduction.",
+    a: "If the county does not reduce your assessment as a result of the appeal we filed on your behalf, you can request a full refund of the software fee within 60 days of the decision. See our Terms of Service for details.",
   },
   {
-    q: "Do I need to do anything after signing the POA?",
-    a: "Very little. Once you sign the power of attorney, we handle everything — filing, correspondence with the assessor, hearing appearances, and negotiation. We'll notify you of key milestones and when your savings are confirmed.",
+    q: "Do I need to do anything after authorizing?",
+    a: "Very little. Once you sign the scrivener authorization and complete payment, our software submits to your county portal automatically. You'll get a confirmation number and screenshot in your dashboard when it lands.",
   },
   {
     q: "What types of properties do you handle?",
@@ -130,7 +130,10 @@ export default function HowItWorks() {
                 The AI Behind the Appraisal
               </h2>
               <p className="text-white/70 leading-relaxed mb-6">
-                Our valuation engine is trained on millions of property transactions, assessor records, and market data points. It analyzes your property against the most relevant comparable sales — the same methodology used by licensed appraisers, but in seconds instead of days.
+                Our valuation engine analyzes your property against the most
+                relevant comparable sales using public assessor records and
+                commercial real-estate data — in seconds. The output is
+                evidence, not legal advice about your case.
               </p>
               <div className="space-y-3">
                 {[
@@ -147,12 +150,36 @@ export default function HowItWorks() {
                 ))}
               </div>
             </div>
-            <div className="rounded-xl overflow-hidden shadow-2xl">
-              <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663544407089/njPZ7GrdvQti9UYLXGdrDo/ai-analysis-fmLbcq3a54ZL4hZcuEjyZW.webp"
-                alt="AI property analysis visualization"
-                className="w-full h-80 object-cover"
-              />
+            <div className="rounded-xl overflow-hidden shadow-2xl bg-gradient-to-br from-[#7C3AED]/30 via-[#0F172A] to-[#0D9488]/30 p-1">
+              <div className="rounded-[11px] bg-[#020617] p-8 h-80 flex flex-col justify-between font-mono">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-400/80" />
+                  </div>
+                  <div className="space-y-2 text-[11px] leading-relaxed">
+                    <div className="text-white/40">
+                      $ analyze 4521 shoal creek, austin tx
+                    </div>
+                    <div className="text-[#10B981]">✓ Pulled 8 comparable sales (0.4mi radius)</div>
+                    <div className="text-[#10B981]">✓ Assessor record: $687,000 (2026)</div>
+                    <div className="text-[#10B981]">✓ Weighted market value: $599,000</div>
+                    <div className="text-[#FBBF24]">→ Gap: -$88,000 (12.8%)</div>
+                    <div className="text-[#7C3AED]">→ Appeal strength: 78%</div>
+                    <div className="text-white/40 mt-3">
+                      $ evidence pack --format=pdf
+                    </div>
+                    <div className="text-[#10B981]">
+                      ✓ 14-page packet ready: 4521-shoal-creek.pdf
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-white/40 border-t border-white/5 pt-3">
+                  <span>data · not legal advice</span>
+                  <span className="text-[#10B981]">● ready to file</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

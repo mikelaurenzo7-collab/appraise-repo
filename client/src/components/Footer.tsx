@@ -3,7 +3,7 @@
  * Design: Refined Legal-Tech — Deep navy background, cream text, gold accents
  */
 import { Link } from "wouter";
-import { MapPin, Phone, Mail, Shield, FileText, Scale } from "lucide-react";
+import { MapPin, Mail, Shield, FileText, Scale } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -24,12 +24,14 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-sm text-white/60 leading-relaxed mb-6">
-              AI-powered property appraisals and nationwide tax appeal filing. We fight your property tax bill — so you don't have to.
+              Software that helps property owners file their own tax appeals
+              through their county&apos;s online portal. Flat-fee pricing,
+              60-day money-back guarantee.
             </p>
             <div className="flex flex-col gap-2 text-sm text-white/50">
               <div className="flex items-center gap-2">
                 <MapPin size={14} className="text-[#7C3AED] shrink-0" />
-                <span>Nationwide Coverage — All 50 States</span>
+                <span>Automated filing in select counties</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail size={14} className="text-[#7C3AED] shrink-0" />
@@ -40,13 +42,13 @@ export default function Footer() {
 
           {/* Services */}
           <div>
-            <h4 className="font-display text-sm font-semibold text-white uppercase tracking-widest mb-5">Services</h4>
+            <h4 className="font-display text-sm font-semibold text-white uppercase tracking-widest mb-5">Product</h4>
             <ul className="flex flex-col gap-3 text-sm text-white/60">
               <li><Link href="/tax-appeals" className="hover:text-[#7C3AED] transition-colors">Property Tax Appeals</Link></li>
               <li><Link href="/how-it-works" className="hover:text-[#7C3AED] transition-colors">Instant AI Appraisal</Link></li>
-              <li><Link href="/tax-appeals" className="hover:text-[#7C3AED] transition-colors">Power of Attorney Filing</Link></li>
-              <li><Link href="/tax-appeals" className="hover:text-[#7C3AED] transition-colors">Pro Se Representation</Link></li>
-              <li><Link href="/pricing" className="hover:text-[#7C3AED] transition-colors">24-Hour Certified Appraisal</Link></li>
+              <li><Link href="/how-it-works" className="hover:text-[#7C3AED] transition-colors">Automated Online Filing</Link></li>
+              <li><Link href="/pricing" className="hover:text-[#7C3AED] transition-colors">Flat-Fee Pricing</Link></li>
+              <li><Link href="/deadlines" className="hover:text-[#7C3AED] transition-colors">Filing Deadlines</Link></li>
             </ul>
           </div>
 
@@ -57,34 +59,34 @@ export default function Footer() {
               <li><Link href="/about" className="hover:text-[#7C3AED] transition-colors">About Us</Link></li>
               <li><Link href="/how-it-works" className="hover:text-[#7C3AED] transition-colors">How It Works</Link></li>
               <li><Link href="/pricing" className="hover:text-[#7C3AED] transition-colors">Pricing</Link></li>
-              <li><a href="#" className="hover:text-[#7C3AED] transition-colors">Blog</a></li>
-              <li><a href="#" className="hover:text-[#7C3AED] transition-colors">Press</a></li>
+              <li><Link href="/blog" className="hover:text-[#7C3AED] transition-colors">Blog</Link></li>
+              <li><Link href="/testimonials" className="hover:text-[#7C3AED] transition-colors">Testimonials</Link></li>
             </ul>
           </div>
 
           {/* Trust badges */}
           <div>
-            <h4 className="font-display text-sm font-semibold text-white uppercase tracking-widest mb-5">Trust & Security</h4>
+            <h4 className="font-display text-sm font-semibold text-white uppercase tracking-widest mb-5">How we're built</h4>
             <div className="flex flex-col gap-3">
               <div className="flex items-start gap-3 p-3 rounded border border-white/10 bg-white/5">
                 <Shield size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
                 <div>
-                  <div className="text-xs font-semibold text-white">No Win, No Fee</div>
-                  <div className="text-xs text-white/50 mt-0.5">You only pay if we save you money</div>
+                  <div className="text-xs font-semibold text-white">Money-Back Guarantee</div>
+                  <div className="text-xs text-white/50 mt-0.5">Full refund if we don&apos;t reduce your assessment</div>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded border border-white/10 bg-white/5">
                 <FileText size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
                 <div>
-                  <div className="text-xs font-semibold text-white">Licensed Appraisers</div>
-                  <div className="text-xs text-white/50 mt-0.5">Certified in all 50 states</div>
+                  <div className="text-xs font-semibold text-white">Software, Not a Law Firm</div>
+                  <div className="text-xs text-white/50 mt-0.5">You file pro se — we&apos;re the tool</div>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded border border-white/10 bg-white/5">
                 <Scale size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
                 <div>
-                  <div className="text-xs font-semibold text-white">Legal Authority</div>
-                  <div className="text-xs text-white/50 mt-0.5">POA & pro se filing nationwide</div>
+                  <div className="text-xs font-semibold text-white">Scrivener Authorization</div>
+                  <div className="text-xs text-white/50 mt-0.5">Per-filing consent, logged and hashed</div>
                 </div>
               </div>
             </div>
@@ -97,9 +99,9 @@ export default function Footer() {
         <div className="container mx-auto py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/40">
           <span>© {new Date().getFullYear()} AppraiseAI, Inc. All rights reserved.</span>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-white/70 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-white/70 transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-white/70 transition-colors">Disclaimer</a>
+            <Link href="/privacy" className="hover:text-white/70 transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white/70 transition-colors">Terms of Service</Link>
+            <Link href="/disclaimer" className="hover:text-white/70 transition-colors">Disclaimer</Link>
           </div>
         </div>
       </div>

@@ -171,3 +171,82 @@
 - [x] Add Google Places address autocomplete to GetStarted form
 - [x] Keyboard navigation (arrow keys, enter, escape) in autocomplete dropdown
 - [x] Premium theme styling for autocomplete suggestions
+
+## Final Production Polish
+- [x] Wire FilingStatus page to real `user.getFilings` query (was mock data)
+- [x] Wire ParalegalsDashboard to real `admin.listFilingQueue` + assignFiling/completeFiling mutations (was mock data)
+- [x] Add /paralegals route so the dashboard is reachable
+- [x] Replace placeholder `payments.getBatchStatus` with real submission aggregation via activity-log lookup
+- [x] Remove dead `adminRouter` import from main router
+- [x] Add token-bucket rate limiter (`_core/rateLimit.ts`) and apply to `submitAddress` + `chat.ask` public mutations
+- [x] Add tests for rate limiter (6), filings/queue/batch endpoints (9)
+
+## Pivot: software tool, not a law firm (this pass)
+- [x] Schema: counties.poaEligible / onlinePortalOnly / pinOnlyLogin / filingWindow{Start,End}
+- [x] Schema: new filing_recipes, scrivener_authorizations, filing_jobs, refund_requests, stripe_events_processed tables
+- [x] Recipe engine: parser + planner + hashers (`services/filingRecipeEngine.ts`)
+- [x] Playwright executor (lazy-loaded) (`services/playwrightExecutor.ts`)
+- [x] Filing job queue mirroring reportJobQueue (`services/filingJobQueue.ts`)
+- [x] tRPC filings router: getAuthorizationText, authorize, checkEligibility, submit, getJobStatus, getJobForSubmission
+- [x] tRPC counties.getEligibility eligibility check
+- [x] Stripe webhook idempotency via stripe_events_processed
+- [x] Flat-fee pricing (shared/pricing.ts): $79 / $149 / $299 by assessed value
+- [x] payments.listTiers, payments.createCheckoutSession (flat), payments.requestRefund, payments.getRefundStatus
+- [x] admin.listRefundRequests + admin.decideRefund (executes Stripe refund)
+- [x] ScrivenerAuthorization component (typed name + scroll proof + IP + UA + text hash)
+- [x] AppealFilingWorkflow rewritten to 6-step pro-se flow: review → eligibility → taxpayer details → authorize → pay → track
+- [x] Privacy / Terms / Disclaimer pages + footer links wired
+- [x] Marketing copy pivot across Home, TaxAppeals, HowItWorks, About, GetStarted, AnalysisResults, Pricing, PaymentHistory, LeadChatWidget, Footer
+- [x] LLM guardrails: chat system prompt UPL hardened; appraisalAnalyzer prompts moved to data-only voice
+- [x] Draft recipes for Travis / Harris / Miami-Dade (verificationStatus: draft, queue refuses to run in production without ALLOW_DRAFT_RECIPES=1)
+- [x] Tests: recipe engine (13), pricing pivot + scrivener + refund + eligibility gating (15) — suite now 170 passing / 4 skipped
+
+## Full polish pass (latest)
+- [x] Filing-submitted confirmation email: channel-specific copy + USPS tools.usps.com deep link, fires on successful dispatch
+- [x] Filing deadline reminder email + cron: daily scan, 7-day trigger, de-dupe via activity_logs, skips submissions with an active filing job
+- [x] Auto-update property_submissions.status to "appeal-filed" when filing job completes successfully
+- [x] Filing artifact retention cleanup: daily cron, default 365 days (FILING_ARTIFACT_RETENTION_DAYS env), storageDelete + null keys + activity-log audit
+- [x] storage.storageDelete primitive added
+- [x] Admin filing-stats banner on Filings tab: 30-day counts for total/delivered/returned/7d success rate
+- [x] User FilingStatus detail modal now surfaces channel + tracking # (USPS deep-link) + expected delivery date + email recipient
+- [x] County waitlist schema + db helpers + counties.joinWaitlist mutation + admin.listWaitlist (with county aggregates) + Admin "Waitlist" tab
+- [x] WaitlistCapture component rendered on AppealFilingWorkflow's unsupported-county branch
+- [x] Server startup cron: filing processor (30s), Lob reconciliation (30m), artifact cleanup (daily), deadline reminders (daily)
+- [x] Tests (+8, suite now 223 passing / 4 skipped): cleanup happy path + empty, joinWaitlist happy + invalid-email, admin.listWaitlist admin-gating + shape, admin.getFilingStats delegation + default window
+
+## Polish + production hardening (previous pass)
+- [x] Lob webhook handler at POST /api/stripe/webhook counterpart (/api/lob/webhook) with HMAC-SHA256 signature verification, status-regression guard, activity-log audit
+- [x] Lob reconciliation job — runs every 30 min, reconciles non-terminal mail filings against Lob's letter status endpoint (catches missed webhooks)
+- [x] Filing job processor cron wired into server bootstrap (runs pending filing jobs every 30s)
+- [x] filings.submit idempotency — returns existing active job instead of double-filing
+- [x] filings.submit deadline enforcement — refuses to queue outside the county's filing window
+- [x] playwright moved from devDeps to runtime deps so portal channel works in production deploys
+- [x] admin.listFilingJobs + admin.retryFiling + admin.cancelFiling endpoints
+- [x] AdminDashboard "Filings" tab — status filters, retry/cancel buttons, channel + delivery artifact columns
+- [x] Auto-refund: admin.recordOutcome with outcome=lost|withdrawn auto-creates a pending refund request when a completed filing exists (admin still approves via decideRefund)
+- [x] Tests (+45, suite now 215 passing / 4 skipped): lobWebhook signature + status-regression (10), lobReconciliation advancement + regression guard + error counting (5), filings.submit idempotency + deadline (3), admin filing-jobs list/retry/cancel (8), auto-refund happy path + no-filing + pending-refund + won-outcome (4)
+
+## Multi-channel delivery dispatcher (previous pass)
+- [x] Schema: counties.preferredChannel + fallbackChannel + mailing address + intakeEmail
+- [x] Schema: filing_jobs.deliveryChannel + mailTrackingNumber + lobLetterId + lobExpectedDeliveryDate + emailMessageId + emailRecipient
+- [x] services/lobDelivery.ts — Lob Letters API wrapper with deterministic stub mode (LOB_STUB=1 or missing key). Supports certified_return_receipt, certified, first_class.
+- [x] services/emailDelivery.ts — wraps Forge email with attachment support; stub mode; buildAppealEmailBody helper for county-intake emails
+- [x] services/deliveryDispatcher.ts — resolveChannel (portal / mail_certified / mail_first_class / email / unsupported) + dispatchFiling (fetches appeal PDF and routes to the right service)
+- [x] services/filingJobQueue.ts — rewritten to call dispatcher; channel-agnostic queue, persists channel-specific artifacts per row
+- [x] db.getCountyEligibility now returns selectedChannel so the UI can preview which channel will run
+- [x] filings.submit no longer requires a portal recipe (mail/email paths skip it)
+- [x] filings.getJobStatus returns deliveryChannel + mail/email artifact fields
+- [x] AppealFilingWorkflow eligibility step shows channel-specific copy ("USPS Certified Mail + return receipt", "County online portal", "Email delivery")
+- [x] AppealFilingWorkflow tracking step shows USPS tracking number with USPS.com deep link, expected delivery date, email message id + recipient
+- [x] Seed updates: Travis/Harris/Miami-Dade now carry preferredChannel + mailingAddress so they can fall back to certified mail when portal recipes aren't verified
+- [x] Tests: deliveryDispatcher.test.ts (15): resolveChannel matrix, Lob stub determinism, email stub + body builder, dispatchFiling happy paths for mail_certified + email, unsupported refusal, missing-PDF refusal
+
+## Visual makeover (previous pass)
+- [x] Home hero: removed stock photo, built type-driven + live-filing data-card hero
+- [x] Loud yellow statement band between hero and stats
+- [x] Stats bar reworked to reflect real operating posture (3 counties live, 4m median filing time, 60-day MBG)
+- [x] Tax-appeals feature section: replaced "legal document" photo with gradient confirmation-receipt card
+- [x] Nationwide map stock image replaced with live counties table (live / staging / queued)
+- [x] How It Works side-panel: replaced stock AI image with terminal-style analysis panel
+- [x] Final CTA: removed savings-graphic stock image; pure-CSS texture
+- [x] Footer trust-badges rewritten ("Software, not a law firm" / "Money-back guarantee" / "Scrivener authorization")

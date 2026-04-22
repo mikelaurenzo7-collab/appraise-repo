@@ -50,6 +50,29 @@ export interface ReportCompletionEmail {
   downloadPageUrl?: string;
 }
 
+export interface FilingSubmittedEmail {
+  userEmail: string;
+  userName: string;
+  propertyAddress: string;
+  countyName: string;
+  deliveryChannel: "portal" | "mail_certified" | "mail_first_class" | "email";
+  portalConfirmationNumber?: string | null;
+  mailTrackingNumber?: string | null;
+  expectedDeliveryDate?: string | null;
+  emailRecipient?: string | null;
+  dashboardUrl: string;
+}
+
+export interface FilingDeadlineReminderEmail {
+  userEmail: string;
+  userName: string;
+  propertyAddress: string;
+  countyName: string;
+  daysRemaining: number;
+  windowEndDate: string;
+  dashboardUrl: string;
+}
+
 /**
  * Send analysis confirmation email
  */
@@ -381,4 +404,142 @@ async function sendEmail(template: EmailTemplate): Promise<boolean> {
     console.error("[Email] Error sending email:", error);
     return false;
   }
+}
+
+/**
+ * Filing-submitted confirmation — the single most important trust moment
+ * in the user flow. Hits their inbox the instant the dispatcher finishes,
+ * with the exact artifact they can use to verify: USPS tracking link,
+ * portal confirmation #, or email delivery receipt.
+ */
+export async function sendFilingSubmittedEmail(data: FilingSubmittedEmail): Promise<boolean> {
+  const channelCopy = (() => {
+    switch (data.deliveryChannel) {
+      case "portal":
+        return {
+          headline: "Filed through your county portal",
+          detail: `Your appeal was submitted directly through ${data.countyName}'s online portal. Confirmation below.`,
+          artifactLabel: "Portal confirmation #",
+          artifactValue: data.portalConfirmationNumber ?? "—",
+          trackingUrl: null as string | null,
+        };
+      case "mail_certified":
+        return {
+          headline: "Filed via USPS Certified Mail + return receipt",
+          detail: `Your appeal was printed and mailed certified to ${data.countyName}. You'll see the delivery signature in your dashboard within 3–5 business days.`,
+          artifactLabel: "USPS tracking #",
+          artifactValue: data.mailTrackingNumber ?? "—",
+          trackingUrl: data.mailTrackingNumber
+            ? `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(data.mailTrackingNumber)}`
+            : null,
+        };
+      case "mail_first_class":
+        return {
+          headline: "Filed via USPS First Class + tracking",
+          detail: `Your appeal was printed and mailed to ${data.countyName}. Expected delivery in 3–5 business days.`,
+          artifactLabel: "USPS tracking #",
+          artifactValue: data.mailTrackingNumber ?? "—",
+          trackingUrl: data.mailTrackingNumber
+            ? `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(data.mailTrackingNumber)}`
+            : null,
+        };
+      case "email":
+        return {
+          headline: "Filed via county intake email",
+          detail: `Your appeal was emailed to ${data.emailRecipient ?? data.countyName}. You've been CC'd so you have a copy on file.`,
+          artifactLabel: "Recipient",
+          artifactValue: data.emailRecipient ?? data.countyName,
+          trackingUrl: null,
+        };
+    }
+  })();
+
+  const etaBlock = data.expectedDeliveryDate
+    ? `<p style="margin: 8px 0 0 0; color: #64748B; font-size: 13px;">Expected delivery: <strong>${new Date(
+        data.expectedDeliveryDate
+      ).toLocaleDateString()}</strong></p>`
+    : "";
+
+  const trackingBlock = channelCopy.trackingUrl
+    ? `<div style="text-align: center; margin: 18px 0;">
+         <a href="${channelCopy.trackingUrl}" style="color: #7C3AED; font-weight: 600; text-decoration: underline;">
+           Track with USPS →
+         </a>
+       </div>`
+    : "";
+
+  const html = `
+    <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #7C3AED 0%, #10B981 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">Appeal filed.</h1>
+        <p style="margin: 10px 0 0 0; opacity: 0.9;">${channelCopy.headline}</p>
+      </div>
+      <div style="background: #F8FAFC; padding: 40px 20px; border-radius: 0 0 12px 12px;">
+        <p style="margin: 0 0 20px 0; color: #0F172A;">Hi ${data.userName},</p>
+        <p style="margin: 0 0 20px 0; color: #64748B; line-height: 1.6;">
+          ${channelCopy.detail}
+        </p>
+        <div style="background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0 0 6px 0; color: #94A3B8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;">Property</p>
+          <p style="margin: 0 0 18px 0; color: #0F172A; font-weight: 600;">${data.propertyAddress}</p>
+          <p style="margin: 0 0 6px 0; color: #94A3B8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;">${channelCopy.artifactLabel}</p>
+          <p style="margin: 0; color: #7C3AED; font-family: monospace; font-size: 15px; font-weight: 600;">${channelCopy.artifactValue}</p>
+          ${etaBlock}
+        </div>
+        ${trackingBlock}
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.dashboardUrl}" style="background: #0F172A; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Open your dashboard</a>
+        </div>
+        <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
+          AppraiseAI is a software tool. You are the filer of record. Not legal advice.
+        </p>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: data.userEmail,
+    subject: `Your property tax appeal was filed — ${data.propertyAddress}`,
+    html,
+  });
+}
+
+/**
+ * Deadline reminder — sent 7 days before a county's filing window
+ * closes if the user has an analysis but no completed filing for that
+ * submission. One email per (submission, windowEndDate) pair via the
+ * activityLogs de-duplication key.
+ */
+export async function sendFilingDeadlineReminderEmail(
+  data: FilingDeadlineReminderEmail
+): Promise<boolean> {
+  const html = `
+    <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">${data.daysRemaining} day${data.daysRemaining === 1 ? "" : "s"} left.</h1>
+        <p style="margin: 10px 0 0 0; opacity: 0.92;">${data.countyName} filing window closes ${new Date(data.windowEndDate).toLocaleDateString()}</p>
+      </div>
+      <div style="background: #F8FAFC; padding: 40px 20px; border-radius: 0 0 12px 12px;">
+        <p style="margin: 0 0 20px 0; color: #0F172A;">Hi ${data.userName},</p>
+        <p style="margin: 0 0 20px 0; color: #64748B; line-height: 1.6;">
+          You ran an analysis on <strong>${data.propertyAddress}</strong> but haven't filed your appeal yet. The ${data.countyName} window closes in <strong>${data.daysRemaining} day${data.daysRemaining === 1 ? "" : "s"}</strong>.
+        </p>
+        <p style="margin: 0 0 20px 0; color: #64748B; line-height: 1.6;">
+          Filing takes about 4 minutes. If we've already pre-filled everything from your analysis, you just review it, sign, and we dispatch to the county.
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.dashboardUrl}" style="background: #7C3AED; color: white; padding: 14px 36px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">File my appeal</a>
+        </div>
+        <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
+          You're receiving this because you ran a free analysis on this property. Unsubscribe at any time from your account settings.
+        </p>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: data.userEmail,
+    subject: `${data.daysRemaining} day${data.daysRemaining === 1 ? "" : "s"} left to file — ${data.propertyAddress}`,
+    html,
+  });
 }

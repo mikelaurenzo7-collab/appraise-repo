@@ -23,10 +23,15 @@ export default function About() {
             More than 40% of American homeowners are over-assessed on their property taxes. Most never appeal because the process is confusing, expensive, and time-consuming. AppraiseAI exists to change that.
           </p>
           <p className="text-[#64748B] leading-relaxed text-lg mb-8">
-            We combine cutting-edge AI valuation technology with licensed appraisers and legal filing expertise to make property tax appeals fast, affordable, and accessible to everyone — regardless of income or location.
+            AppraiseAI is a software tool, not a law firm. We combine AI
+            valuation data with automated pro-se filing through your
+            county&apos;s online portal — so anyone can appeal their own
+            assessment in minutes, not weeks.
           </p>
           <p className="text-[#64748B] leading-relaxed text-lg">
-            Our contingency model means zero upfront cost. You only pay when we win. It's that simple.
+            Flat-fee pricing. 60-day money-back guarantee if your assessment
+            isn&apos;t reduced. You file pro se; we&apos;re the tool that
+            makes it tractable.
           </p>
         </div>
       </section>
@@ -39,10 +44,10 @@ export default function About() {
           </div>
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {[
-              { icon: <Target size={24} />, title: "The Problem", desc: "Property tax appeals are a broken system. Wealthy homeowners with lawyers win. Everyone else overpays." },
-              { icon: <Zap size={24} />, title: "The Opportunity", desc: "AI can instantly identify over-assessments. Legal filing can be automated. The barrier to entry should be zero." },
-              { icon: <Users size={24} />, title: "The Team", desc: "We're appraisers, lawyers, and engineers united by one goal: democratizing property tax appeals." },
-              { icon: <Award size={24} />, title: "The Difference", desc: "We don't just appraise. We fight. We appear in hearings. We negotiate. We win." },
+              { icon: <Target size={24} />, title: "The Problem", desc: "Appeals are doable pro se, but most homeowners don't because the forms and portals are a maze." },
+              { icon: <Zap size={24} />, title: "The Approach", desc: "AI identifies over-assessments. Browser automation submits the filing through the county portal. You authorize each run." },
+              { icon: <Users size={24} />, title: "The Team", desc: "Engineers, data scientists, and operators. We build tooling, not representation." },
+              { icon: <Award size={24} />, title: "The Difference", desc: "Flat fee. Money-back guarantee. Data-grounded evidence. You stay the filer of record — always." },
             ].map((item) => (
               <div key={item.title} className="p-8 rounded-xl bg-white/10 border border-white/20">
                 <div className="w-12 h-12 rounded bg-[#7C3AED] text-[#0F172A] flex items-center justify-center mb-4">{item.icon}</div>
@@ -62,9 +67,9 @@ export default function About() {
             {[
               { title: "Transparency", desc: "No hidden fees. No surprises. You know exactly what you're paying and why." },
               { title: "Integrity", desc: "We only file appeals we believe in. We don't chase every case — we chase the right ones." },
-              { title: "Expertise", desc: "Licensed appraisers. Experienced tax attorneys. AI engineers. We bring the full stack." },
-              { title: "Accessibility", desc: "Contingency fees mean anyone can afford an appeal. Wealth shouldn't determine your tax burden." },
-              { title: "Speed", desc: "Instant AI appraisals. Same-day filing. Results in weeks, not months." },
+              { title: "Posture", desc: "We are software. We're not a law firm and we don't pretend otherwise." },
+              { title: "Accessibility", desc: "Flat pricing under $300 means anyone can file. Money-back guarantee de-risks the decision." },
+              { title: "Speed", desc: "Instant AI appraisals. Filing in 4 minutes for supported counties. No back-and-forth." },
             ].map((v) => (
               <div key={v.title} className="p-6 rounded-xl bg-white border border-[#E2E8F0]">
                 <h3 className="font-display text-lg font-semibold text-[#0F172A] mb-2">{v.title}</h3>

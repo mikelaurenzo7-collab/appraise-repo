@@ -591,7 +591,9 @@ export default function AnalysisResults() {
         <div className="container text-center max-w-xl mx-auto">
           <h2 className="font-display text-2xl lg:text-3xl font-bold text-white mb-4">Ready to File Your Appeal?</h2>
           <p className="text-white/60 mb-8">
-            Our team will handle everything — from preparing documents to representing you at the hearing. No win, no fee.
+            We build your evidence, pre-fill your county&apos;s form, and
+            submit through the online portal after you authorize. Flat fee,
+            money-back guarantee.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

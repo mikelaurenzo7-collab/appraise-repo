@@ -41,12 +41,12 @@ const PROPERTY_TYPES = [
 const FILING_METHODS = [
   {
     value: "poa",
-    label: "Power of Attorney",
+    label: "Automated Online Filing",
     icon: <Scale size={20} />,
-    desc: "We act as your legal representative. Full service — we prepare, file, and attend hearings on your behalf.",
+    desc: "For supported counties with online portals. Our software pre-fills and submits the county's form after you review and sign a per-filing scrivener authorization. You stay the filer of record.",
     badge: "Most Popular",
-    price: "25% contingency",
-    priceDesc: "Only pay if we win",
+    price: "$149 flat",
+    priceDesc: "60-day money-back guarantee",
     badgeColor: "bg-[#7C3AED] text-[#020617]",
   },
   {
@@ -495,8 +495,10 @@ export default function GetStarted() {
 
               {/* Legal disclaimer */}
               <p className="text-xs text-[#94A3B8] leading-relaxed">
-                By submitting, you agree to our Terms of Service and Privacy Policy. AppraiseAI does not provide legal advice. 
-                For POA filings, a separate Power of Attorney agreement will be required before we can represent you.
+                By submitting, you agree to our Terms of Service and Privacy Policy.
+                AppraiseAI is a software tool; it does not provide legal advice.
+                For automated filings, you&apos;ll sign a per-filing scrivener
+                authorization before we submit on your behalf.
               </p>
 
               <div className="flex gap-3">
@@ -529,7 +531,7 @@ export default function GetStarted() {
 
               {/* Trust signals */}
               <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2">
-                {["No credit card required", "Results in 30–60 seconds", "No win, no fee on appeals"].map((item) => (
+                {["No credit card required", "Results in 30–60 seconds", "Money-back guarantee on filings"].map((item) => (
                   <div key={item} className="flex items-center gap-1.5 text-xs text-[#64748B]">
                     <CheckCircle2 size={12} className="text-[#7C3AED]" />
                     {item}

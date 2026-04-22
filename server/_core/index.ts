@@ -5,9 +5,11 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStripeWebhook } from "./stripeWebhook";
+import { registerLobWebhook } from "./lobWebhook";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { globalLimiter, authLimiter, apiLimiter, paymentLimiter, uploadLimiter, submissionLimiter } from "./rateLimiter";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,11 +33,21 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  
+  // Apply rate limiting
+  app.use("/api/trpc", apiLimiter);
+  app.use("/api/oauth", authLimiter);
+  app.use("/api/stripe", globalLimiter);
+  app.use("/api/lob", globalLimiter);
+  app.use("/api/places-autocomplete", globalLimiter);
+  
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // Stripe webhook (must be before express.json middleware)
+  // Stripe + Lob webhooks (must be before express.json middleware —
+  // signature verification needs the raw bytes).
   registerStripeWebhook(app);
+  registerLobWebhook(app);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // Places autocomplete endpoint
@@ -56,11 +68,21 @@ async function startServer() {
   // tRPC API
   app.use(
     "/api/trpc",
+    apiLimiter,
     createExpressMiddleware({
       router: appRouter,
       createContext,
     })
   );
+  // Security headers
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+  });
+  
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
@@ -78,6 +100,52 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Start Lob reconciliation (catches missed webhooks)
+  try {
+    const { buildReconciliationInterval } = await import(
+      "../services/lobReconciliation"
+    );
+    buildReconciliationInterval({ intervalMs: 30 * 60 * 1000, batchSize: 25 })();
+  } catch (err) {
+    console.warn("[LobReconcile] Failed to initialize", err);
+  }
+
+  // Start filing job processor (Playwright / mail dispatcher)
+  try {
+    const { processPendingFilingJobs } = await import(
+      "../services/filingJobQueue"
+    );
+    setInterval(async () => {
+      try {
+        await processPendingFilingJobs(2);
+      } catch (err) {
+        console.error("[FilingQueue] Processing error:", err);
+      }
+    }, 30 * 1000);
+  } catch (err) {
+    console.warn("[FilingQueue] Failed to initialize", err);
+  }
+
+  // Start filing artifact retention cleanup (daily)
+  try {
+    const { buildCleanupInterval } = await import(
+      "../services/filingCleanup"
+    );
+    buildCleanupInterval()();
+  } catch (err) {
+    console.warn("[FilingCleanup] Failed to initialize", err);
+  }
+
+  // Start filing deadline reminder cron (daily)
+  try {
+    const { buildDeadlineReminderInterval } = await import(
+      "../services/deadlineReminders"
+    );
+    buildDeadlineReminderInterval()();
+  } catch (err) {
+    console.warn("[DeadlineReminders] Failed to initialize", err);
+  }
 
   // Start report job processor
   try {

@@ -12,6 +12,7 @@ import About from "./pages/About";
 import GetStarted from "./pages/GetStarted";
 import AnalysisResults from "./pages/AnalysisResults";
 import AdminDashboard from "./pages/AdminDashboard";
+import ParalegalsDashboard from "./pages/ParalegalsDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import DeadlineCalendar from "./pages/DeadlineCalendar";
 import Portfolio from "./pages/Portfolio";
@@ -22,6 +23,7 @@ import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
 import ReportDownload from "./pages/ReportDownload";
 import FilingStatus from "./pages/FilingStatus";
+import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
 import LeadChatWidget from "./components/LeadChatWidget";
 
 function Router() {
@@ -37,6 +39,7 @@ function Router() {
       <Route path="/analysis" component={AnalysisResults} />
       <Route path="/dashboard" component={UserDashboard} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/paralegals" component={ParalegalsDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/payments" component={PaymentHistory} />
@@ -48,6 +51,9 @@ function Router() {
       <Route path="/appeal-workflow/:submissionId">
         {(params) => <AppealFilingWorkflow submissionId={params.submissionId} />}
       </Route>
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/disclaimer" component={Disclaimer} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
