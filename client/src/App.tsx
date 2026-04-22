@@ -15,7 +15,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ParalegalsDashboard from "./pages/ParalegalsDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import DeadlineCalendar from "./pages/DeadlineCalendar";
-import Portfolio from "./pages/Portfolio";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
 import PaymentHistory from "./pages/PaymentHistory";
 import Blog from "./pages/Blog";
 import Testimonials from "./pages/Testimonials";
@@ -41,7 +41,7 @@ function Router() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/paralegals" component={ParalegalsDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
-      <Route path="/portfolio" component={Portfolio} />
+      <Route path="/portfolio" component={PortfolioDashboard} />
       <Route path="/payments" component={PaymentHistory} />
       <Route path="/blog" component={Blog} />
       <Route path="/testimonials" component={Testimonials} />
