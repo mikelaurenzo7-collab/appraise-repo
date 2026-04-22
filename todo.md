@@ -262,3 +262,11 @@
 - [x] Admins skip Stripe and go directly to dashboard with chargeAmount=0
 - [x] Log admin bypass in activity log for audit trail
 - [x] All 223 tests passing
+
+## Phase 9: Address Autocomplete in Chat Widget (COMPLETED)
+- [x] Add address autocomplete to AIChatBox component
+- [x] Fetch suggestions from /api/places-autocomplete endpoint
+- [x] Show dropdown with address suggestions as user types
+- [x] Support arrow key navigation and Enter to select
+- [x] Trigger on addresses (contains number or space, min 3 chars)
+- [x] All 223 tests passing

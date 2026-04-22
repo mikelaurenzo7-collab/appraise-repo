@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Loader2, Send, User, Sparkles } from "lucide-react";
+import { Loader2, Send, User, Sparkles, MapPin } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -121,6 +121,9 @@ export function AIChatBox({
   suggestedPrompts,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputAreaRef = useRef<HTMLFormElement>(null);
@@ -149,6 +152,45 @@ export function AIChatBox({
     }
   }, []);
 
+  // Fetch address suggestions when user types
+  useEffect(() => {
+    const fetchAddressSuggestions = async () => {
+      // Only fetch if input looks like an address (contains space or number)
+      if (input.length < 3 || !(/\d|\s/.test(input))) {
+        setAddressSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/places-autocomplete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAddressSuggestions(data.predictions || []);
+          setShowSuggestions(data.predictions && data.predictions.length > 0);
+          setSelectedSuggestionIndex(-1);
+        }
+      } catch (error) {
+        console.error("Address autocomplete error:", error);
+      }
+    };
+
+    const timer = setTimeout(fetchAddressSuggestions, 300);
+    return () => clearTimeout(timer);
+  }, [input]);
+
+  // Handle suggestion selection
+  const handleSelectSuggestion = (suggestion: string) => {
+    setInput(suggestion);
+    setShowSuggestions(false);
+    setAddressSuggestions([]);
+  };
+
   // Scroll to bottom helper function with smooth animation
   const scrollToBottom = () => {
     const viewport = scrollAreaRef.current?.querySelector(
@@ -172,6 +214,7 @@ export function AIChatBox({
 
     onSendMessage(trimmedInput);
     setInput("");
+    setShowSuggestions(false);
 
     // Scroll immediately after sending
     scrollToBottom();
@@ -181,9 +224,36 @@ export function AIChatBox({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle address suggestions navigation
+    if (showSuggestions && addressSuggestions.length > 0) {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedSuggestionIndex((prev) =>
+            prev < addressSuggestions.length - 1 ? prev + 1 : prev
+          );
+          return;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
+          return;
+        case "Enter":
+          if (selectedSuggestionIndex >= 0) {
+            e.preventDefault();
+            handleSelectSuggestion(addressSuggestions[selectedSuggestionIndex]);
+            return;
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          setShowSuggestions(false);
+          return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleSubmit(e as any);
     }
   };
 
@@ -306,17 +376,38 @@ export function AIChatBox({
       <form
         ref={inputAreaRef}
         onSubmit={handleSubmit}
-        className="flex gap-2 p-4 border-t bg-background/50 items-end"
+        className="relative flex gap-2 p-4 border-t bg-background/50 items-end"
       >
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="flex-1 max-h-32 resize-none min-h-9"
-          rows={1}
-        />
+        <div className="flex-1 relative">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="flex-1 max-h-32 resize-none min-h-9"
+            rows={1}
+          />
+          {/* Address Suggestions Dropdown */}
+          {showSuggestions && addressSuggestions.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-border rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+              {addressSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => handleSelectSuggestion(suggestion)}
+                  className={cn(
+                    "w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-muted transition-colors",
+                    index === selectedSuggestionIndex && "bg-purple-600 text-white hover:bg-purple-700"
+                  )}
+                >
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  <span className="text-sm truncate">{suggestion}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <Button
           type="submit"
           size="icon"
