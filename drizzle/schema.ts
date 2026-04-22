@@ -461,6 +461,18 @@ export const filingJobs = mysqlTable("filing_jobs", {
   lobExpectedDeliveryDate: timestamp("lobExpectedDeliveryDate"),
   emailMessageId: varchar("emailMessageId", { length: 255 }),
   emailRecipient: varchar("emailRecipient", { length: 320 }),
+  // Carrier-side lifecycle for mail filings. Separate from internal
+  // `status` so we can track "mailed but awaiting delivery confirmation"
+  // versus "delivered and signed-for at the county." Updated by the Lob
+  // webhook and the reconciliation poll.
+  deliveryStatus: mysqlEnum("deliveryStatus", [
+    "pending",
+    "in_transit",
+    "delivered",
+    "returned",
+    "failed",
+  ]).default("pending"),
+  deliveryStatusUpdatedAt: timestamp("deliveryStatusUpdatedAt"),
   errorMessage: text("errorMessage"),
 
   // Lifecycle.

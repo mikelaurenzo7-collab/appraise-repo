@@ -30,6 +30,9 @@ import {
   assignQueueItem,
   completeQueueItem,
   getBatchSubmissionIds,
+  listRecentFilingJobs,
+  listFilingJobsByStatus,
+  updateFilingJob,
 } from "./db";
 import { eq } from "drizzle-orm";
 import { filingTiers } from "../drizzle/schema";
@@ -95,6 +98,44 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+/**
+ * Auto-create a refund request after an admin records an appeal_denied
+ * outcome. The guarantee only applies when a filing actually ran — if
+ * the user never paid/filed, we don't create a refund. The refund is
+ * pending until admin.decideRefund approves.
+ */
+async function maybeAutoRequestRefund(submissionId: number, adminUserId: number): Promise<void> {
+  const [filingJob, existing] = await Promise.all([
+    getFilingJobBySubmissionId(submissionId),
+    getRefundRequestBySubmissionId(submissionId),
+  ]);
+  if (!filingJob || filingJob.status !== "completed") return;
+  if (existing && existing.status !== "denied" && existing.status !== "failed") return;
+  const submission = await getPropertySubmissionById(submissionId);
+  if (!submission) return;
+
+  const tier = selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
+
+  const req = await createRefundRequest({
+    submissionId,
+    userId: adminUserId,
+    amountCents: tier.priceCents,
+    status: "pending",
+    reason:
+      "Auto-created under the money-back guarantee: appeal outcome recorded as denied/withdrawn. Pending admin review.",
+  });
+  if (req) {
+    await persistActivityLog({
+      submissionId,
+      type: "refund_auto_requested",
+      actor: "system",
+      description: `Auto-refund request #${req.id} created ($${(tier.priceCents / 100).toFixed(2)})`,
+      metadata: JSON.stringify({ refundId: req.id, tierId: tier.id }),
+      status: "success",
+    });
+  }
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -1107,6 +1148,17 @@ export const appRouter = router({
           status: "success",
         });
 
+        // Auto-create a refund request under the money-back guarantee
+        // when the appeal was denied (lost/withdrawn with no reduction).
+        // Only creates the refund — an admin still approves it via
+        // admin.decideRefund. Keeps a human in the loop but removes the
+        // manual data-entry step.
+        if (input.outcome === "lost" || input.outcome === "withdrawn") {
+          await maybeAutoRequestRefund(input.submissionId, ctx.user.id).catch((err) => {
+            console.error("[AutoRefund] Failed to request:", err);
+          });
+        }
+
         return result;
       }),
 
@@ -1234,6 +1286,95 @@ export const appRouter = router({
           status: "success",
         });
         return updated;
+      }),
+
+    // ─── FILING JOBS (multi-channel) ─────────────────────────────────────
+    listFilingJobs: adminProcedure
+      .input(
+        z
+          .object({
+            status: z.enum([
+              "pending",
+              "processing",
+              "awaiting_captcha",
+              "completed",
+              "failed",
+              "cancelled",
+            ]).optional(),
+            limit: z.number().min(1).max(500).default(50),
+          })
+          .optional()
+      )
+      .query(async ({ input }) => {
+        const limit = input?.limit ?? 50;
+        if (input?.status) {
+          return listFilingJobsByStatus([input.status], limit);
+        }
+        return listRecentFilingJobs(limit);
+      }),
+
+    retryFiling: adminProcedure
+      .input(z.object({ jobId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const job = await getFilingJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Filing job not found" });
+        if (job.status !== "failed" && job.status !== "cancelled") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Can only retry failed or cancelled jobs (current: ${job.status})`,
+          });
+        }
+        if (job.retryCount >= job.maxRetries) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Job has exceeded max retries — escalate to engineering",
+          });
+        }
+        await updateFilingJob(job.id, {
+          status: "pending",
+          errorMessage: null,
+          startedAt: null,
+          completedAt: null,
+          retryCount: job.retryCount + 1,
+        });
+        await persistActivityLog({
+          submissionId: job.submissionId,
+          type: "filing_retry",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Filing #${job.id} re-queued (retry ${job.retryCount + 1}/${job.maxRetries})`,
+          metadata: JSON.stringify({ jobId: job.id }),
+          status: "success",
+        });
+        return { success: true, jobId: job.id };
+      }),
+
+    cancelFiling: adminProcedure
+      .input(z.object({ jobId: z.number(), reason: z.string().max(1000).optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const job = await getFilingJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Filing job not found" });
+        if (job.status === "completed") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cannot cancel a completed filing",
+          });
+        }
+        await updateFilingJob(job.id, {
+          status: "cancelled",
+          errorMessage: input.reason ?? "Cancelled by admin",
+          completedAt: new Date(),
+        });
+        await persistActivityLog({
+          submissionId: job.submissionId,
+          type: "filing_cancelled",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Filing #${job.id} cancelled${input.reason ? `: ${input.reason}` : ""}`,
+          metadata: JSON.stringify({ jobId: job.id, reason: input.reason ?? null }),
+          status: "warning",
+        });
+        return { success: true, jobId: job.id };
       }),
 
     // ─── PARALEGALS QUEUE ────────────────────────────────────────────────
@@ -1409,6 +1550,12 @@ export const appRouter = router({
             message: `Not eligible for automated filing: ${eligibility.reasonsIneligible.join("; ")}`,
           });
         }
+        if (!eligibility.withinFilingWindow) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "This county's appeal filing window is currently closed",
+          });
+        }
 
         const auth = await getScrivenerAuthorizationById(input.authorizationId);
         if (!auth || auth.submissionId !== input.submissionId) {
@@ -1416,6 +1563,15 @@ export const appRouter = router({
             code: "PRECONDITION_FAILED",
             message: "A scrivener authorization is required before filing",
           });
+        }
+
+        // Idempotency: if an active (pending/processing) or successful
+        // filing already exists for this submission, return it rather
+        // than double-submitting. Users will refresh/re-click — we
+        // don't want to file twice.
+        const existing = await getFilingJobBySubmissionId(input.submissionId);
+        if (existing && existing.status !== "failed" && existing.status !== "cancelled") {
+          return { jobId: existing.id, submissionId: existing.submissionId };
         }
 
         // Portal is optional — if the county uses a mail or email channel,

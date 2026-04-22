@@ -1116,6 +1116,46 @@ export async function listPendingFilingJobs(limit = 5): Promise<FilingJob[]> {
   }
 }
 
+export async function listRecentFilingJobs(limit = 50): Promise<FilingJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(filingJobs)
+      .orderBy(desc(filingJobs.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[FilingJob] Failed to list recent:", error);
+    return [];
+  }
+}
+
+export async function listFilingJobsByStatus(
+  statuses: Array<FilingJob["status"]>,
+  limit = 100
+): Promise<FilingJob[]> {
+  if (statuses.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db
+      .select()
+      .from(filingJobs)
+      .where(
+        statuses.length === 1
+          ? eq(filingJobs.status, statuses[0])
+          : sql`${filingJobs.status} in (${sql.join(
+              statuses.map((s) => sql`${s}`),
+              sql`, `
+            )})`
+      )
+      .orderBy(desc(filingJobs.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[FilingJob] Failed to list by status:", error);
+    return [];
+  }
+}
+
 // ─── REFUND REQUESTS ────────────────────────────────────────────────────────
 
 export async function createRefundRequest(req: InsertRefundRequest): Promise<RefundRequest | null> {

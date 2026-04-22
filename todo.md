@@ -201,7 +201,19 @@
 - [x] Draft recipes for Travis / Harris / Miami-Dade (verificationStatus: draft, queue refuses to run in production without ALLOW_DRAFT_RECIPES=1)
 - [x] Tests: recipe engine (13), pricing pivot + scrivener + refund + eligibility gating (15) — suite now 170 passing / 4 skipped
 
-## Multi-channel delivery dispatcher (this pass)
+## Polish + production hardening (this pass)
+- [x] Lob webhook handler at POST /api/stripe/webhook counterpart (/api/lob/webhook) with HMAC-SHA256 signature verification, status-regression guard, activity-log audit
+- [x] Lob reconciliation job — runs every 30 min, reconciles non-terminal mail filings against Lob's letter status endpoint (catches missed webhooks)
+- [x] Filing job processor cron wired into server bootstrap (runs pending filing jobs every 30s)
+- [x] filings.submit idempotency — returns existing active job instead of double-filing
+- [x] filings.submit deadline enforcement — refuses to queue outside the county's filing window
+- [x] playwright moved from devDeps to runtime deps so portal channel works in production deploys
+- [x] admin.listFilingJobs + admin.retryFiling + admin.cancelFiling endpoints
+- [x] AdminDashboard "Filings" tab — status filters, retry/cancel buttons, channel + delivery artifact columns
+- [x] Auto-refund: admin.recordOutcome with outcome=lost|withdrawn auto-creates a pending refund request when a completed filing exists (admin still approves via decideRefund)
+- [x] Tests (+45, suite now 215 passing / 4 skipped): lobWebhook signature + status-regression (10), lobReconciliation advancement + regression guard + error counting (5), filings.submit idempotency + deadline (3), admin filing-jobs list/retry/cancel (8), auto-refund happy path + no-filing + pending-refund + won-outcome (4)
+
+## Multi-channel delivery dispatcher (previous pass)
 - [x] Schema: counties.preferredChannel + fallbackChannel + mailing address + intakeEmail
 - [x] Schema: filing_jobs.deliveryChannel + mailTrackingNumber + lobLetterId + lobExpectedDeliveryDate + emailMessageId + emailRecipient
 - [x] services/lobDelivery.ts — Lob Letters API wrapper with deterministic stub mode (LOB_STUB=1 or missing key). Supports certified_return_receipt, certified, first_class.

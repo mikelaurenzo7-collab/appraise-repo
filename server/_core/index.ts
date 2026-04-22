@@ -5,6 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStripeWebhook } from "./stripeWebhook";
+import { registerLobWebhook } from "./lobWebhook";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -34,8 +35,10 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // Stripe webhook (must be before express.json middleware)
+  // Stripe + Lob webhooks (must be before express.json middleware —
+  // signature verification needs the raw bytes).
   registerStripeWebhook(app);
+  registerLobWebhook(app);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // Places autocomplete endpoint
@@ -78,6 +81,32 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Start Lob reconciliation (catches missed webhooks)
+  try {
+    const { buildReconciliationInterval } = await import(
+      "../services/lobReconciliation"
+    );
+    buildReconciliationInterval({ intervalMs: 30 * 60 * 1000, batchSize: 25 })();
+  } catch (err) {
+    console.warn("[LobReconcile] Failed to initialize", err);
+  }
+
+  // Start filing job processor (Playwright / mail dispatcher)
+  try {
+    const { processPendingFilingJobs } = await import(
+      "../services/filingJobQueue"
+    );
+    setInterval(async () => {
+      try {
+        await processPendingFilingJobs(2);
+      } catch (err) {
+        console.error("[FilingQueue] Processing error:", err);
+      }
+    }, 30 * 1000);
+  } catch (err) {
+    console.warn("[FilingQueue] Failed to initialize", err);
+  }
 
   // Start report job processor
   try {

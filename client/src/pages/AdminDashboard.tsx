@@ -54,7 +54,7 @@ function formatTimeAgo(d: Date | string | null | undefined) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-type TabKey = "submissions" | "outcomes" | "activity";
+type TabKey = "submissions" | "outcomes" | "activity" | "filings";
 
 export default function AdminDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-[#E2E8F0]">
-          {(["submissions", "outcomes", "activity"] as TabKey[]).map((t) => (
+          {(["submissions", "filings", "outcomes", "activity"] as TabKey[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -185,6 +185,7 @@ export default function AdminDashboard() {
               }`}
             >
               {t === "submissions" && <span className="flex items-center gap-1.5"><FileText size={14} />{t}</span>}
+              {t === "filings" && <span className="flex items-center gap-1.5"><Activity size={14} />{t}</span>}
               {t === "outcomes" && <span className="flex items-center gap-1.5"><Trophy size={14} />{t}</span>}
               {t === "activity" && <span className="flex items-center gap-1.5"><Activity size={14} />{t}</span>}
             </button>
@@ -300,6 +301,9 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
+
+        {/* ── FILINGS TAB ─────────────────────────────────────────── */}
+        {tab === "filings" && <FilingJobsTable />}
 
         {/* ── OUTCOMES TAB ────────────────────────────────────────── */}
         {tab === "outcomes" && (
@@ -420,6 +424,150 @@ export default function AdminDashboard() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * FilingJobsTable — admin view of every filing job the dispatcher has run
+ * or queued. Supports status filters, retry and cancel actions.
+ */
+function FilingJobsTable() {
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "processing" | "completed" | "failed" | "cancelled"
+  >("all");
+  const query = trpc.admin.listFilingJobs.useQuery(
+    statusFilter === "all"
+      ? { limit: 100 }
+      : { limit: 100, status: statusFilter as any }
+  );
+  const utils = trpc.useUtils();
+  const retry = trpc.admin.retryFiling.useMutation({
+    onSuccess: () => utils.admin.listFilingJobs.invalidate(),
+  });
+  const cancel = trpc.admin.cancelFiling.useMutation({
+    onSuccess: () => utils.admin.listFilingJobs.invalidate(),
+  });
+
+  const rows = query.data ?? [];
+
+  return (
+    <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between flex-wrap gap-3">
+        <h2 className="font-display text-lg font-semibold text-[#0F172A]">
+          Filing Jobs
+          <span className="ml-2 text-sm font-normal text-[#64748B]">({rows.length})</span>
+        </h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          {(["all", "pending", "processing", "completed", "failed", "cancelled"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold capitalize transition-colors ${
+                statusFilter === s
+                  ? "bg-[#7C3AED] text-white"
+                  : "bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-[#F8FAFC] text-xs uppercase tracking-widest text-[#64748B]">
+            <tr>
+              <th className="text-left px-4 py-3">Job</th>
+              <th className="text-left px-4 py-3">Submission</th>
+              <th className="text-left px-4 py-3">Channel</th>
+              <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">Delivery</th>
+              <th className="text-left px-4 py-3">Artifact</th>
+              <th className="text-left px-4 py-3">Queued</th>
+              <th className="text-right px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#F1F5F9]">
+            {rows.map((row: any) => {
+              const artifact =
+                row.portalConfirmationNumber ||
+                row.mailTrackingNumber ||
+                row.emailMessageId ||
+                "—";
+              return (
+                <tr key={row.id} className="hover:bg-[#FAFAFA]">
+                  <td className="px-4 py-3 font-mono text-xs">#{row.id}</td>
+                  <td className="px-4 py-3 font-mono text-xs">#{row.submissionId}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {row.deliveryChannel
+                      ? row.deliveryChannel.replace("_", " ")
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        row.status === "completed"
+                          ? "bg-green-100 text-green-800"
+                          : row.status === "failed" || row.status === "cancelled"
+                            ? "bg-red-100 text-red-700"
+                            : row.status === "processing"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {row.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[#64748B]">
+                    {row.deliveryStatus ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs font-mono truncate max-w-[180px]" title={artifact}>
+                    {artifact}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[#64748B]">
+                    {new Date(row.queuedAt).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right space-x-2">
+                    {(row.status === "failed" || row.status === "cancelled") && (
+                      <button
+                        onClick={() => retry.mutate({ jobId: row.id })}
+                        disabled={retry.isPending}
+                        className="text-xs text-[#7C3AED] hover:underline"
+                      >
+                        Retry
+                      </button>
+                    )}
+                    {row.status !== "completed" &&
+                      row.status !== "cancelled" && (
+                        <button
+                          onClick={() => {
+                            const reason = prompt("Cancel reason (optional):");
+                            cancel.mutate({
+                              jobId: row.id,
+                              reason: reason || undefined,
+                            });
+                          }}
+                          disabled={cancel.isPending}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="text-center py-10 text-sm text-[#94A3B8]">
+                  No filing jobs match the current filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
