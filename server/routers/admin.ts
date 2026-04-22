@@ -9,7 +9,7 @@ import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import { counties } from "../../drizzle/schema";
 
-const COUNTY_SEED = [
+export const COUNTY_SEED = [
   {
     state: "TX",
     countyName: "Travis County",
@@ -60,6 +60,15 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www.dallascad.org/forms/",
     formTemplateName: "Dallas County ARB Appeal Form",
+    filingWindowStart: "03-01",
+    filingWindowEnd: "05-15",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Dallas Central Appraisal District — ARB",
+    mailingAddressLine1: "2949 N Stemmons Fwy",
+    mailingAddressCity: "Dallas",
+    mailingAddressState: "TX",
+    mailingAddressZip: "75247",
   },
   {
     state: "TX",
@@ -110,6 +119,19 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www.cookcountyassessor.com/forms/",
     formTemplateName: "Cook County Assessment Appeal Form",
+    // Cook appeals run on a rolling township schedule; use a wide window
+    // so the deadline check doesn't block valid filings. Actual township
+    // deadlines are checked separately at filing time.
+    filingWindowStart: "01-01",
+    filingWindowEnd: "12-31",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Cook County Board of Review",
+    mailingAddressLine1: "118 N Clark St",
+    mailingAddressLine2: "Room 601",
+    mailingAddressCity: "Chicago",
+    mailingAddressState: "IL",
+    mailingAddressZip: "60602",
   },
   {
     state: "IL",
@@ -129,6 +151,17 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www.dupagecountyassessor.com/forms/",
     formTemplateName: "DuPage County Assessment Appeal Form",
+    // DuPage Board of Review opens after assessments are published (late
+    // summer) and typically closes 30 days after each township's publication.
+    filingWindowStart: "07-01",
+    filingWindowEnd: "11-30",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "DuPage County Board of Review",
+    mailingAddressLine1: "421 N County Farm Rd",
+    mailingAddressCity: "Wheaton",
+    mailingAddressState: "IL",
+    mailingAddressZip: "60187",
   },
   {
     state: "NJ",
@@ -148,6 +181,16 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www.bergencountynj.gov/forms/",
     formTemplateName: "Bergen County Tax Appeal Form",
+    filingWindowStart: "01-15",
+    filingWindowEnd: "04-01",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Bergen County Board of Taxation",
+    mailingAddressLine1: "1 Bergen County Plaza",
+    mailingAddressLine2: "Room 370",
+    mailingAddressCity: "Hackensack",
+    mailingAddressState: "NJ",
+    mailingAddressZip: "07601",
   },
   {
     state: "NJ",
@@ -167,6 +210,16 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www.essexcountynj.org/forms/",
     formTemplateName: "Essex County Tax Appeal Form",
+    filingWindowStart: "01-15",
+    filingWindowEnd: "04-01",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Essex County Board of Taxation",
+    mailingAddressLine1: "50 S Clinton St",
+    mailingAddressLine2: "Suite 5200",
+    mailingAddressCity: "East Orange",
+    mailingAddressState: "NJ",
+    mailingAddressZip: "07018",
   },
   {
     state: "CT",
@@ -186,6 +239,11 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://portal.ct.gov/OPM/forms/",
     formTemplateName: "Connecticut Property Appeal Form",
+    // Connecticut has no county-level assessor — appeals run through each
+    // municipality's Board of Assessment Appeals (Feb 20 filing deadline).
+    // Joining the waitlist surfaces the user's town for future automation.
+    preferredChannel: "unsupported",
+    fallbackChannel: "unsupported",
   },
   {
     state: "WI",
@@ -205,6 +263,16 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://county.milwaukee.gov/forms/",
     formTemplateName: "Milwaukee County Assessment Appeal Form",
+    filingWindowStart: "04-15",
+    filingWindowEnd: "05-31",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Milwaukee County Board of Review",
+    mailingAddressLine1: "901 N 9th St",
+    mailingAddressLine2: "Room 309",
+    mailingAddressCity: "Milwaukee",
+    mailingAddressState: "WI",
+    mailingAddressZip: "53233",
   },
   {
     state: "OH",
@@ -224,6 +292,16 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www.cuyahogacounty.us/forms/",
     formTemplateName: "Cuyahoga County Property Tax Appeal Form",
+    filingWindowStart: "01-01",
+    filingWindowEnd: "03-31",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Cuyahoga County Board of Revision",
+    mailingAddressLine1: "2079 E 9th St",
+    mailingAddressLine2: "2nd Floor",
+    mailingAddressCity: "Cleveland",
+    mailingAddressState: "OH",
+    mailingAddressZip: "44115",
   },
   {
     state: "PA",
@@ -243,6 +321,17 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www.phila.gov/forms/",
     formTemplateName: "Philadelphia Property Tax Appeal Form",
+    // Philadelphia BRT accepts market-value appeals through the first Monday of October.
+    filingWindowStart: "07-01",
+    filingWindowEnd: "10-07",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Philadelphia Board of Revision of Taxes",
+    mailingAddressLine1: "601 Walnut St",
+    mailingAddressLine2: "Suite 325 East",
+    mailingAddressCity: "Philadelphia",
+    mailingAddressState: "PA",
+    mailingAddressZip: "19106",
   },
   {
     state: "CA",
@@ -262,6 +351,16 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://assessor.lacounty.gov/forms/",
     formTemplateName: "LA County Proposition 8 Application",
+    filingWindowStart: "07-02",
+    filingWindowEnd: "11-30",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "Los Angeles County Assessment Appeals Board",
+    mailingAddressLine1: "500 W Temple St",
+    mailingAddressLine2: "Room B-4",
+    mailingAddressCity: "Los Angeles",
+    mailingAddressState: "CA",
+    mailingAddressZip: "90012",
   },
   {
     state: "NY",
@@ -281,6 +380,18 @@ const COUNTY_SEED = [
     requiresAttorney: 0,
     formTemplateUrl: "https://www1.nyc.gov/site/finance/forms/",
     formTemplateName: "NYC Property Tax Appeal Form",
+    // NYC deadlines differ by tax class: Class 1 (1–3 family) = March 15;
+    // Class 2/3/4 = March 1. Using the latest so the window is inclusive.
+    filingWindowStart: "01-15",
+    filingWindowEnd: "03-15",
+    preferredChannel: "mail_certified",
+    fallbackChannel: "mail_certified",
+    mailingAddressName: "NYC Tax Commission",
+    mailingAddressLine1: "1 Centre St",
+    mailingAddressLine2: "Room 936",
+    mailingAddressCity: "New York",
+    mailingAddressState: "NY",
+    mailingAddressZip: "10007",
   },
   {
     state: "FL",
@@ -333,12 +444,38 @@ export const adminRouter = router({
     try {
       let seeded = 0;
       for (const county of COUNTY_SEED) {
+        // onDuplicateKeyUpdate now backfills the channel-routing fields too,
+        // so adding mailing addresses for previously-portal-only counties
+        // takes effect on the next admin seed run without a manual SQL
+        // migration. Every field explicitly listed below is one we want to
+        // treat as authoritative in this seed.
+        const update: Record<string, unknown> = {
+          portalUrl: county.portalUrl,
+          assessorPhone: county.assessorPhone,
+          hearingScheduleDays: county.hearingScheduleDays,
+        };
+        const mailFields = [
+          "filingWindowStart",
+          "filingWindowEnd",
+          "preferredChannel",
+          "fallbackChannel",
+          "mailingAddressName",
+          "mailingAddressLine1",
+          "mailingAddressLine2",
+          "mailingAddressCity",
+          "mailingAddressState",
+          "mailingAddressZip",
+          "intakeEmail",
+          "poaEligible",
+          "onlinePortalOnly",
+          "pinOnlyLogin",
+        ] as const;
+        for (const f of mailFields) {
+          const v = (county as Record<string, unknown>)[f];
+          if (v !== undefined) update[f] = v;
+        }
         await db.insert(counties).values(county as any).onDuplicateKeyUpdate({
-          set: {
-            portalUrl: county.portalUrl,
-            assessorPhone: county.assessorPhone,
-            hearingScheduleDays: county.hearingScheduleDays,
-          },
+          set: update,
         });
         seeded++;
       }
