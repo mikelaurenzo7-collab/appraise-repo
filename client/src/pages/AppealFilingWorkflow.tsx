@@ -30,6 +30,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { ScrivenerAuthorization } from "@/components/ScrivenerAuthorization";
+import { WaitlistCapture } from "@/components/WaitlistCapture";
 import { toast } from "sonner";
 
 interface WorkflowStep {
@@ -417,28 +418,43 @@ export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkf
               )}
 
               {eligibility && !canAutomate && (
-                <div className="bg-amber-500/10 border border-amber-400 rounded-lg p-4 text-[#CBD5E1] text-sm">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="text-amber-400 shrink-0 mt-0.5" size={18} />
-                    <div>
-                      <p className="mb-2 font-semibold">
-                        Automated filing isn&apos;t available yet for this county:
-                      </p>
-                      <ul className="list-disc list-inside space-y-1 text-xs">
-                        {ineligibleReasons.map((r) => (
-                          <li key={r}>{r}</li>
-                        ))}
-                      </ul>
-                      <p className="mt-3">
-                        We&apos;ll instead generate a pro-se filing packet you can
-                        print, sign, and mail. Head to your{" "}
-                        <Link href="/dashboard" className="underline">
-                          dashboard
-                        </Link>{" "}
-                        to download it.
-                      </p>
+                <div className="space-y-4">
+                  <div className="bg-amber-500/10 border border-amber-400 rounded-lg p-4 text-[#CBD5E1] text-sm">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="text-amber-400 shrink-0 mt-0.5" size={18} />
+                      <div>
+                        <p className="mb-2 font-semibold">
+                          Automated filing isn&apos;t available yet for this county:
+                        </p>
+                        <ul className="list-disc list-inside space-y-1 text-xs">
+                          {ineligibleReasons.map((r) => (
+                            <li key={r}>{r}</li>
+                          ))}
+                        </ul>
+                        <p className="mt-3">
+                          We&apos;ll instead generate a pro-se filing packet you can
+                          print, sign, and mail. Head to your{" "}
+                          <Link href="/dashboard" className="underline">
+                            dashboard
+                          </Link>{" "}
+                          to download it.
+                        </p>
+                      </div>
                     </div>
                   </div>
+                  <WaitlistCapture
+                    defaultEmail={submission?.email ?? ""}
+                    defaultState={selectedState || submission?.state || ""}
+                    defaultCountyName={
+                      (selectedCountyId &&
+                        countiesQuery.data?.find((c) => c.id === selectedCountyId)
+                          ?.countyName) ||
+                      submission?.county ||
+                      ""
+                    }
+                    submissionId={parsedSubmissionId}
+                    variant="loud"
+                  />
                 </div>
               )}
 

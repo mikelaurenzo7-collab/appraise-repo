@@ -11,6 +11,8 @@ import {
   listCountiesByState,
   createFilingTier,
   getCountyEligibility,
+  addWaitlistEntry,
+  persistActivityLog,
 } from "../db";
 
 export const countiesRouter = router({
@@ -105,5 +107,47 @@ export const countiesRouter = router({
     .input(z.object({ countyId: z.number() }))
     .query(async ({ input }) => {
       return getCountyEligibility(input.countyId);
+    }),
+
+  /**
+   * Join the waitlist for an unsupported county. Capture happens in the
+   * AppealFilingWorkflow ineligibility branch, or from a landing-page
+   * form if the user types in a ZIP we don't serve.
+   */
+  joinWaitlist: publicProcedure
+    .input(
+      z.object({
+        email: z.string().email(),
+        state: z.string().length(2).optional(),
+        countyName: z.string().max(120).optional(),
+        submissionId: z.number().optional(),
+        notes: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const entry = await addWaitlistEntry({
+        email: input.email,
+        state: input.state,
+        countyName: input.countyName,
+        submissionId: input.submissionId,
+        notes: input.notes,
+      });
+      if (!entry) {
+        throw new Error("Could not record waitlist entry");
+      }
+      await persistActivityLog({
+        submissionId: input.submissionId,
+        type: "waitlist_joined",
+        actor: "user",
+        description: `Waitlist signup: ${input.email} for ${input.countyName ?? "unknown county"}${
+          input.state ? `, ${input.state}` : ""
+        }`,
+        metadata: JSON.stringify({
+          state: input.state,
+          county: input.countyName,
+        }),
+        status: "success",
+      });
+      return { success: true, id: entry.id };
     }),
 });

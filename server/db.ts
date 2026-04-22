@@ -18,6 +18,7 @@ import {
   filingJobs, FilingJob, InsertFilingJob,
   refundRequests, RefundRequest, InsertRefundRequest,
   stripeEventsProcessed, InsertStripeEventProcessed,
+  countyWaitlist, CountyWaitlistEntry, InsertCountyWaitlistEntry,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -893,6 +894,21 @@ export type UserFilingRow = {
   portalUrl: string | null;
   lastUpdated: Date;
   notes: string | null;
+  // Filing-job surfaced artifacts — shown in the user dashboard so the
+  // owner can see "USPS tracking #9407…, delivered 4/18" without
+  // clicking through.
+  filingJob: {
+    id: number;
+    status: FilingJob["status"];
+    deliveryChannel: FilingJob["deliveryChannel"];
+    deliveryStatus: FilingJob["deliveryStatus"];
+    portalConfirmationNumber: string | null;
+    mailTrackingNumber: string | null;
+    lobExpectedDeliveryDate: Date | null;
+    emailRecipient: string | null;
+    completedAt: Date | null;
+    errorMessage: string | null;
+  } | null;
 };
 
 export async function listUserFilings(userEmail: string): Promise<UserFilingRow[]> {
@@ -919,6 +935,13 @@ export async function listUserFilings(userEmail: string): Promise<UserFilingRow[
         .where(eq(appealOutcomes.submissionId, s.id))
         .limit(1)
         .then((r) => r[0] || null);
+      const job = await db
+        .select()
+        .from(filingJobs)
+        .where(eq(filingJobs.submissionId, s.id))
+        .orderBy(desc(filingJobs.createdAt))
+        .limit(1)
+        .then((r) => r[0] || null);
 
       results.push({
         submissionId: s.id,
@@ -927,7 +950,7 @@ export async function listUserFilings(userEmail: string): Promise<UserFilingRow[
         state: s.state ?? null,
         status: s.status,
         filingMethod: s.filingMethod ?? null,
-        filedDate: poa?.filingDate ?? outcome?.filedAt ?? null,
+        filedDate: poa?.filingDate ?? outcome?.filedAt ?? job?.completedAt ?? null,
         hearingDate: poa?.hearingDate ?? outcome?.hearingDate ?? null,
         hearingLocation: poa?.hearingLocation ?? null,
         hearingFormat: poa?.hearingFormat ?? null,
@@ -939,6 +962,20 @@ export async function listUserFilings(userEmail: string): Promise<UserFilingRow[
         portalUrl: poa?.portalUrl ?? null,
         lastUpdated: poa?.updatedAt ?? s.updatedAt,
         notes: poa?.notes ?? null,
+        filingJob: job
+          ? {
+              id: job.id,
+              status: job.status,
+              deliveryChannel: job.deliveryChannel,
+              deliveryStatus: job.deliveryStatus,
+              portalConfirmationNumber: job.portalConfirmationNumber ?? null,
+              mailTrackingNumber: job.mailTrackingNumber ?? null,
+              lobExpectedDeliveryDate: job.lobExpectedDeliveryDate ?? null,
+              emailRecipient: job.emailRecipient ?? null,
+              completedAt: job.completedAt ?? null,
+              errorMessage: job.errorMessage ?? null,
+            }
+          : null,
       });
     }
     return results;
@@ -1341,4 +1378,147 @@ export async function getCountyEligibility(countyId: number): Promise<CountyElig
     reasonsIneligible: reasons,
     selectedChannel: selected,
   };
+}
+
+// ─── COUNTY WAITLIST ────────────────────────────────────────────────────────
+
+export async function addWaitlistEntry(
+  entry: InsertCountyWaitlistEntry
+): Promise<CountyWaitlistEntry | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(countyWaitlist).values(entry);
+    const id = (result as any).insertId;
+    return await db.select().from(countyWaitlist)
+      .where(eq(countyWaitlist.id, id))
+      .limit(1)
+      .then((r) => r[0] ?? null);
+  } catch (error) {
+    console.error("[Waitlist] Failed to add entry:", error);
+    return null;
+  }
+}
+
+export async function listWaitlistEntries(limit = 200): Promise<CountyWaitlistEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(countyWaitlist)
+      .orderBy(desc(countyWaitlist.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[Waitlist] Failed to list entries:", error);
+    return [];
+  }
+}
+
+export async function aggregateWaitlistByCounty(): Promise<
+  Array<{ state: string | null; countyName: string | null; count: number }>
+> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        state: countyWaitlist.state,
+        countyName: countyWaitlist.countyName,
+        count: sql<number>`count(*)`,
+      })
+      .from(countyWaitlist)
+      .groupBy(countyWaitlist.state, countyWaitlist.countyName)
+      .orderBy(sql`count(*) desc`);
+    return rows.map((r) => ({
+      state: r.state,
+      countyName: r.countyName,
+      count: Number(r.count ?? 0),
+    }));
+  } catch (error) {
+    console.error("[Waitlist] Failed to aggregate:", error);
+    return [];
+  }
+}
+
+// ─── FILING STATS (ADMIN) ───────────────────────────────────────────────────
+
+export type FilingStatsRow = { key: string; count: number };
+
+export interface FilingStats {
+  totalJobs: number;
+  sinceDate: Date;
+  byStatus: FilingStatsRow[];
+  byChannel: FilingStatsRow[];
+  byDeliveryStatus: FilingStatsRow[];
+  deliveredInWindow: number;
+  returnedInWindow: number;
+  successRate7d: number | null; // 0..1 of completed/(completed+failed) in the last 7 days
+}
+
+export async function getFilingStats(windowDays = 30): Promise<FilingStats> {
+  const empty: FilingStats = {
+    totalJobs: 0,
+    sinceDate: new Date(),
+    byStatus: [],
+    byChannel: [],
+    byDeliveryStatus: [],
+    deliveredInWindow: 0,
+    returnedInWindow: 0,
+    successRate7d: null,
+  };
+  const db = await getDb();
+  if (!db) return empty;
+
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  try {
+    const rows = await db
+      .select()
+      .from(filingJobs)
+      .where(gte(filingJobs.createdAt, since));
+
+    const byStatus = new Map<string, number>();
+    const byChannel = new Map<string, number>();
+    const byDeliveryStatus = new Map<string, number>();
+    let delivered = 0;
+    let returned = 0;
+    let completed7d = 0;
+    let failed7d = 0;
+
+    for (const r of rows) {
+      byStatus.set(r.status, (byStatus.get(r.status) ?? 0) + 1);
+      const ch = r.deliveryChannel ?? "unassigned";
+      byChannel.set(ch, (byChannel.get(ch) ?? 0) + 1);
+      const ds = r.deliveryStatus ?? "pending";
+      byDeliveryStatus.set(ds, (byDeliveryStatus.get(ds) ?? 0) + 1);
+      if (ds === "delivered") delivered += 1;
+      if (ds === "returned" || ds === "failed") returned += 1;
+      if (r.completedAt && r.completedAt >= sevenDaysAgo) {
+        if (r.status === "completed") completed7d += 1;
+        else if (r.status === "failed") failed7d += 1;
+      }
+    }
+
+    const totalRated = completed7d + failed7d;
+    const successRate7d = totalRated > 0 ? completed7d / totalRated : null;
+
+    const mapToRows = (m: Map<string, number>): FilingStatsRow[] =>
+      Array.from(m.entries())
+        .map(([key, count]) => ({ key, count }))
+        .sort((a, b) => b.count - a.count);
+
+    return {
+      totalJobs: rows.length,
+      sinceDate: since,
+      byStatus: mapToRows(byStatus),
+      byChannel: mapToRows(byChannel),
+      byDeliveryStatus: mapToRows(byDeliveryStatus),
+      deliveredInWindow: delivered,
+      returnedInWindow: returned,
+      successRate7d,
+    };
+  } catch (error) {
+    console.error("[FilingStats] Query failed:", error);
+    return empty;
+  }
 }

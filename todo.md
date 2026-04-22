@@ -201,7 +201,20 @@
 - [x] Draft recipes for Travis / Harris / Miami-Dade (verificationStatus: draft, queue refuses to run in production without ALLOW_DRAFT_RECIPES=1)
 - [x] Tests: recipe engine (13), pricing pivot + scrivener + refund + eligibility gating (15) — suite now 170 passing / 4 skipped
 
-## Polish + production hardening (this pass)
+## Full polish pass (latest)
+- [x] Filing-submitted confirmation email: channel-specific copy + USPS tools.usps.com deep link, fires on successful dispatch
+- [x] Filing deadline reminder email + cron: daily scan, 7-day trigger, de-dupe via activity_logs, skips submissions with an active filing job
+- [x] Auto-update property_submissions.status to "appeal-filed" when filing job completes successfully
+- [x] Filing artifact retention cleanup: daily cron, default 365 days (FILING_ARTIFACT_RETENTION_DAYS env), storageDelete + null keys + activity-log audit
+- [x] storage.storageDelete primitive added
+- [x] Admin filing-stats banner on Filings tab: 30-day counts for total/delivered/returned/7d success rate
+- [x] User FilingStatus detail modal now surfaces channel + tracking # (USPS deep-link) + expected delivery date + email recipient
+- [x] County waitlist schema + db helpers + counties.joinWaitlist mutation + admin.listWaitlist (with county aggregates) + Admin "Waitlist" tab
+- [x] WaitlistCapture component rendered on AppealFilingWorkflow's unsupported-county branch
+- [x] Server startup cron: filing processor (30s), Lob reconciliation (30m), artifact cleanup (daily), deadline reminders (daily)
+- [x] Tests (+8, suite now 223 passing / 4 skipped): cleanup happy path + empty, joinWaitlist happy + invalid-email, admin.listWaitlist admin-gating + shape, admin.getFilingStats delegation + default window
+
+## Polish + production hardening (previous pass)
 - [x] Lob webhook handler at POST /api/stripe/webhook counterpart (/api/lob/webhook) with HMAC-SHA256 signature verification, status-regression guard, activity-log audit
 - [x] Lob reconciliation job — runs every 30 min, reconciles non-terminal mail filings against Lob's letter status endpoint (catches missed webhooks)
 - [x] Filing job processor cron wired into server bootstrap (runs pending filing jobs every 30s)

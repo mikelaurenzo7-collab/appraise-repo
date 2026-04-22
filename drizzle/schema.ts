@@ -531,6 +531,25 @@ export type StripeEventProcessed = typeof stripeEventsProcessed.$inferSelect;
 export type InsertStripeEventProcessed = typeof stripeEventsProcessed.$inferInsert;
 
 /**
+ * County waitlist — captures interest from users whose county we don't
+ * yet support. Feeds a prioritization signal for which counties to add
+ * next.
+ */
+export const countyWaitlist = mysqlTable("county_waitlist", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  state: varchar("state", { length: 2 }),
+  countyName: varchar("countyName", { length: 100 }),
+  submissionId: int("submissionId"),
+  notes: text("notes"),
+  notifiedAt: timestamp("notifiedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CountyWaitlistEntry = typeof countyWaitlist.$inferSelect;
+export type InsertCountyWaitlistEntry = typeof countyWaitlist.$inferInsert;
+
+/**
  * POA filing records
  * Tracks appeals filed on behalf of users via Power of Attorney
  */

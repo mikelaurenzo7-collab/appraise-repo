@@ -108,6 +108,26 @@ async function startServer() {
     console.warn("[FilingQueue] Failed to initialize", err);
   }
 
+  // Start filing artifact retention cleanup (daily)
+  try {
+    const { buildCleanupInterval } = await import(
+      "../services/filingCleanup"
+    );
+    buildCleanupInterval()();
+  } catch (err) {
+    console.warn("[FilingCleanup] Failed to initialize", err);
+  }
+
+  // Start filing deadline reminder cron (daily)
+  try {
+    const { buildDeadlineReminderInterval } = await import(
+      "../services/deadlineReminders"
+    );
+    buildDeadlineReminderInterval()();
+  } catch (err) {
+    console.warn("[DeadlineReminders] Failed to initialize", err);
+  }
+
   // Start report job processor
   try {
     const { processPendingReportJobs } = await import("../services/reportJobQueue");

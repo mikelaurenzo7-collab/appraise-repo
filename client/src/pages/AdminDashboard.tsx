@@ -54,7 +54,7 @@ function formatTimeAgo(d: Date | string | null | undefined) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-type TabKey = "submissions" | "outcomes" | "activity" | "filings";
+type TabKey = "submissions" | "outcomes" | "activity" | "filings" | "waitlist";
 
 export default function AdminDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-[#E2E8F0]">
-          {(["submissions", "filings", "outcomes", "activity"] as TabKey[]).map((t) => (
+          {(["submissions", "filings", "waitlist", "outcomes", "activity"] as TabKey[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -186,6 +186,7 @@ export default function AdminDashboard() {
             >
               {t === "submissions" && <span className="flex items-center gap-1.5"><FileText size={14} />{t}</span>}
               {t === "filings" && <span className="flex items-center gap-1.5"><Activity size={14} />{t}</span>}
+              {t === "waitlist" && <span className="flex items-center gap-1.5"><FileText size={14} />{t}</span>}
               {t === "outcomes" && <span className="flex items-center gap-1.5"><Trophy size={14} />{t}</span>}
               {t === "activity" && <span className="flex items-center gap-1.5"><Activity size={14} />{t}</span>}
             </button>
@@ -304,6 +305,9 @@ export default function AdminDashboard() {
 
         {/* ── FILINGS TAB ─────────────────────────────────────────── */}
         {tab === "filings" && <FilingJobsTable />}
+
+        {/* ── WAITLIST TAB ────────────────────────────────────────── */}
+        {tab === "waitlist" && <WaitlistTable />}
 
         {/* ── OUTCOMES TAB ────────────────────────────────────────── */}
         {tab === "outcomes" && (
@@ -432,6 +436,159 @@ export default function AdminDashboard() {
  * FilingJobsTable — admin view of every filing job the dispatcher has run
  * or queued. Supports status filters, retry and cancel actions.
  */
+function FilingStatsBanner() {
+  const statsQuery = trpc.admin.getFilingStats.useQuery(
+    { windowDays: 30 },
+    { refetchInterval: 60_000 }
+  );
+  const s = statsQuery.data;
+  if (!s) return null;
+
+  const cards = [
+    { label: "Filings (30d)", value: s.totalJobs.toString() },
+    {
+      label: "Delivered",
+      value: s.deliveredInWindow.toString(),
+      hint: `${s.totalJobs > 0 ? Math.round((s.deliveredInWindow / s.totalJobs) * 100) : 0}%`,
+    },
+    {
+      label: "Returned/failed",
+      value: s.returnedInWindow.toString(),
+      hint: s.returnedInWindow > 0 ? "investigate" : "clean",
+      warn: s.returnedInWindow > 0,
+    },
+    {
+      label: "Success rate (7d)",
+      value:
+        s.successRate7d == null ? "—" : `${Math.round(s.successRate7d * 100)}%`,
+      hint: "completed / (completed + failed)",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      {cards.map((c) => (
+        <div
+          key={c.label}
+          className={`rounded-lg border px-4 py-3 ${
+            c.warn ? "border-red-200 bg-red-50" : "border-[#E2E8F0] bg-white"
+          }`}
+        >
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#94A3B8]">
+            {c.label}
+          </div>
+          <div
+            className={`font-data text-2xl font-bold ${
+              c.warn ? "text-red-700" : "text-[#0F172A]"
+            }`}
+          >
+            {c.value}
+          </div>
+          {c.hint && (
+            <div className="text-[11px] text-[#64748B] mt-0.5">{c.hint}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WaitlistTable() {
+  const query = trpc.admin.listWaitlist.useQuery(
+    { limit: 200 },
+    { refetchInterval: 60_000 }
+  );
+  const data = query.data;
+  const entries = data?.entries ?? [];
+  const aggregates = data?.aggregates ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E2E8F0]">
+          <h2 className="font-display text-lg font-semibold text-[#0F172A]">
+            Top counties by demand
+            <span className="ml-2 text-sm font-normal text-[#64748B]">
+              ({aggregates.length})
+            </span>
+          </h2>
+        </div>
+        <table className="min-w-full text-sm">
+          <thead className="bg-[#F8FAFC] text-xs uppercase tracking-widest text-[#64748B]">
+            <tr>
+              <th className="text-left px-4 py-3">County</th>
+              <th className="text-left px-4 py-3">State</th>
+              <th className="text-right px-4 py-3">Waitlist size</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#F1F5F9]">
+            {aggregates.map((row, idx) => (
+              <tr key={idx} className="hover:bg-[#FAFAFA]">
+                <td className="px-4 py-3">{row.countyName ?? "—"}</td>
+                <td className="px-4 py-3">{row.state ?? "—"}</td>
+                <td className="px-4 py-3 text-right font-data font-semibold">
+                  {row.count}
+                </td>
+              </tr>
+            ))}
+            {aggregates.length === 0 && (
+              <tr>
+                <td colSpan={3} className="text-center py-10 text-sm text-[#94A3B8]">
+                  No waitlist signups yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E2E8F0]">
+          <h2 className="font-display text-lg font-semibold text-[#0F172A]">
+            Individual signups
+            <span className="ml-2 text-sm font-normal text-[#64748B]">
+              ({entries.length})
+            </span>
+          </h2>
+        </div>
+        <table className="min-w-full text-sm">
+          <thead className="bg-[#F8FAFC] text-xs uppercase tracking-widest text-[#64748B]">
+            <tr>
+              <th className="text-left px-4 py-3">Email</th>
+              <th className="text-left px-4 py-3">Location</th>
+              <th className="text-left px-4 py-3">Notes</th>
+              <th className="text-right px-4 py-3">Joined</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#F1F5F9]">
+            {entries.map((e: any) => (
+              <tr key={e.id} className="hover:bg-[#FAFAFA]">
+                <td className="px-4 py-3 font-mono text-xs">{e.email}</td>
+                <td className="px-4 py-3">
+                  {[e.countyName, e.state].filter(Boolean).join(", ") || "—"}
+                </td>
+                <td className="px-4 py-3 text-xs text-[#64748B] truncate max-w-[240px]">
+                  {e.notes ?? ""}
+                </td>
+                <td className="px-4 py-3 text-right text-xs text-[#64748B]">
+                  {new Date(e.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+            {entries.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center py-10 text-sm text-[#94A3B8]">
+                  No individual signups yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function FilingJobsTable() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "pending" | "processing" | "completed" | "failed" | "cancelled"
@@ -452,7 +609,9 @@ function FilingJobsTable() {
   const rows = query.data ?? [];
 
   return (
-    <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+    <div>
+      <FilingStatsBanner />
+      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between flex-wrap gap-3">
         <h2 className="font-display text-lg font-semibold text-[#0F172A]">
           Filing Jobs
@@ -567,6 +726,7 @@ function FilingJobsTable() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

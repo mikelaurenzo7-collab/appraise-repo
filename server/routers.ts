@@ -33,6 +33,10 @@ import {
   listRecentFilingJobs,
   listFilingJobsByStatus,
   updateFilingJob,
+  addWaitlistEntry,
+  listWaitlistEntries,
+  aggregateWaitlistByCounty,
+  getFilingStats,
 } from "./db";
 import { eq } from "drizzle-orm";
 import { filingTiers } from "../drizzle/schema";
@@ -1286,6 +1290,23 @@ export const appRouter = router({
           status: "success",
         });
         return updated;
+      }),
+
+    // ─── FILING STATS + WAITLIST ─────────────────────────────────────────
+    getFilingStats: adminProcedure
+      .input(z.object({ windowDays: z.number().min(1).max(365).default(30) }).optional())
+      .query(async ({ input }) => {
+        return getFilingStats(input?.windowDays ?? 30);
+      }),
+
+    listWaitlist: adminProcedure
+      .input(z.object({ limit: z.number().min(1).max(500).default(200) }).optional())
+      .query(async ({ input }) => {
+        const [entries, agg] = await Promise.all([
+          listWaitlistEntries(input?.limit ?? 200),
+          aggregateWaitlistByCounty(),
+        ]);
+        return { entries, aggregates: agg };
       }),
 
     // ─── FILING JOBS (multi-channel) ─────────────────────────────────────

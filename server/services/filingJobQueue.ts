@@ -18,7 +18,9 @@ import {
   getScrivenerAuthorizationById,
   getCountyById,
   getPropertySubmissionById,
+  updatePropertySubmission,
 } from "../db";
+import { sendFilingSubmittedEmail } from "../_core/emailService";
 import { storagePut } from "../storage";
 import { dispatchFiling, resolveChannel } from "./deliveryDispatcher";
 
@@ -209,6 +211,37 @@ export async function processOnePendingJob(): Promise<boolean> {
       }),
       status: dispatchResult.success ? "success" : "error",
     });
+
+    // On successful dispatch: (1) update the property submission's
+    // pipeline status so the user dashboard reflects the filing, and
+    // (2) send the confirmation email with the tracking artifact.
+    if (dispatchResult.success) {
+      await updatePropertySubmission(row.submissionId, { status: "appeal-filed" }).catch(
+        (err) => console.error("[FilingQueue] Failed to update submission status:", err)
+      );
+      try {
+        const dashboardOrigin = process.env.PUBLIC_APP_URL || "https://appraise-ai.manus.space";
+        await sendFilingSubmittedEmail({
+          userEmail: submission.email,
+          userName: submission.email.split("@")[0],
+          propertyAddress: [submission.address, submission.city, submission.state]
+            .filter(Boolean)
+            .join(", "),
+          countyName: county?.countyName ?? "your county",
+          deliveryChannel: dispatchResult.channelUsed,
+          portalConfirmationNumber: dispatchResult.portalConfirmationNumber,
+          mailTrackingNumber: dispatchResult.mailTrackingNumber,
+          expectedDeliveryDate: dispatchResult.lobExpectedDeliveryDate
+            ? dispatchResult.lobExpectedDeliveryDate.toISOString()
+            : null,
+          emailRecipient: dispatchResult.emailRecipient,
+          dashboardUrl: `${dashboardOrigin}/dashboard`,
+        });
+      } catch (err) {
+        console.error("[FilingQueue] Failed to send filing confirmation email:", err);
+      }
+    }
+
     return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

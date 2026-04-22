@@ -34,6 +34,21 @@ type SubmissionStatus =
   | "withdrawn"
   | "archived";
 
+type DeliveryChannel = "portal" | "mail_certified" | "mail_first_class" | "email";
+
+type FilingJobSummary = {
+  id: number;
+  status: string;
+  deliveryChannel: DeliveryChannel | null;
+  deliveryStatus: "pending" | "in_transit" | "delivered" | "returned" | "failed" | null;
+  portalConfirmationNumber: string | null;
+  mailTrackingNumber: string | null;
+  lobExpectedDeliveryDate: string | Date | null;
+  emailRecipient: string | null;
+  completedAt: string | Date | null;
+  errorMessage: string | null;
+};
+
 type FilingRow = {
   submissionId: number;
   address: string;
@@ -53,7 +68,23 @@ type FilingRow = {
   portalUrl: string | null;
   lastUpdated: Date;
   notes: string | null;
+  filingJob: FilingJobSummary | null;
 };
+
+function channelLabel(c: DeliveryChannel | null | undefined): string {
+  switch (c) {
+    case "portal":
+      return "County online portal";
+    case "mail_certified":
+      return "USPS Certified Mail + return receipt";
+    case "mail_first_class":
+      return "USPS First Class Mail + tracking";
+    case "email":
+      return "Email to county intake";
+    default:
+      return "—";
+  }
+}
 
 type DisplayStatus =
   | "not-filed"
@@ -416,6 +447,79 @@ export default function FilingStatus() {
                           <div className="text-2xl font-bold text-green-600">
                             ${selectedFiling.annualTaxSavings!.toLocaleString()}/yr
                           </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedFiling.filingJob && (
+                  <div>
+                    <h3 className="font-semibold text-[#0F172A] mb-2">Filing transmission</h3>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-[#94A3B8] uppercase tracking-widest text-xs">
+                          Channel
+                        </span>
+                        <div className="text-[#0F172A] font-medium">
+                          {channelLabel(selectedFiling.filingJob.deliveryChannel)}
+                        </div>
+                      </div>
+                      {selectedFiling.filingJob.portalConfirmationNumber && (
+                        <div>
+                          <span className="text-[#94A3B8] uppercase tracking-widest text-xs">
+                            Portal confirmation #
+                          </span>
+                          <div className="font-mono text-[#0F172A]">
+                            {selectedFiling.filingJob.portalConfirmationNumber}
+                          </div>
+                        </div>
+                      )}
+                      {selectedFiling.filingJob.mailTrackingNumber && (
+                        <div>
+                          <span className="text-[#94A3B8] uppercase tracking-widest text-xs">
+                            USPS tracking
+                          </span>
+                          <div>
+                            <a
+                              href={`https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(
+                                selectedFiling.filingJob.mailTrackingNumber
+                              )}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-mono text-[#7C3AED] underline"
+                            >
+                              {selectedFiling.filingJob.mailTrackingNumber}
+                            </a>
+                            {selectedFiling.filingJob.deliveryStatus && (
+                              <span className="ml-2 text-xs text-[#64748B]">
+                                · {selectedFiling.filingJob.deliveryStatus.replace("_", " ")}
+                              </span>
+                            )}
+                          </div>
+                          {selectedFiling.filingJob.lobExpectedDeliveryDate && (
+                            <div className="text-xs text-[#64748B] mt-1">
+                              Expected{" "}
+                              {new Date(
+                                selectedFiling.filingJob.lobExpectedDeliveryDate
+                              ).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {selectedFiling.filingJob.emailRecipient && (
+                        <div>
+                          <span className="text-[#94A3B8] uppercase tracking-widest text-xs">
+                            Emailed to
+                          </span>
+                          <div className="font-mono text-[#0F172A]">
+                            {selectedFiling.filingJob.emailRecipient}
+                          </div>
+                        </div>
+                      )}
+                      {selectedFiling.filingJob.errorMessage && (
+                        <div className="rounded bg-red-50 border border-red-200 p-2 text-xs text-red-700">
+                          {selectedFiling.filingJob.errorMessage}
                         </div>
                       )}
                     </div>
