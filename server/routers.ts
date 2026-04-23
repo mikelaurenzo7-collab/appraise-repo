@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { smsRouter } from "./routers/sms";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
@@ -193,6 +194,7 @@ async function maybeAutoRequestRefund(submissionId: number, adminUserId: number)
 export const appRouter = router({
   system: systemRouter,
   counties: countiesRouter,
+  sms: smsRouter,
 
   // ─── AUTH ────────────────────────────────────────────────────────────────
   auth: router({

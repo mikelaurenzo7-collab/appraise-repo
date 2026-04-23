@@ -64,6 +64,13 @@
       "when": 1776837641598,
       "tag": "0008_naive_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1776921190365,
+      "tag": "0009_outgoing_tinkerer",
+      "breakpoints": true
     }
   ]
 }

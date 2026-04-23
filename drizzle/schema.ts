@@ -9,6 +9,9 @@ export const users = mysqlTable("users", {
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   // Stripe integration
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  // SMS Notifications
+  phoneNumber: varchar("phoneNumber", { length: 20 }),
+  smsOptIn: boolean("smsOptIn").default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

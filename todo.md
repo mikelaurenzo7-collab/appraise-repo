@@ -250,3 +250,92 @@
 - [x] How It Works side-panel: replaced stock AI image with terminal-style analysis panel
 - [x] Final CTA: removed savings-graphic stock image; pure-CSS texture
 - [x] Footer trust-badges rewritten ("Software, not a law firm" / "Money-back guarantee" / "Scrivener authorization")
+
+
+## Phase 8: SMS Notifications (CURRENT)
+- [ ] Create SMS notification service (Twilio integration)
+- [ ] Add SMS opt-in/opt-out to user preferences
+- [ ] Implement hearing reminder notifications (7 days, 1 day before)
+- [ ] Implement appeal status update notifications
+- [ ] Create SMS template system for different notification types
+- [ ] Add SMS delivery tracking and retry logic
+- [ ] Test SMS delivery across multiple carriers
+
+## Phase 9: Appeal Strength Scoring
+- [ ] Create scoring algorithm based on historical data
+- [ ] Analyze comparable sales data for scoring
+- [ ] Assess market trends and county-specific factors
+- [ ] Generate success probability predictions
+- [ ] Create confidence intervals for predictions
+- [ ] Build scoring dashboard UI
+- [ ] Add scoring explanations for users
+- [ ] Test scoring accuracy against historical outcomes
+
+## Phase 10: County Deadline Calendar
+- [ ] Create calendar database schema
+- [ ] Populate deadlines for all 13 counties
+- [ ] Build calendar UI component
+- [ ] Add deadline alerts and reminders
+- [ ] Implement deadline tracking per property
+- [ ] Create county-specific deadline rules
+- [ ] Add holiday and special circumstance handling
+- [ ] Test deadline accuracy across all counties
+
+## Phase 11: AI Photo Analysis & Cost-to-Cure
+- [ ] Build photo analysis AI prompt (structural, cosmetic, maintenance issues)
+- [ ] Extract defect categories from photos
+- [ ] Estimate repair costs per defect
+- [ ] Calculate total cost-to-cure
+- [ ] Create defect severity scoring
+- [ ] Build photo annotation UI (highlight defects)
+- [ ] Generate cost-to-cure report section
+- [ ] Integrate with valuation adjustments
+- [ ] Test on 50+ property photos
+
+## Phase 12: Professional Report Generation
+- [ ] Create property-specific report templates
+- [ ] Add residential property report (single-family, condo, townhouse)
+- [ ] Add multi-family property report (duplex, triplex, apartment)
+- [ ] Add commercial property report (retail, office, mixed-use)
+- [ ] Add industrial property report (warehouse, manufacturing)
+- [ ] Implement comparable sales analysis section
+- [ ] Add cost-to-cure analysis section
+- [ ] Add market trends and county data section
+- [ ] Create branded header/footer with AppraiseAI logo
+- [ ] Add professional typography and layout
+- [ ] Implement charts and visualizations
+- [ ] Add photo gallery with annotations
+- [ ] Create executive summary section
+- [ ] Add appeal strategy recommendations
+- [ ] Generate 80-120 page reports
+- [ ] Test report generation for all property types
+
+## Phase 13: User-Advocating Evaluation AI
+- [ ] Create system prompt for user-advocating AI
+- [ ] Build evaluation that prioritizes user's position
+- [ ] Implement aggressive comparable sales analysis
+- [ ] Create market data interpretation favoring user
+- [ ] Build assessment challenge arguments
+- [ ] Generate county-specific appeal strategies
+- [ ] Create hearing preparation guidance
+- [ ] Implement pro se filing tips and tactics
+- [ ] Test evaluations for all property types and scenarios
+
+## Phase 14: Integration & Testing
+- [ ] Integrate SMS with appeal status updates
+- [ ] Connect scoring to report recommendations
+- [ ] Link deadline calendar to SMS reminders
+- [ ] Embed photo analysis in reports
+- [ ] Test end-to-end workflow
+- [ ] Verify all 13 counties work correctly
+- [ ] Test all property types
+- [ ] Performance testing (report generation time)
+- [ ] Security testing (photo upload, data handling)
+- [ ] User acceptance testing
+
+## Phase 15: Checkpoint & Delivery
+- [ ] Final code review and cleanup
+- [ ] Update documentation
+- [ ] Create deployment guide
+- [ ] Save final checkpoint
+- [ ] Prepare user handoff
