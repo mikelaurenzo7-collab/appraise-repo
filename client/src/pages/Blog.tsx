@@ -3,112 +3,8 @@ import { Link } from "wouter";
 import { ArrowRight, Search, Calendar, User, Tag, BookOpen, TrendingUp, Clock } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-
-interface BlogPost {
-  id: string;
-  title: string;
-  excerpt: string;
-  content: string;
-  category: "state-guide" | "strategy" | "case-study" | "tips";
-  author: string;
-  date: string;
-  readTime: number;
-  tags: string[];
-  featured?: boolean;
-}
-
-const blogPosts: BlogPost[] = [
-  {
-    id: "california-appeal-guide",
-    title: "Complete Guide to California Property Tax Appeals",
-    excerpt: "Learn the Proposition 13 system and how to challenge your assessment in California.",
-    content: "California's Proposition 13 system limits property tax increases to 2% annually unless the property changes ownership.",
-    category: "state-guide",
-    author: "AppraiseAI Team",
-    date: "2026-04-15",
-    readTime: 8,
-    tags: ["California", "Prop 13", "Appeals"],
-    featured: true,
-  },
-  {
-    id: "texas-appeal-strategy",
-    title: "Texas Property Tax Appeals: County-by-County Strategies",
-    excerpt: "Navigate Texas's unique appraisal system and maximize your appeal success rate.",
-    content: "Texas allows homeowners to challenge assessments through the Appraisal Review Board (ARB).",
-    category: "state-guide",
-    author: "AppraiseAI Team",
-    date: "2026-04-14",
-    readTime: 10,
-    tags: ["Texas", "ARB", "Appeals"],
-    featured: true,
-  },
-  {
-    id: "comparable-sales-strategy",
-    title: "Winning Strategy: Using Comparable Sales to Challenge Your Assessment",
-    excerpt: "Master the sales comparison approach to build an unbeatable appeal case.",
-    content: "Comparable sales analysis is the most powerful tool for property tax appeals.",
-    category: "strategy",
-    author: "AppraiseAI Team",
-    date: "2026-04-13",
-    readTime: 7,
-    tags: ["Comparable Sales", "Valuation", "Evidence"],
-  },
-  {
-    id: "photo-evidence-guide",
-    title: "How to Photograph Your Property for Maximum Appeal Impact",
-    excerpt: "Professional photography techniques that strengthen your tax appeal case.",
-    content: "Photos are critical evidence in property tax appeals.",
-    category: "tips",
-    author: "AppraiseAI Team",
-    date: "2026-04-12",
-    readTime: 5,
-    tags: ["Photography", "Evidence", "Appeal Tips"],
-  },
-  {
-    id: "ny-assessment-challenge",
-    title: "New York Property Tax Assessment Challenges: A Complete Roadmap",
-    excerpt: "Navigate New York's complex assessment and STAR exemption systems.",
-    content: "New York's assessment system is unique with STAR exemptions and grievance procedures.",
-    category: "state-guide",
-    author: "AppraiseAI Team",
-    date: "2026-04-11",
-    readTime: 9,
-    tags: ["New York", "STAR", "Grievance"],
-  },
-  {
-    id: "cost-approach-valuation",
-    title: "Cost Approach Valuation: When and How to Use It",
-    excerpt: "Understand the cost approach method and when it strengthens your appeal.",
-    content: "The cost approach calculates value by adding land value to replacement cost.",
-    category: "strategy",
-    author: "AppraiseAI Team",
-    date: "2026-04-10",
-    readTime: 6,
-    tags: ["Cost Approach", "Valuation", "Strategy"],
-  },
-  {
-    id: "case-study-savings",
-    title: "Case Study: How We Saved $8,400/Year for an Austin Homeowner",
-    excerpt: "Real example of a successful appeal using comparable sales analysis.",
-    content: "This case study shows how AppraiseAI identified a $140,000 overassessment in Austin, TX.",
-    category: "case-study",
-    author: "AppraiseAI Team",
-    date: "2026-04-09",
-    readTime: 4,
-    tags: ["Austin", "Case Study", "Success"],
-  },
-  {
-    id: "appeal-deadline-calendar",
-    title: "2026 Property Tax Appeal Deadlines by State",
-    excerpt: "Never miss a deadline: Complete calendar of appeal filing deadlines nationwide.",
-    content: "Appeal deadlines vary by state and county.",
-    category: "tips",
-    author: "AppraiseAI Team",
-    date: "2026-04-08",
-    readTime: 3,
-    tags: ["Deadlines", "Calendar", "Important Dates"],
-  },
-];
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { blogPosts } from "@/data/blogPosts";
 
 const categories = [
   { value: "all", label: "All Articles" },
@@ -119,6 +15,11 @@ const categories = [
 ];
 
 export default function Blog() {
+  usePageMeta({
+    title: "Resources & Guides — Property Tax Appeal",
+    description: "State-by-state guides, appeal strategies, case studies, and tips for reducing your property tax bill.",
+    canonicalPath: "/blog",
+  });
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 

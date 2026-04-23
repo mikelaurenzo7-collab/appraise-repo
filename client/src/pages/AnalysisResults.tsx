@@ -28,6 +28,8 @@ import {
   computePipelineState,
   type PipelineStageState,
 } from "../../../shared/analysisProgress";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { AnalyticsEvent, track } from "@/lib/analytics";
 
 function ScoreGauge({ score }: { score: number }) {
   const color =
@@ -75,6 +77,12 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 export default function AnalysisResults() {
+  usePageMeta({
+    title: "Your Property Analysis",
+    description: "Instant AI-powered property appraisal, comparable sales, and appeal strength scoring.",
+    canonicalPath: "/analysis",
+    noindex: true,
+  });
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
@@ -90,6 +98,21 @@ export default function AnalysisResults() {
       return status === "pending" || status === "analyzing" ? 1500 : false;
     }}
   );
+
+  // Emit an analysis_viewed event once per completed analysis so we can
+  // attribute conversions to actual completion, not abandoned polling.
+  const [analysisViewTracked, setAnalysisViewTracked] = useState(false);
+  useEffect(() => {
+    if (analysisViewTracked) return;
+    const status = data?.submission?.status;
+    if (status && status !== "pending" && status !== "analyzing") {
+      track(AnalyticsEvent.AnalysisViewed, {
+        submissionId: submissionId ?? null,
+        status,
+      });
+      setAnalysisViewTracked(true);
+    }
+  }, [data, analysisViewTracked, submissionId]);
 
   if (!submissionId) {
     return (

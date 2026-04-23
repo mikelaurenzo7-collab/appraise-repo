@@ -143,12 +143,12 @@ export async function sendPaymentConfirmationEmail(data: PaymentConfirmationEmai
         <div style="background: #F8FAFC; padding: 40px 20px; border-radius: 0 0 12px 12px;">
           <p style="margin: 0 0 20px 0; color: #0F172A;">Hi ${data.userName},</p>
           <p style="margin: 0 0 20px 0; color: #64748B; line-height: 1.6;">
-            Thank you for choosing AppraiseAI to handle your property tax appeal for <strong>${data.propertyAddress}</strong>.
+            Thank you for using AppraiseAI to prepare and file your pro-se property tax appeal for <strong>${data.propertyAddress}</strong>.
           </p>
           <div style="background: white; border: 2px solid #10B981; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
               <div>
-                <div style="color: #94A3B8; font-size: 12px; font-weight: 600; text-transform: uppercase;">Contingency Fee (25%)</div>
+                <div style="color: #94A3B8; font-size: 12px; font-weight: 600; text-transform: uppercase;">Flat-fee filing</div>
                 <div style="font-size: 24px; font-weight: bold; color: #0F172A; margin-top: 4px;">$${(data.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </div>
               <div>
@@ -160,10 +160,10 @@ export async function sendPaymentConfirmationEmail(data: PaymentConfirmationEmai
           <div style="background: #F0F4FF; border-left: 4px solid #7C3AED; padding: 16px; margin: 20px 0; border-radius: 4px;">
             <p style="margin: 0; color: #0F172A; font-weight: 600;">What Happens Next:</p>
             <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #64748B;">
-              <li>Our team will file your appeal with the local assessor's office</li>
-              <li>You'll receive updates on your appeal status via email</li>
-              <li>We handle all communication and hearings on your behalf</li>
-              <li>You only pay if we win - this is just our contingency fee placeholder</li>
+              <li>We prepare your appeal packet and transmit it to the county on your behalf as a scrivener</li>
+              <li>You'll receive delivery confirmation (portal receipt, USPS tracking, or email) once it's filed</li>
+              <li>The county corresponds with <em>you</em> as the pro-se filer — we forward any notices we receive</li>
+              <li>60-day money-back guarantee: if your appeal is denied, we refund your fee on request</li>
             </ul>
           </div>
           <div style="text-align: center; margin: 30px 0;">

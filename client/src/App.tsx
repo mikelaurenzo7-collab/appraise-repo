@@ -15,27 +15,23 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ParalegalsDashboard from "./pages/ParalegalsDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import DeadlineCalendar from "./pages/DeadlineCalendar";
-import PortfolioDashboard from "./pages/PortfolioDashboard";
+import Portfolio from "./pages/Portfolio";
 import PaymentHistory from "./pages/PaymentHistory";
 import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 import Testimonials from "./pages/Testimonials";
 import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
 import ReportDownload from "./pages/ReportDownload";
 import FilingStatus from "./pages/FilingStatus";
-
 import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
 import LeadChatWidget from "./components/LeadChatWidget";
-import { useAuth } from "./_core/hooks/useAuth";
 
 function Router() {
-  const { isAuthenticated } = useAuth();
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path="/">
-        {isAuthenticated ? <UserDashboard /> : <Home />}
-      </Route>
+      <Route path="/" component={Home} />
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/tax-appeals" component={TaxAppeals} />
       <Route path="/pricing" component={Pricing} />
@@ -46,9 +42,12 @@ function Router() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/paralegals" component={ParalegalsDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
-      {/* Portfolio route removed - dashboard is now the primary hub */}
+      <Route path="/portfolio" component={Portfolio} />
       <Route path="/payments" component={PaymentHistory} />
       <Route path="/blog" component={Blog} />
+      <Route path="/blog/:id">
+        {(params) => <BlogPost id={params.id} />}
+      </Route>
       <Route path="/testimonials" component={Testimonials} />
       <Route path="/batch" component={BatchProcessing} />
       <Route path="/filing-status" component={FilingStatus} />

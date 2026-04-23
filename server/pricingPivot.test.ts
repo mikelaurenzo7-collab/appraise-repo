@@ -363,4 +363,45 @@ describe("payments.requestRefund", () => {
       })
     ).rejects.toThrow(/already pending/i);
   });
+
+  it("rejects a request outside the 60-day money-back guarantee window", async () => {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    mockGetSubmissionById.mockResolvedValueOnce({
+      id: 5,
+      email: "owner@example.com",
+      address: "1",
+      createdAt: ninetyDaysAgo,
+    } as any);
+    const router = await loadRouter();
+    const caller = router.createCaller(baseCtx({ user: normalUser }));
+    await expect(
+      caller.payments.requestRefund({
+        submissionId: 5,
+        reason: "Service was 90 days ago, trying to claim refund now.",
+        amountCents: 14900,
+      })
+    ).rejects.toThrow(/60-day money-back guarantee window has closed/i);
+  });
+
+  it("admins may bypass the 60-day window (policy-exception refunds)", async () => {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    mockGetSubmissionById.mockResolvedValueOnce({
+      id: 5,
+      email: "owner@example.com",
+      address: "1",
+      createdAt: ninetyDaysAgo,
+    } as any);
+    const router = await loadRouter();
+    const caller = router.createCaller(
+      baseCtx({
+        user: { ...normalUser, role: "admin" },
+      })
+    );
+    const result = await caller.payments.requestRefund({
+      submissionId: 5,
+      reason: "Admin out-of-policy refund for goodwill.",
+      amountCents: 14900,
+    });
+    expect((result as any).id).toBe(222);
+  });
 });

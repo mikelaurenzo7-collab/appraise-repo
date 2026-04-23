@@ -8,6 +8,7 @@ import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Clock, FileText, Shield, TrendingDown, Star, ChevronRight, MapPin, Zap, Scale, Building2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 // Animated counter hook
 function useCounter(target: number, duration: number = 2000, start: boolean = false) {
@@ -72,14 +73,14 @@ const steps = [
   {
     number: "03",
     icon: <FileText size={22} />,
-    title: "We File Your Appeal",
-    desc: "Sign a power of attorney (or go pro se). Our team prepares and files your property tax appeal with the local assessor's office.",
+    title: "We Prepare &amp; Transmit",
+    desc: "Review and sign a per-filing scrivener authorization. Our software prepares your pro-se appeal packet and transmits it to the county — portal, certified mail, or email, whichever the county accepts.",
   },
   {
     number: "04",
     icon: <TrendingDown size={22} />,
     title: "You Save Money",
-    desc: "We negotiate, attend hearings, and fight until your assessment is reduced. You pay nothing unless we win.",
+    desc: "The county corresponds with you as the pro-se filer. We forward any notices we receive. 60-day money-back guarantee if your assessment isn't reduced.",
   },
 ];
 
@@ -124,6 +125,11 @@ const testimonials = [
 ];
 
 export default function Home() {
+  usePageMeta({
+    title: "AppraiseAI — Property Tax Appeal Software",
+    description: "Software that prepares and files your pro-se property tax appeal nationwide. Flat fee. 60-day money-back guarantee.",
+    canonicalPath: "/",
+  });
   const statsSection = useScrollReveal();
   const howSection = useScrollReveal();
   const featuresSection = useScrollReveal();
