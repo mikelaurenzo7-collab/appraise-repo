@@ -397,7 +397,9 @@ export const appRouter = router({
           throw err;
         }
 
-        const llmMessages = buildLLMMessages(clean);
+        // Use paid mode if user is authenticated, free mode for public
+        const userMode = ctx.user ? "paid" : "free";
+        const llmMessages = buildLLMMessages(clean, userMode);
 
         let reply = "";
         try {
