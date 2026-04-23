@@ -292,17 +292,17 @@ export async function generateUserAdvocatingReport(
         
 Your analysis should be ${aggressivenessLevel}. Use every available fact to argue for a lower assessment.
 
-The report MUST include:
+The report should include:
 1. Executive Summary (1-2 pages) - compelling case for reduction
-2. Property Photos & Condition Assessment (5-10 pages) - ALWAYS include photos with annotations showing defects and cost-to-cure
-3. Comparable Sales Analysis (3-4 pages) - show property is over-assessed
+2. Property Photos & Condition Assessment (3-8 pages) - IF photos provided, include with annotations showing defects and cost-to-cure. If no photos, skip this section.
+3. Comparable Sales Analysis (3-5 pages) - show property is over-assessed
 4. Market Analysis (2-3 pages) - demonstrate market trends support lower value
-5. Valuation Justification (3-4 pages) - detailed explanation of why assessed value is wrong
-6. Supporting Evidence (1-2 pages) - list all documents and data
-7. Conclusion & Recommendations (1 page) - clear call to action
+5. Valuation Justification (4-6 pages) - detailed explanation of why assessed value is wrong
+6. Supporting Evidence (2-3 pages) - list all documents and data
+7. Conclusion & Recommendations (1-2 pages) - clear call to action
 
-MAXIMUM 70 PAGES TOTAL.
-Be specific, data-driven, and persuasive. Use professional language. ALWAYS include property photos with defect annotations.
+TARGET 50-60 PAGES (MAXIMUM 80 PAGES).
+Be specific, data-driven, and persuasive. Use professional language. Include property photos if provided.
 Format as detailed markdown that can be converted to PDF.`,
       },
       {
@@ -321,9 +321,9 @@ ${analysis.executiveSummary || ""}
 ${analysis.valuationJustification || ""}
 
 Photo Analysis Results:
-${photoAnalysisResults ? JSON.stringify(photoAnalysisResults, null, 2) : "No photos analyzed"}
+${photoAnalysisResults ? JSON.stringify(photoAnalysisResults, null, 2) : "No photos provided - generate text-only report"}
 
-Generate a comprehensive, persuasive report (MAX 70 PAGES) that maximizes the property owner's chances of winning their appeal. ALWAYS include property photos with defect annotations and cost-to-cure estimates.`,
+Generate a comprehensive, persuasive report (TARGET 50-60 PAGES, MAX 80 PAGES) that maximizes the property owner's chances of winning their appeal. Include property photos with defect annotations if provided. If no photos, focus on comparable sales and market analysis.`,
       },
     ],
   });
