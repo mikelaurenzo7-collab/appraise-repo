@@ -27,7 +27,7 @@ export interface CountyGuideData {
   acceptsEmail: boolean;
   acceptsMail: boolean;
   acceptsInPerson: boolean;
-  preferredChannel: "portal" | "mail_certified" | "mail_first_class" | "email";
+  preferredChannel: "portal" | "mail_certified" | "mail_first_class" | "email" | "unsupported";
   
   // Portal Details
   pinOnlyLogin: boolean;

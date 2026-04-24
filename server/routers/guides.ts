@@ -49,7 +49,7 @@ export const guidesRouter = router({
           filingWindowStart: matchedCounty.filingWindowStart || "01-01",
           filingWindowEnd: matchedCounty.filingWindowEnd || "12-31",
           hasOnlinePortal: matchedCounty.hasOnlinePortal || false,
-          portalUrl: matchedCounty.portalUrl,
+          portalUrl: matchedCounty.portalUrl || undefined,
           acceptsEmail: matchedCounty.acceptsEmail || false,
           acceptsMail: matchedCounty.acceptsMail || false,
           acceptsInPerson: matchedCounty.acceptsInPerson || false,
