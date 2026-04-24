@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { smsRouter } from "./routers/sms";
 import { appealsRouter } from "./routers/appeals";
 import { reportsRouter } from "./routers/reports";
+import { guidesRouter } from "./routers/guides";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
@@ -201,6 +202,7 @@ export const appRouter = router({
   sms: smsRouter,
   appeals: appealsRouter,
   reports: reportsRouter,
+  guides: guidesRouter,
 
   // ─── AUTH ────────────────────────────────────────────────────────────────
   auth: router({
