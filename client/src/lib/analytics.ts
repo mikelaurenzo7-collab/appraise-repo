@@ -1,5 +1,5 @@
 /**
- * Thin wrapper over the Umami global (loaded by index.html).
+ * Thin wrapper over the Umami global plus optional runtime bootstrapping.
  *
  * Umami exposes `window.umami.track(eventName, eventData?)`. When the
  * script is blocked (adblockers, env not configured, offline), calls are
@@ -14,6 +14,15 @@ type UmamiEventData = Record<string, string | number | boolean | null | undefine
 
 interface UmamiGlobal {
   track?: (eventName: string, eventData?: UmamiEventData) => void;
+}
+
+const ANALYTICS_SCRIPT_ID = "appraise-analytics";
+
+function getAnalyticsConfig() {
+  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT?.trim().replace(/\/+$/, "");
+  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID?.trim();
+  if (!endpoint || !websiteId) return null;
+  return { endpoint, websiteId };
 }
 
 declare global {
@@ -38,6 +47,21 @@ export const AnalyticsEvent = {
 } as const;
 
 export type AnalyticsEventName = (typeof AnalyticsEvent)[keyof typeof AnalyticsEvent];
+
+export function bootstrapAnalytics(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(ANALYTICS_SCRIPT_ID)) return;
+
+  const config = getAnalyticsConfig();
+  if (!config) return;
+
+  const script = document.createElement("script");
+  script.id = ANALYTICS_SCRIPT_ID;
+  script.defer = true;
+  script.src = `${config.endpoint}/umami`;
+  script.dataset.websiteId = config.websiteId;
+  document.head.appendChild(script);
+}
 
 export function track(event: AnalyticsEventName, data?: UmamiEventData): void {
   try {

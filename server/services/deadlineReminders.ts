@@ -18,6 +18,7 @@ import {
   filingJobs,
   propertySubmissions,
 } from "../../drizzle/schema";
+import { buildAppUrl } from "../_core/appUrl";
 import { getDb, persistActivityLog } from "../db";
 import { sendFilingDeadlineReminderEmail } from "../_core/emailService";
 
@@ -145,7 +146,6 @@ export async function sendPendingDeadlineReminders(opts: {
     }
 
     try {
-      const dashboardOrigin = process.env.PUBLIC_APP_URL || "https://appraise-ai.manus.space";
       const ok = await sendFilingDeadlineReminderEmail({
         userEmail: row.submissionEmail,
         userName: row.submissionEmail.split("@")[0],
@@ -153,7 +153,7 @@ export async function sendPendingDeadlineReminders(opts: {
         countyName: row.countyName ?? row.submissionCounty ?? "your county",
         daysRemaining,
         windowEndDate: endDate.toISOString(),
-        dashboardUrl: `${dashboardOrigin}/dashboard`,
+        dashboardUrl: buildAppUrl("/dashboard"),
       });
       if (ok) {
         result.sent += 1;

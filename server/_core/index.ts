@@ -61,6 +61,11 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
+  // Stripe + Lob webhooks must be registered before the JSON body parser so
+  // signature verification receives the original raw payload bytes.
+  registerStripeWebhook(app);
+  registerLobWebhook(app);
+
   // Liveness: cheap check that the Node process is responsive. Use this for
   // "is the pod alive" probes — no DB round-trip.
   app.get("/healthz", (_req, res) => {
@@ -94,10 +99,6 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // Stripe + Lob webhooks (must be before express.json middleware —
-  // signature verification needs the raw bytes).
-  registerStripeWebhook(app);
-  registerLobWebhook(app);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // Places autocomplete endpoint — public, so rate-limit per IP to prevent

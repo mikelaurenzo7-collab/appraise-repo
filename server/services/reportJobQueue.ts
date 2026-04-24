@@ -14,6 +14,7 @@ import {
   persistActivityLog,
   getSubmissionPhotos,
 } from "../db";
+import { buildAppUrl } from "../_core/appUrl";
 import { sendAnalysisConfirmationEmail, sendReportCompletionEmail } from "../_core/emailService";
 
 // Prevent duplicate concurrent jobs
@@ -171,8 +172,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
         minute: "2-digit",
       });
 
-      const appBaseUrl = process.env.APP_BASE_URL || "https://appraise-ai.manus.space";
-      const downloadPageUrl = `${appBaseUrl.replace(/\/+$/, "")}/report?jobId=${jobId}`;
+      const downloadPageUrl = buildAppUrl(`/report?jobId=${jobId}`);
 
       await sendReportCompletionEmail({
         userEmail: submission.email,

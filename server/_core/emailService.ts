@@ -1,4 +1,5 @@
 import { invokeLLM } from "./llm";
+import { buildAppUrl } from "./appUrl";
 
 export interface EmailTemplate {
   to: string;
@@ -109,7 +110,7 @@ export async function sendAnalysisConfirmationEmail(data: AnalysisConfirmationEm
             </ul>
           </div>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="https://appraise-ai.manus.space/analysis" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Your Analysis</a>
+            <a href="${buildAppUrl("/analysis")}" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Your Analysis</a>
           </div>
           <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
             Questions? Contact our support team at support@appraise-ai.com
@@ -167,7 +168,7 @@ export async function sendPaymentConfirmationEmail(data: PaymentConfirmationEmai
             </ul>
           </div>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="https://appraise-ai.manus.space/dashboard" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Track Your Appeal</a>
+            <a href="${buildAppUrl("/dashboard")}" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Track Your Appeal</a>
           </div>
           <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
             Questions? Contact our support team at support@appraise-ai.com
@@ -225,7 +226,7 @@ export async function sendAppealFiledEmail(data: AppealFiledEmail): Promise<bool
             </ul>
           </div>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="https://appraise-ai.manus.space/dashboard" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Appeal Status</a>
+            <a href="${buildAppUrl("/dashboard")}" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Appeal Status</a>
           </div>
           <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
             Questions? Contact our support team at support@appraise-ai.com
@@ -342,7 +343,7 @@ export async function sendAppealResultEmail(data: AppealResultEmail): Promise<bo
             </div>
           ` : ""}
           <div style="text-align: center; margin: 30px 0;">
-            <a href="https://appraise-ai.manus.space/dashboard" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Details</a>
+            <a href="${buildAppUrl("/dashboard")}" style="background: #7C3AED; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Details</a>
           </div>
           <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
             Questions? Contact our support team at support@appraise-ai.com
