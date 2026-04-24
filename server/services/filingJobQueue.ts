@@ -20,6 +20,7 @@ import {
   getPropertySubmissionById,
   updatePropertySubmission,
 } from "../db";
+import { buildAppUrl } from "../_core/appUrl";
 import { sendFilingSubmittedEmail } from "../_core/emailService";
 import { storagePut } from "../storage";
 import { dispatchFiling, resolveChannel } from "./deliveryDispatcher";
@@ -220,7 +221,6 @@ export async function processOnePendingJob(): Promise<boolean> {
         (err) => console.error("[FilingQueue] Failed to update submission status:", err)
       );
       try {
-        const dashboardOrigin = process.env.PUBLIC_APP_URL || "https://appraise-ai.manus.space";
         await sendFilingSubmittedEmail({
           userEmail: submission.email,
           userName: submission.email.split("@")[0],
@@ -235,7 +235,7 @@ export async function processOnePendingJob(): Promise<boolean> {
             ? dispatchResult.lobExpectedDeliveryDate.toISOString()
             : null,
           emailRecipient: dispatchResult.emailRecipient,
-          dashboardUrl: `${dashboardOrigin}/dashboard`,
+          dashboardUrl: buildAppUrl("/dashboard"),
         });
       } catch (err) {
         console.error("[FilingQueue] Failed to send filing confirmation email:", err);
