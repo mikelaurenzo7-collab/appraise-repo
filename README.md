@@ -46,8 +46,7 @@ corepack pnpm build
 
 ## Manus deployment notes
 
-- Set `PUBLIC_APP_URL` to the live Manus URL (or your custom domain). Server-generated links and emails use this value.
-- Set `VITE_PUBLIC_APP_URL` to the same origin if you want client-side metadata to reflect the production hostname at build time.
+- Set `PUBLIC_APP_URL` to the live Manus URL (or your custom domain). Server-generated links and emails use this value, with `APP_BASE_URL` and `VITE_PUBLIC_APP_URL` accepted as fallbacks.
 - Webhooks require raw request bodies, so keep the current server bootstrap order intact when editing middleware.
 - Manus storage/email/LLM integrations depend on `BUILT_IN_FORGE_API_URL` and `BUILT_IN_FORGE_API_KEY`.
 - Stripe and Lob webhooks must be configured in Manus with the deployed `/api/stripe/webhook` and `/api/lob/webhook` endpoints.
