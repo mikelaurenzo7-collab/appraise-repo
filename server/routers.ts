@@ -77,6 +77,8 @@ import {
 } from "./db";
 import { hashAuthorizationText } from "./services/filingRecipeEngine";
 import { queueFilingJob } from "./services/filingJobQueue";
+import { transcribeAudio } from "./_core/voiceTranscription";
+import { generateImage } from "./_core/imageGeneration";
 
 // Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
 // is missing (e.g. during tests or first-time local setup). The first payment
@@ -496,6 +498,65 @@ export const appRouter = router({
         }
 
         return { reply, leadCaptured, contact };
+      }),
+  }),
+
+  voice: router({
+    transcribe: protectedProcedure
+      .input(
+        z.object({
+          audioUrl: z.string().url(),
+          language: z.string().trim().min(2).max(12).optional(),
+          prompt: z.string().trim().min(1).max(2000).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const result = await transcribeAudio(input);
+        if ("error" in result) {
+          throw new TRPCError({
+            code: result.code === "SERVICE_ERROR" ? "PRECONDITION_FAILED" : "BAD_REQUEST",
+            message: result.details ? `${result.error}: ${result.details}` : result.error,
+            cause: result,
+          });
+        }
+        return result;
+      }),
+  }),
+
+  images: router({
+    generate: protectedProcedure
+      .input(
+        z.object({
+          prompt: z.string().trim().min(1).max(4000),
+          originalImages: z
+            .array(
+              z
+                .object({
+                  url: z.string().url().optional(),
+                  b64Json: z.string().min(1).optional(),
+                  mimeType: z.string().min(1).max(255).optional(),
+                })
+                .refine((image) => Boolean(image.url || image.b64Json), {
+                  message: "Each original image must include a URL or base64 payload",
+                })
+            )
+            .max(4)
+            .optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        try {
+          return await generateImage(input);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Image generation failed";
+          throw new TRPCError({
+            code: message.includes("BUILT_IN_FORGE_API_")
+              ? "PRECONDITION_FAILED"
+              : "INTERNAL_SERVER_ERROR",
+            message,
+            cause: error,
+          });
+        }
       }),
   }),
 
