@@ -463,3 +463,32 @@
 - [x] Free tier (filingMethod "none") correctly bypasses payment
 - [x] Owner and admin accounts correctly bypass payment
 - [x] All 302 tests passing, zero TypeScript errors
+
+## End-to-End Production Testing
+- [ ] Test live deployed site: submit real address, verify analysis runs
+- [ ] Verify payment gate appears for paid tier selection
+- [ ] Test Stripe checkout flow with test card
+- [ ] Verify report download works after payment
+- [ ] Test free tier bypasses payment correctly
+- [ ] Verify owner/admin bypass works on deployed site
+- [ ] Fix any issues found during E2E testing
+
+## Google API Integration (NEW)
+- [x] Create Google Cloud project API key (AppraiseAI) with 34 APIs enabled
+- [x] Enable Maps JavaScript API, Places API (New), Places API (legacy), Geocoding API
+- [x] Enable Custom Search API
+- [x] Create Custom Search Engine (cx: 06c73b3a603604594) with Zillow, Realtor, Redfin sites
+- [x] Set GOOGLE_MAPS_API_KEY, GOOGLE_CSE_API_KEY, GOOGLE_CSE_CX, VITE_GOOGLE_MAPS_API_KEY as secrets
+- [x] Add Google env vars to server/_core/env.ts
+- [x] Google Maps Geocoding API validated (working)
+- [ ] Google Custom Search API — waiting for propagation (403, check next session)
+- [ ] Upgrade address autocomplete to Google Places (replace current autocomplete)
+- [ ] Auto-fill county/city/state/zip from Google Places (remove manual county selection step)
+- [ ] Add Google Custom Search as data source in analysis pipeline
+- [ ] Fix Redfin region ID lookup bug (No region ID found for Naperville)
+- [ ] Check ReGRID API key status (401 error during E2E test)
+
+## E2E Test Findings
+- [x] Payment gate working correctly — "Complete Payment to Download Report" shown for Pro Se tier
+- [ ] All analysis values showing N/A — ATTOM 401 (expected, key deleted), ReGRID 401 (needs investigation), Redfin region ID lookup failed
+- [ ] RentCast returned data but assessed value / market value / sqft all N/A for test address
