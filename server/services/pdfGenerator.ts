@@ -7,6 +7,8 @@
 import PDFDocument from "pdfkit";
 import { nanoid } from "nanoid";
 import { storagePut } from "../storage";
+import https from "https";
+import http from "http";
 
 export interface AdjustmentGridEntry {
   compAddress: string;
@@ -126,6 +128,10 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
   const fullAddress = [data.address, data.city, data.state, data.zipCode]
     .filter(Boolean)
     .join(", ");
+
+  // Pre-fetch map images before entering the synchronous PDFKit Promise
+  const streetViewBuffer = data.streetViewUrl ? await fetchImageBuffer(data.streetViewUrl) : null;
+  const satelliteBuffer = data.satelliteImageUrl ? await fetchImageBuffer(data.satelliteImageUrl) : null;
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -273,6 +279,46 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       }
     }
 
+    // ─── PROPERTY IMAGERY ────────────────────────────────────────────────
+    // Use pre-fetched buffers (fetched before entering the synchronous Promise)
+    const preloadedImages: Array<{ label: string; buffer: Buffer | null }> = [
+      { label: "Street View", buffer: streetViewBuffer },
+      { label: "Aerial / Satellite View", buffer: satelliteBuffer },
+    ].filter((i) => i.buffer !== null);
+
+    if (preloadedImages.length > 0) {
+      const validImages = preloadedImages;
+      if (validImages.length > 0) {
+        curY = ensureSpace(doc, curY, 240, contentWidth);
+        curY = renderSectionHeader(doc, "PROPERTY LOCATION & IMAGERY", curY, contentWidth);
+
+        const imgW = validImages.length === 2
+          ? (contentWidth - 12) / 2   // side by side
+          : contentWidth;              // full width if only one
+        const imgH = Math.round(imgW * 0.5625); // 16:9 aspect ratio
+
+        for (let i = 0; i < validImages.length; i++) {
+          const { label, buffer } = validImages[i];
+          const xPos = validImages.length === 2
+            ? LEFT_MARGIN + i * (imgW + 12)
+            : LEFT_MARGIN;
+
+          try {
+            doc.image(buffer!, xPos, curY, { width: imgW, height: imgH });
+            // Caption below image
+            doc.fontSize(7).fillColor("#888888").font("Helvetica")
+              .text(label, xPos, curY + imgH + 3, { width: imgW, align: "center" });
+          } catch {
+            // If image fails to render, show placeholder text
+            doc.rect(xPos, curY, imgW, imgH).lineWidth(0.5).stroke(BORDER);
+            doc.fontSize(8).fillColor("#aaaaaa").font("Helvetica")
+              .text(label + " (unavailable)", xPos, curY + imgH / 2 - 6, { width: imgW, align: "center" });
+          }
+        }
+        curY += imgH + 20;
+      }
+    }
+
     // ─── COMPARABLE SALES ───────────────────────────────────────────────
     if (data.comparableSales && data.comparableSales.length > 0) {
       curY = ensureSpace(doc, curY, 100, contentWidth);
@@ -345,6 +391,25 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       );
 
     doc.end();
+  });
+}
+
+// ─── Image Fetch Helper ─────────────────────────────────────────────────────
+
+async function fetchImageBuffer(url: string): Promise<Buffer | null> {
+  return new Promise((resolve) => {
+    try {
+      const lib = url.startsWith("https") ? https : http;
+      lib.get(url, (res) => {
+        if (res.statusCode !== 200) { resolve(null); return; }
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => resolve(Buffer.concat(chunks)));
+        res.on("error", () => resolve(null));
+      }).on("error", () => resolve(null));
+    } catch {
+      resolve(null);
+    }
   });
 }
 
