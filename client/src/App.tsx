@@ -29,6 +29,7 @@ import LeadChatWidget from "./components/LeadChatWidget";
 import AppealScoring from "./pages/AppealScoring";
 import PhotoAnalysis from "./pages/PhotoAnalysis";
 import CountyGuides from "./pages/CountyGuides";
+import ReferralProgram from "./pages/ReferralProgram";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -60,6 +61,7 @@ function Router() {
       </Route>
       <Route path="/appeal-scoring" component={AppealScoring} />
       <Route path="/photo-analysis" component={PhotoAnalysis} />
+      <Route path="/referral" component={ReferralProgram} />
       <Route path="/county-guides" component={CountyGuides} />
       <Route path="/county-guides/:stateCode" component={CountyGuides} />
       <Route path="/county-guides/:stateCode/:countySlug" component={CountyGuides} />

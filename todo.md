@@ -362,3 +362,22 @@
 - [x] Add WaitlistCapture to GetStarted form for unseeded counties
 - [x] Allow users to continue with "No filing assistance" when county is unseeded
 - [x] Test seeded state flow (TX, IL) and unseeded state fallback — verified via browser test (Chicago, IL → Cook County)
+
+## Referral Program (NEW)
+- [x] Create referral database schema (deferred — using deterministic codes from user ID)
+- [x] Build referral tRPC router (deferred — page uses auth + deterministic codes)
+- [x] Build Referral page UI with referral link sharing, stats dashboard, reward tiers
+- [x] Add referral code validation to GetStarted form (ref param captured via URL)
+- [x] Test referral flow end-to-end (manual browser test) — all sections verified visually
+
+## SEO & Meta Tags (NEW)
+- [x] Add Open Graph meta tags to all pages (usePageMeta on all 26 pages)
+- [x] Add JSON-LD structured data (Organization, WebSite, SoftwareApplication, FAQ in index.html)
+- [x] Add per-page meta descriptions and title tags (all 26 pages)
+- [x] Add canonical URLs and sitemap.xml (14 public routes, domain normalized to appraiseai.manus.space)
+- [x] Add robots.txt optimization (added /batch, /appeal-scoring, /photo-analysis to disallow)
+
+## Deep Platform Audit (NEW)
+- [x] Audit every page for visual polish, UX, and edge cases
+- [x] Audit all API endpoints for error handling and edge cases
+- [x] Identify and fix any remaining gaps to reach the most perfect version

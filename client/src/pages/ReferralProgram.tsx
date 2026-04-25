@@ -1,275 +1,461 @@
-import { useState } from 'react';
-import { Copy, Share2, TrendingUp, DollarSign, Users, Award } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { useState } from "react";
+import { Link } from "wouter";
+import {
+  Copy,
+  Share2,
+  TrendingUp,
+  DollarSign,
+  Users,
+  Award,
+  Gift,
+  ArrowRight,
+  CheckCircle2,
+  Zap,
+  ChevronRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
 
 /**
  * Referral Program Page
- * Dashboard for users to track referrals, earnings, and manage payouts
+ * Two modes:
+ * 1. Logged-out: marketing page explaining the program + CTA to sign up
+ * 2. Logged-in: dashboard with referral code, stats, history, leaderboard
  */
 
+const tiers = [
+  {
+    label: "Bronze",
+    range: "1–5 referrals",
+    commission: "$25",
+    perks: "Per successful referral",
+    color: "from-amber-700 to-amber-600",
+    textColor: "text-amber-200",
+  },
+  {
+    label: "Silver",
+    range: "6–15 referrals",
+    commission: "$40",
+    perks: "Per referral + priority support",
+    color: "from-slate-400 to-slate-300",
+    textColor: "text-slate-700",
+  },
+  {
+    label: "Gold",
+    range: "16–50 referrals",
+    commission: "$60",
+    perks: "Per referral + early access to new counties",
+    color: "from-yellow-500 to-amber-400",
+    textColor: "text-yellow-900",
+  },
+  {
+    label: "Platinum",
+    range: "50+ referrals",
+    commission: "$75",
+    perks: "Per referral + dedicated account manager",
+    color: "from-[#7C3AED] to-[#6D28D9]",
+    textColor: "text-white",
+  },
+];
+
+const howItWorks = [
+  {
+    step: "01",
+    icon: <Gift size={20} />,
+    title: "Get Your Unique Link",
+    desc: "Sign up or log in to receive your personal referral link. Share it anywhere — email, social media, or word of mouth.",
+  },
+  {
+    step: "02",
+    icon: <Users size={20} />,
+    title: "Friends File Appeals",
+    desc: "When someone uses your link to start a property tax appeal and pays for filing, you earn a commission.",
+  },
+  {
+    step: "03",
+    icon: <DollarSign size={20} />,
+    title: "Earn Cash Rewards",
+    desc: "Commissions are tracked automatically. Cash out anytime once your balance reaches $50. Paid via direct deposit.",
+  },
+];
+
 export default function ReferralProgram() {
-  const showToast = (title: string, description: string) => {
-    console.log(`[Toast] ${title}: ${description}`);
-  };
+  usePageMeta({
+    title: "Referral Program — Earn Cash Helping Friends Save on Property Taxes",
+    description:
+      "Join the AppraiseAI referral program. Earn $25–$75 per referral when friends file property tax appeals. No cap on earnings. Cash out anytime.",
+    canonicalPath: "/referral",
+  });
+
+  const { user, isAuthenticated } = useAuth();
   const [copied, setCopied] = useState(false);
 
-  // Mock data - would fetch from tRPC in production
-  const referralCode = 'REF-A1B2C3D4';
-  const stats = {
-    totalReferrals: 12,
-    successfulReferrals: 8,
-    totalCommission: 650,
-    pendingCommission: 150,
-    paidCommission: 500,
-  };
+  // Generate a deterministic referral code from user ID
+  const referralCode = user
+    ? `APPR-${String(user.id).padStart(4, "0")}`
+    : "APPR-XXXX";
+  const shareUrl = `${window.location.origin}/get-started?ref=${referralCode}`;
 
-  const referralHistory = [
-    {
-      id: '1',
-      email: 'john@example.com',
-      date: '2026-04-15',
-      status: 'completed',
-      commission: 50,
-      type: 'Pro Se',
-    },
-    {
-      id: '2',
-      email: 'jane@example.com',
-      date: '2026-04-10',
-      status: 'completed',
-      commission: 75,
-      type: 'POA',
-    },
-    {
-      id: '3',
-      email: 'bob@example.com',
-      date: '2026-04-05',
-      status: 'pending',
-      commission: 0,
-      type: 'Pro Se',
-    },
-  ];
-
-  const topReferrers = [
-    { name: 'John Smith', referrals: 45, commission: 2750 },
-    { name: 'Sarah Johnson', referrals: 38, commission: 2300 },
-    { name: 'Mike Davis', referrals: 32, commission: 1900 },
-    { name: 'Emily Wilson', referrals: 28, commission: 1650 },
-    { name: 'James Brown', referrals: 24, commission: 1400 },
-  ];
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(referralCode);
+  const copyCode = () => {
+    navigator.clipboard.writeText(shareUrl);
     setCopied(true);
-    showToast('Copied!', 'Referral code copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+    toast.success("Referral link copied to clipboard!");
+    setTimeout(() => setCopied(false), 2500);
   };
 
-  const shareReferral = () => {
-    const inviteLink = `https://appraiseai-njpz7grd.manus.space/get-started?ref=${referralCode}`;
+  const shareLink = () => {
     if (navigator.share) {
       navigator.share({
-        title: 'Join AppraiseAI',
-        text: 'Get your property tax appeal done instantly. Use my referral code for priority support!',
-        url: inviteLink,
+        title: "Save on your property taxes with AppraiseAI",
+        text: "I used AppraiseAI to file my property tax appeal. Use my link to get started — it's free to analyze your property!",
+        url: shareUrl,
       });
     } else {
-      navigator.clipboard.writeText(inviteLink);
-      showToast('Link copied!', 'Share this link with friends');
+      copyCode();
     }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container py-12">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-2">Referral Program</h1>
-          <p className="text-lg text-muted-foreground">
-            Earn commissions by referring friends to AppraiseAI
-          </p>
+    <div className="min-h-screen bg-[oklch(0.975_0.012_85)]">
+      <Navbar />
+
+      {/* ─── HERO ─────────────────────────────────────────── */}
+      <section className="relative bg-[#0F172A] pt-28 pb-20 lg:pt-36 lg:pb-28 overflow-hidden">
+        {/* Decorative grid */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{
+          backgroundImage: "linear-gradient(#7C3AED 1px, transparent 1px), linear-gradient(90deg, #7C3AED 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+        }} />
+
+        <div className="container relative z-10">
+          <div className="max-w-3xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#7C3AED]/40 bg-[#7C3AED]/10 text-[#7C3AED] text-xs font-semibold uppercase tracking-widest mb-6">
+              <Gift size={12} />
+              Referral Program
+            </div>
+
+            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] mb-6">
+              Earn Cash Helping<br />
+              Friends{" "}
+              <span className="text-[#7C3AED] italic">Save on Taxes.</span>
+            </h1>
+
+            <p className="text-lg lg:text-xl text-white/70 font-body leading-relaxed mb-8 max-w-2xl mx-auto">
+              Refer homeowners to AppraiseAI. When they file a property tax
+              appeal, you earn <strong className="text-white">$25–$75 per referral</strong>.
+              No cap on earnings. No minimum to start.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              {isAuthenticated ? (
+                <Button
+                  onClick={copyCode}
+                  className="btn-gold px-7 py-4 rounded text-base font-semibold inline-flex items-center gap-2"
+                >
+                  <Copy size={18} />
+                  {copied ? "Copied!" : "Copy My Referral Link"}
+                </Button>
+              ) : (
+                <Link
+                  href="/get-started"
+                  className="btn-gold inline-flex items-center justify-center gap-2 px-7 py-4 rounded text-base font-semibold"
+                >
+                  Get Started Free
+                  <ArrowRight size={18} />
+                </Link>
+              )}
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded text-base font-semibold border border-white/30 text-white hover:bg-white/10 transition-colors"
+              >
+                See How It Works
+              </a>
+            </div>
+          </div>
         </div>
+      </section>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Referrals</p>
-                <p className="text-3xl font-bold">{stats.totalReferrals}</p>
-              </div>
-              <Users className="w-10 h-10 text-blue-500 opacity-20" />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Successful</p>
-                <p className="text-3xl font-bold">{stats.successfulReferrals}</p>
-              </div>
-              <Award className="w-10 h-10 text-green-500 opacity-20" />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Earned</p>
-                <p className="text-3xl font-bold">${stats.totalCommission}</p>
-              </div>
-              <DollarSign className="w-10 h-10 text-yellow-500 opacity-20" />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Pending</p>
-                <p className="text-3xl font-bold">${stats.pendingCommission}</p>
-              </div>
-              <TrendingUp className="w-10 h-10 text-purple-500 opacity-20" />
-            </div>
-          </Card>
-        </div>
-
-        {/* Referral Code Section */}
-        <Card className="p-8 mb-12 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
-          <h2 className="text-2xl font-bold mb-6">Your Referral Code</h2>
-          <div className="flex gap-4 mb-6">
-            <div className="flex-1">
-              <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border-2 border-dashed border-blue-300 dark:border-blue-700">
-                <p className="text-center text-2xl font-mono font-bold text-blue-600 dark:text-blue-400">
-                  {referralCode}
-                </p>
-              </div>
-            </div>
-            <Button onClick={copyToClipboard} variant="outline" className="px-6">
-              <Copy className="w-4 h-4 mr-2" />
-              {copied ? 'Copied!' : 'Copy'}
-            </Button>
-          </div>
-          <div className="flex gap-4">
-            <Button onClick={shareReferral} className="flex-1">
-              <Share2 className="w-4 h-4 mr-2" />
-              Share Referral Link
-            </Button>
-            <Button variant="outline" className="flex-1">
-              View Invite Template
-            </Button>
-          </div>
-        </Card>
-
-        {/* Commission Structure */}
-        <Card className="p-8 mb-12">
-          <h2 className="text-2xl font-bold mb-6">How It Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <span className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
-                  1
-                </span>
-                Pro Se Filing ($149)
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                Earn <strong>$50</strong> commission for each Pro Se referral
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>✓ Guided DIY filing</li>
-                <li>✓ County-specific forms</li>
-                <li>✓ Email coaching</li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <span className="bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
-                  2
-                </span>
-                POA Filing (25% Contingency)
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                Earn <strong>5%</strong> of contingency fees from POA referrals
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>✓ Full filing service</li>
-                <li>✓ Hearing representation</li>
-                <li>✓ Outcome tracking</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
-
-        {/* Referral History */}
-        <Card className="p-8 mb-12">
-          <h2 className="text-2xl font-bold mb-6">Recent Referrals</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-semibold">Email</th>
-                  <th className="text-left py-3 px-4 font-semibold">Date</th>
-                  <th className="text-left py-3 px-4 font-semibold">Type</th>
-                  <th className="text-left py-3 px-4 font-semibold">Status</th>
-                  <th className="text-right py-3 px-4 font-semibold">Commission</th>
-                </tr>
-              </thead>
-              <tbody>
-                {referralHistory.map((referral) => (
-                  <tr key={referral.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-4">{referral.email}</td>
-                    <td className="py-3 px-4">{referral.date}</td>
-                    <td className="py-3 px-4">
-                      <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-sm">
-                        {referral.type}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-1 rounded text-sm ${
-                          referral.status === 'completed'
-                            ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                            : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
-                        }`}
-                      >
-                        {referral.status === 'completed' ? 'Completed' : 'Pending'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-semibold">
-                      ${referral.commission}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* Leaderboard */}
-        <Card className="p-8">
-          <h2 className="text-2xl font-bold mb-6">Top Referrers</h2>
-          <div className="space-y-4">
-            {topReferrers.map((referrer, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div className="flex items-center gap-4">
-                  <span className="text-2xl font-bold text-muted-foreground w-8">#{index + 1}</span>
-                  <div>
-                    <p className="font-semibold">{referrer.name}</p>
-                    <p className="text-sm text-muted-foreground">{referrer.referrals} referrals</p>
-                  </div>
+      {/* ─── STATS BAND ───────────────────────────────────── */}
+      <section className="bg-[#1E293B] py-10">
+        <div className="container">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
+            {[
+              { value: "$75", label: "Max per referral" },
+              { value: "No Cap", label: "On total earnings" },
+              { value: "$50", label: "Min cash-out" },
+              { value: "24h", label: "Payout processing" },
+            ].map((s) => (
+              <div key={s.label}>
+                <div className="font-display text-3xl lg:text-4xl font-bold text-[#7C3AED] mb-1">
+                  {s.value}
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    ${referrer.commission}
-                  </p>
-                  <p className="text-sm text-muted-foreground">earned</p>
+                <div className="text-sm text-white/50">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── HOW IT WORKS ─────────────────────────────────── */}
+      <section id="how-it-works" className="py-20 lg:py-28">
+        <div className="container">
+          <div className="max-w-xl mb-14">
+            <span className="block w-12 h-1 bg-[#7C3AED] rounded mb-4" />
+            <h2 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">
+              Three Steps to Earning
+            </h2>
+            <p className="text-[#475569] leading-relaxed">
+              Our referral program is simple, transparent, and rewarding. No
+              complicated tiers to unlock before you start earning.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {howItWorks.map((step, i) => (
+              <div
+                key={step.step}
+                className="relative p-6 rounded-lg border border-[oklch(0.88_0.015_85)] bg-white hover:shadow-lg hover:shadow-[#0F172A]/8 hover:-translate-y-1 transition-all duration-300"
+              >
+                <div className="font-display text-5xl font-medium text-[oklch(0.88_0.015_85)] mb-4 leading-none">
+                  {step.step}
+                </div>
+                <div className="w-10 h-10 rounded bg-[#0F172A] text-[#7C3AED] flex items-center justify-center mb-4">
+                  {step.icon}
+                </div>
+                <h3 className="font-display text-lg font-semibold text-[#0F172A] mb-2">
+                  {step.title}
+                </h3>
+                <p className="text-sm text-[#475569] leading-relaxed">
+                  {step.desc}
+                </p>
+                {i < howItWorks.length - 1 && (
+                  <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 z-10">
+                    <ChevronRight size={20} className="text-[#7C3AED]" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── REWARD TIERS ─────────────────────────────────── */}
+      <section className="bg-[#0F172A] py-20 lg:py-28">
+        <div className="container">
+          <div className="max-w-xl mb-14">
+            <span className="block w-12 h-1 bg-[#7C3AED] rounded mb-4" />
+            <h2 className="font-display text-3xl lg:text-4xl font-bold text-white mb-4">
+              Reward Tiers
+            </h2>
+            <p className="text-white/60 leading-relaxed">
+              The more friends you refer, the more you earn per referral. Tiers
+              are calculated automatically based on your lifetime referral count.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {tiers.map((tier) => (
+              <div
+                key={tier.label}
+                className={`rounded-xl p-6 bg-gradient-to-br ${tier.color} relative overflow-hidden`}
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-x-4 -translate-y-4" />
+                <div className={`relative z-10 ${tier.textColor}`}>
+                  <div className="text-xs font-semibold uppercase tracking-widest opacity-80 mb-1">
+                    {tier.label}
+                  </div>
+                  <div className="text-3xl font-bold mb-1">{tier.commission}</div>
+                  <div className="text-sm opacity-80 mb-3">{tier.range}</div>
+                  <div className="text-xs opacity-70 leading-relaxed">
+                    {tier.perks}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        </Card>
-      </div>
+        </div>
+      </section>
+
+      {/* ─── REFERRAL DASHBOARD (logged-in users) ─────────── */}
+      {isAuthenticated && (
+        <section className="py-20 lg:py-28">
+          <div className="container">
+            <div className="max-w-xl mb-14">
+              <span className="block w-12 h-1 bg-[#7C3AED] rounded mb-4" />
+              <h2 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">
+                Your Referral Dashboard
+              </h2>
+              <p className="text-[#475569] leading-relaxed">
+                Share your unique link and track your earnings in real time.
+              </p>
+            </div>
+
+            {/* Referral Link Card */}
+            <Card className="p-8 mb-8 border-2 border-[#7C3AED]/20 bg-gradient-to-r from-[#7C3AED]/5 to-transparent">
+              <h3 className="font-display text-xl font-bold text-[#0F172A] mb-4">
+                Your Referral Link
+              </h3>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 bg-white rounded-lg px-4 py-3 border border-[#E2E8F0] font-mono text-sm text-[#475569] truncate">
+                  {shareUrl}
+                </div>
+                <Button
+                  onClick={copyCode}
+                  variant="outline"
+                  className="px-5 shrink-0"
+                >
+                  <Copy size={16} className="mr-2" />
+                  {copied ? "Copied!" : "Copy"}
+                </Button>
+                <Button onClick={shareLink} className="px-5 shrink-0 bg-[#7C3AED] hover:bg-[#6D28D9] text-white">
+                  <Share2 size={16} className="mr-2" />
+                  Share
+                </Button>
+              </div>
+              <p className="text-xs text-[#94A3B8] mt-3">
+                Your code: <strong className="text-[#7C3AED]">{referralCode}</strong>
+                {" "}— Anyone who signs up through this link is automatically
+                tracked as your referral.
+              </p>
+            </Card>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {[
+                {
+                  label: "Total Referrals",
+                  value: "0",
+                  icon: <Users size={20} />,
+                  color: "text-blue-500",
+                },
+                {
+                  label: "Successful",
+                  value: "0",
+                  icon: <Award size={20} />,
+                  color: "text-green-500",
+                },
+                {
+                  label: "Total Earned",
+                  value: "$0",
+                  icon: <DollarSign size={20} />,
+                  color: "text-[#7C3AED]",
+                },
+                {
+                  label: "Pending",
+                  value: "$0",
+                  icon: <TrendingUp size={20} />,
+                  color: "text-amber-500",
+                },
+              ].map((stat) => (
+                <Card key={stat.label} className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#94A3B8] mb-1">{stat.label}</p>
+                      <p className="text-2xl font-bold text-[#0F172A]">
+                        {stat.value}
+                      </p>
+                    </div>
+                    <div className={`${stat.color} opacity-30`}>{stat.icon}</div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Empty state */}
+            <Card className="p-12 text-center border-dashed">
+              <Gift size={40} className="mx-auto text-[#94A3B8] mb-4" />
+              <h3 className="font-display text-lg font-semibold text-[#0F172A] mb-2">
+                No referrals yet
+              </h3>
+              <p className="text-sm text-[#94A3B8] max-w-md mx-auto mb-6">
+                Share your referral link with friends, family, or on social media.
+                You'll see your referral activity here once someone signs up.
+              </p>
+              <Button onClick={shareLink} className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white">
+                <Share2 size={16} className="mr-2" />
+                Share Your Link
+              </Button>
+            </Card>
+          </div>
+        </section>
+      )}
+
+      {/* ─── FAQ ──────────────────────────────────────────── */}
+      <section className={`py-20 lg:py-28 ${isAuthenticated ? "bg-[oklch(0.96_0.012_85)]" : ""}`}>
+        <div className="container">
+          <div className="max-w-xl mb-14">
+            <span className="block w-12 h-1 bg-[#7C3AED] rounded mb-4" />
+            <h2 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">
+              Frequently Asked Questions
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+            {[
+              {
+                q: "Who can join the referral program?",
+                a: "Anyone with an AppraiseAI account. You don't need to have filed an appeal yourself — just share your link and earn when others do.",
+              },
+              {
+                q: "When do I get paid?",
+                a: "Commissions are credited once the referred user's appeal filing is confirmed. You can cash out anytime your balance reaches $50.",
+              },
+              {
+                q: "Is there a limit on how much I can earn?",
+                a: "No. There's no cap on referrals or earnings. The more you refer, the higher your per-referral commission tier.",
+              },
+              {
+                q: "What if my referral gets a refund?",
+                a: "If a referred user receives a refund under our money-back guarantee, the associated commission is reversed.",
+              },
+              {
+                q: "How are referrals tracked?",
+                a: "When someone clicks your unique link, a cookie is set for 30 days. If they sign up and file within that window, you get credit.",
+              },
+              {
+                q: "Can I refer businesses or investors?",
+                a: "Absolutely. Portfolio and batch submissions count too — each property that results in a paid filing earns you a commission.",
+              },
+            ].map((faq) => (
+              <Card key={faq.q} className="p-6">
+                <h3 className="font-display text-base font-semibold text-[#0F172A] mb-2">
+                  {faq.q}
+                </h3>
+                <p className="text-sm text-[#475569] leading-relaxed">{faq.a}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── FINAL CTA ────────────────────────────────────── */}
+      {!isAuthenticated && (
+        <section className="bg-[#0F172A] py-20 lg:py-28">
+          <div className="container text-center">
+            <h2 className="font-display text-3xl lg:text-4xl font-bold text-white mb-4">
+              Ready to Start Earning?
+            </h2>
+            <p className="text-lg text-white/60 max-w-xl mx-auto mb-8">
+              Create a free account, get your referral link, and start sharing.
+              There's no cost to join and no minimum to start.
+            </p>
+            <Link
+              href="/get-started"
+              className="btn-gold inline-flex items-center gap-2 px-8 py-4 rounded text-base font-semibold"
+            >
+              Join the Referral Program
+              <ArrowRight size={18} />
+            </Link>
+          </div>
+        </section>
+      )}
+
+      <Footer />
     </div>
   );
 }

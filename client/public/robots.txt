@@ -12,6 +12,9 @@ Disallow: /filing-status
 Disallow: /report
 Disallow: /appeal-workflow
 Disallow: /analysis
+Disallow: /batch
+Disallow: /appeal-scoring
+Disallow: /photo-analysis
 Disallow: /api/
 
-Sitemap: https://appraise-ai.manus.space/sitemap.xml
+Sitemap: https://appraiseai.manus.space/sitemap.xml

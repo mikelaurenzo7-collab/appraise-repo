@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, Download, Plus } from "lucide-react";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -16,6 +17,7 @@ interface BatchFile {
 }
 
 export default function BatchProcessing() {
+  usePageMeta({ title: "Batch Processing", description: "Upload multiple properties for batch analysis and appeal filing.", canonicalPath: "/batch", noindex: true });
   const [files, setFiles] = useState<BatchFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);

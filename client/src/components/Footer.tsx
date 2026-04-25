@@ -49,6 +49,7 @@ export default function Footer() {
               <li><Link href="/how-it-works" className="hover:text-[#7C3AED] transition-colors">Automated Online Filing</Link></li>
               <li><Link href="/pricing" className="hover:text-[#7C3AED] transition-colors">Flat-Fee Pricing</Link></li>
               <li><Link href="/deadlines" className="hover:text-[#7C3AED] transition-colors">Filing Deadlines</Link></li>
+              <li><Link href="/county-guides" className="hover:text-[#7C3AED] transition-colors">County Guides</Link></li>
             </ul>
           </div>
 
@@ -61,6 +62,7 @@ export default function Footer() {
               <li><Link href="/pricing" className="hover:text-[#7C3AED] transition-colors">Pricing</Link></li>
               <li><Link href="/blog" className="hover:text-[#7C3AED] transition-colors">Blog</Link></li>
               <li><Link href="/testimonials" className="hover:text-[#7C3AED] transition-colors">Testimonials</Link></li>
+              <li><Link href="/referral" className="hover:text-[#7C3AED] transition-colors">Referral Program</Link></li>
             </ul>
           </div>
 
