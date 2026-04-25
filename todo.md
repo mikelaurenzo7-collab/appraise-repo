@@ -355,3 +355,10 @@
 - [x] Test report generation with multiple property types (residential, multi-family, commercial, industrial)
 - [x] Ensure consistent formatting across all reports (fonts, colors, spacing, page breaks)
 - [x] Add quality control checks before report delivery (validate all sections present, page count, file size)
+
+## County Expansion & Unseeded County Fallback
+- [x] Seed 200+ high-population US counties covering all 50 states (203 counties across all 50 states + DC)
+- [x] Fix GetStarted form to show graceful fallback when no counties exist for a state
+- [x] Add WaitlistCapture to GetStarted form for unseeded counties
+- [x] Allow users to continue with "No filing assistance" when county is unseeded
+- [x] Test seeded state flow (TX, IL) and unseeded state fallback — verified via browser test (Chicago, IL → Cook County)

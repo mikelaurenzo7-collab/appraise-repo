@@ -23,6 +23,8 @@ import {
   Mail,
   Phone,
   ChevronRight,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -31,6 +33,43 @@ import { trpc } from "@/lib/trpc";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { AnalyticsEvent, track } from "@/lib/analytics";
+
+// US state abbreviation map for auto-detection from address
+const STATE_ABBREVS: Record<string, string> = {
+  'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+  'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+  'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+  'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+  'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+  'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+  'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+  'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+  'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+  'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+  'district of columbia': 'DC',
+};
+const ALL_STATE_CODES = ['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+
+function detectStateFromAddress(addr: string): string | null {
+  const upper = addr.toUpperCase().trim();
+  // Try 2-letter state code match (e.g. ", IL " or ", IL\d")
+  for (const code of ALL_STATE_CODES) {
+    const patterns = [
+      new RegExp(`,\\s*${code}\\s+\\d`),
+      new RegExp(`,\\s*${code}\\s*$`),
+      new RegExp(`,\\s*${code},`),
+    ];
+    for (const p of patterns) {
+      if (p.test(upper)) return code;
+    }
+  }
+  // Try full state name
+  const lower = addr.toLowerCase();
+  for (const [name, code] of Object.entries(STATE_ABBREVS)) {
+    if (lower.includes(name)) return code;
+  }
+  return null;
+}
 
 const PROPERTY_TYPES = [
   { value: "residential", label: "Residential", icon: <HomeIcon size={20} />, desc: "Single-family home, condo, townhouse" },
@@ -126,7 +165,25 @@ export default function GetStarted() {
 
   // Get high-impact states
   const statesQuery = trpc.counties.getHighImpactStates.useQuery();
-  const [selectedState, setSelectedState] = useState("TX");
+  const [selectedState, setSelectedState] = useState("");
+  const [waitlistEmail, setWaitlistEmail] = useState("");
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+
+  // Auto-detect state from address when moving to step 2
+  useEffect(() => {
+    if (step === 2 && address) {
+      const detected = detectStateFromAddress(address);
+      if (detected) {
+        setSelectedState(detected);
+        setSelectedCountyId(null);
+        return;
+      }
+    }
+    // Fallback: if no detection and no state selected, pick first available
+    if (step === 2 && !selectedState && statesQuery.data?.length) {
+      setSelectedState(statesQuery.data[0].code);
+    }
+  }, [step, address, statesQuery.data]);
   
   // Get counties for selected state
   const countiesQuery = trpc.counties.listCountiesByState.useQuery(
@@ -377,18 +434,27 @@ export default function GetStarted() {
                       onChange={(e) => {
                         setSelectedState(e.target.value);
                         setSelectedCountyId(null);
+                        setWaitlistSubmitted(false);
                       }}
                       className="col-span-full px-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
                     >
+                      {!selectedState && <option value="">Select your state...</option>}
                       {statesQuery.data?.map((state: any) => (
                         <option key={state.code} value={state.code}>
-                          {state.name} ({state.code})
+                          {state.name} ({state.code}) — {state.countyCount} {state.countyCount === 1 ? 'county' : 'counties'}
                         </option>
                       ))}
                     </select>
 
                     {/* County selector */}
-                    {countiesQuery.data && countiesQuery.data.length > 0 ? (
+                    {countiesQuery.isLoading ? (
+                      <div className="col-span-full text-sm text-[#64748B] text-center py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin" />
+                          Loading counties...
+                        </div>
+                      </div>
+                    ) : countiesQuery.data && countiesQuery.data.length > 0 ? (
                       countiesQuery.data.map((county: any) => (
                         <button
                           key={county.id}
@@ -405,8 +471,49 @@ export default function GetStarted() {
                         </button>
                       ))
                     ) : (
-                      <div className="col-span-full text-sm text-[#64748B] text-center py-4">
-                        Loading counties...
+                      /* No counties for this state — graceful fallback */
+                      <div className="col-span-full rounded-lg border-2 border-amber-200 bg-amber-50 p-5">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="font-semibold text-sm text-[#0F172A] mb-1">
+                              Filing not yet available in {selectedState}
+                            </h4>
+                            <p className="text-xs text-[#64748B] leading-relaxed mb-3">
+                              We're actively expanding to new jurisdictions. You can still get your <strong>free AI appraisal analysis</strong> — it works nationwide. We'll notify you the moment filing opens in your area.
+                            </p>
+                            {!waitlistSubmitted ? (
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFilingMethod("none");
+                                    setSelectedCountyId(null);
+                                    toast.success("Switched to Analysis Only — no commitment, full report included.");
+                                  }}
+                                  className="px-3 py-1.5 rounded bg-[#7C3AED] text-white text-xs font-semibold hover:bg-[#6D28D9] transition-colors"
+                                >
+                                  Continue with Free Analysis
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setWaitlistSubmitted(true);
+                                    toast.success(`You'll be notified when filing opens in ${selectedState}!`);
+                                  }}
+                                  className="px-3 py-1.5 rounded border border-[#E2E8F0] text-[#64748B] text-xs font-semibold hover:bg-[#F1F5F9] transition-colors flex items-center gap-1"
+                                >
+                                  <Clock size={12} /> Notify Me When Available
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs text-green-700 font-medium">
+                                <CheckCircle2 size={14} />
+                                You're on the waitlist! We'll email you at {email || "your address"} when filing opens.
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

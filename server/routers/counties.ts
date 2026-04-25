@@ -13,6 +13,7 @@ import {
   getCountyEligibility,
   addWaitlistEntry,
   persistActivityLog,
+  getDistinctStates,
 } from "../db";
 
 export const countiesRouter = router({
@@ -70,21 +71,28 @@ export const countiesRouter = router({
     }),
 
   /**
-   * List all high-impact states
+   * List all states that have seeded counties (dynamic from DB)
    */
-  getHighImpactStates: publicProcedure.query(() => {
-    return [
-      { code: "TX", name: "Texas", taxRate: 2.4 },
-      { code: "IL", name: "Illinois", taxRate: 2.2 },
-      { code: "NJ", name: "New Jersey", taxRate: 2.1 },
-      { code: "CT", name: "Connecticut", taxRate: 2.0 },
-      { code: "WI", name: "Wisconsin", taxRate: 1.8 },
-      { code: "OH", name: "Ohio", taxRate: 1.5 },
-      { code: "PA", name: "Pennsylvania", taxRate: 1.5 },
-      { code: "CA", name: "California", taxRate: 0.8 },
-      { code: "NY", name: "New York", taxRate: 1.8 },
-      { code: "FL", name: "Florida", taxRate: 0.8 },
-    ];
+  getHighImpactStates: publicProcedure.query(async () => {
+    const STATE_NAMES: Record<string, string> = {
+      AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+      CO: "Colorado", CT: "Connecticut", DC: "District of Columbia", DE: "Delaware",
+      FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+      IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+      ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota",
+      MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
+      NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
+      NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon",
+      PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota",
+      TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia",
+      WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+    };
+    const states = await getDistinctStates();
+    return states.map(s => ({
+      code: s.code,
+      name: STATE_NAMES[s.code] || s.code,
+      countyCount: s.count,
+    }));
   }),
 
   /**

@@ -564,6 +564,26 @@ export async function getCountyById(id: number): Promise<County | null> {
   }
 }
 
+/** Return all distinct states that have at least one county seeded, with county count */
+export async function getDistinctStates(): Promise<{ code: string; count: number }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        code: counties.state,
+        count: sql<number>`count(*)`,
+      })
+      .from(counties)
+      .groupBy(counties.state)
+      .orderBy(counties.state);
+    return rows.map(r => ({ code: r.code, count: Number(r.count) }));
+  } catch (error) {
+    console.error("[County] Failed to get distinct states:", error);
+    return [];
+  }
+}
+
 export async function listCountiesByState(state: string): Promise<County[]> {
   const db = await getDb();
   if (!db) return [];
