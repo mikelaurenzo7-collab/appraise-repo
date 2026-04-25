@@ -57,7 +57,7 @@ const FILING_METHODS = [
     icon: <FileText size={20} />,
     desc: "You file yourself. We prepare all documents, coach you through the process, and support you at the hearing.",
     badge: "DIY + Support",
-    price: "$149",
+    price: "$99",
     priceDesc: "One-time fee",
     badgeColor: "bg-[#0F172A] text-white",
   },

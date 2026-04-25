@@ -278,8 +278,9 @@ export const appRouter = router({
             message: "Your address has been received. AI analysis is running now.",
           };
         } catch (error) {
-          console.error("[Properties] Error submitting address:", error);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to submit your address. Please try again." });
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error("[Properties] Error submitting address:", errorMsg, error);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to submit address: ${errorMsg}` });
         }
       }),
 
