@@ -2,8 +2,14 @@ import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Shield, Scale, Clock, DollarSign } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function TaxAppeals() {
+  usePageMeta({
+    title: "Property Tax Appeals — AppraiseAI",
+    description: "File your own property tax appeal pro se with AppraiseAI’s automated filing software. Flat fee, 60-day money-back guarantee.",
+    canonicalPath: "/tax-appeals",
+  });
   return (
     <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />

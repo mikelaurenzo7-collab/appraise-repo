@@ -6,6 +6,7 @@ import { Link } from "wouter";
 import { ArrowRight, MapPin, Zap, FileText, TrendingDown, CheckCircle2, Clock, Shield, Scale, Brain, BarChart3, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const phases = [
   {
@@ -71,6 +72,11 @@ const faqs = [
 ];
 
 export default function HowItWorks() {
+  usePageMeta({
+    title: "How It Works — AppraiseAI",
+    description: "From your first address search to a confirmed tax reduction. See exactly how AppraiseAI’s AI appraisal and automated filing process works.",
+    canonicalPath: "/how-it-works",
+  });
   return (
     <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />

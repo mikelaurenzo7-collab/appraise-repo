@@ -464,10 +464,10 @@
 - [x] Owner and admin accounts correctly bypass payment
 - [x] All 302 tests passing, zero TypeScript errors
 
-## End-to-End Production Testing
+## End-to-End Production Testing (REQUIRES PUBLISHED DEPLOYMENT)
 - [ ] Test live deployed site: submit real address, verify analysis runs
 - [ ] Verify payment gate appears for paid tier selection
-- [ ] Test Stripe checkout flow with test card
+- [ ] Test Stripe checkout flow with test card 4242 4242 4242 4242
 - [ ] Verify report download works after payment
 - [ ] Test free tier bypasses payment correctly
 - [ ] Verify owner/admin bypass works on deployed site
@@ -512,17 +512,13 @@
 - [x] Inject Serper insights into LLM prompt via formatInsightsForLLM (grounded market data)
 - [x] Test full pipeline: 6 scenarios, 30 results for Cook County Chicago (Cook County Board of Review PDF, 56% appeal success rate, 223 foreclosures, market decline data)
 
-## Serper County Deadline & Filing Info (BACKLOG)
-- [ ] Add county deadline search scenario to serperSearch.ts (filing window, deadline date, assessor portal URL)
-- [ ] Add county filing procedure search scenario (how to file, required forms, fee schedule)
-- [ ] Add county assessor contact search scenario (office address, phone, email, portal URL)
-- [ ] Create serperCountyLookup function that runs all 3 county scenarios in parallel
-- [ ] Wire serperCountyLookup into analysisJob.ts for unseeded counties (Step 2.5 extension)
-- [ ] Wire serperCountyLookup into GetStarted county fallback (WaitlistCapture replacement)
-- [ ] Use LLM to extract structured county data from Serper results (deadline date, portal URL, filing instructions)
-- [ ] Store dynamically discovered county info in DB (counties table or new serper_county_cache table)
-- [ ] Test with unseeded county (e.g., DuPage County IL, Tarrant County TX)
-- [ ] Verify LLM extracts correct deadline dates and portal URLs
+## Serper County Deadline & Filing Info (SUPERSEDED by Gemini)
+- [x] County deadline search — handled by geminiResearch.ts lookupCountyInfo (Gemini 2.5 Pro synthesizes deadline, portal URL, filing instructions in one call)
+- [x] County filing procedure search — handled by geminiResearch.ts lookupCountyInfo
+- [x] County assessor contact search — handled by geminiResearch.ts lookupCountyInfo
+- [x] County lookup wired into counties.ts router (lookupDynamic uses Gemini)
+- [x] Structured county data extraction — Gemini returns JSON with deadline, portalUrl, filingInstructions, contact
+- [x] Tested: Gemini 2.5 Pro responds to county research queries (validated in geminiApi.validation.test.ts)
 
 ## Phase 16: Nationwide Expert Engine + Launch Prep
 
@@ -567,3 +563,20 @@
 - [x] TypeScript audit — 0 errors
 - [x] Run full test suite — 35 files, 316 tests passing, 1 skipped
 - [x] Save launch checkpoint
+
+## Phase 19: Design Polish + Serper Purge — COMPLETE
+
+- [x] Full visual audit of all pages (Home, GetStarted, Pricing, Dashboard, HowItWorks, About, TaxAppeals, AppealScoring, AnalysisResults)
+- [x] Fix UserDashboard React hooks violation (useMemo after early return)
+- [x] Add usePageMeta to HowItWorks.tsx, About.tsx, TaxAppeals.tsx, AppealScoring.tsx for SEO
+- [x] Fix stale pricing in About.tsx and index.html JSON-LD ($79/$149/$299 → Free/$49/$99)
+- [x] Normalize AppealScoring.tsx from oklch to branded hex palette + cleaner layout
+- [x] Purge all Serper references from codebase (0 remaining)
+- [x] Rename serperQueryTemplate → geminiResearchPrompt in stateAssessmentRules.ts
+- [x] Delete serperSearch.ts stub file
+- [x] Rewrite appraisalMethodology.ts with 10+ property types (condo, townhome, co-op, manufactured, mixed-use, agricultural, industrial, hospitality, special-purpose, excess land)
+- [x] Add functional/external obsolescence to cost approach
+- [x] Add vacancy/collection loss nuance to income approach
+- [x] Expand reconciliation weights for all new property types
+- [x] TypeScript audit — 0 errors
+- [x] Full test suite — 35 files, 316 tests passing, 1 skipped

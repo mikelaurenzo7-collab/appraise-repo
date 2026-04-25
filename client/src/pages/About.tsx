@@ -2,8 +2,14 @@ import { Link } from "wouter";
 import { ArrowRight, Zap, Users, Target, Award } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function About() {
+  usePageMeta({
+    title: "About — AppraiseAI",
+    description: "We’re building the future of property tax appeals — combining AI precision with automated pro-se filing to help homeowners fight back.",
+    canonicalPath: "/about",
+  });
   return (
     <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
@@ -68,7 +74,7 @@ export default function About() {
               { title: "Transparency", desc: "No hidden fees. No surprises. You know exactly what you're paying and why." },
               { title: "Integrity", desc: "We only file appeals we believe in. We don't chase every case — we chase the right ones." },
               { title: "Posture", desc: "We are software. We're not a law firm and we don't pretend otherwise." },
-              { title: "Accessibility", desc: "Flat pricing under $300 means anyone can file. Money-back guarantee de-risks the decision." },
+              { title: "Accessibility", desc: "Free analysis for everyone. Pro Se filing at $49, automated filing at $99. 60-day money-back guarantee de-risks the decision." },
               { title: "Speed", desc: "Instant AI appraisals. Filing in 4 minutes for supported counties. No back-and-forth." },
             ].map((v) => (
               <div key={v.title} className="p-6 rounded-xl bg-white border border-[#E2E8F0]">

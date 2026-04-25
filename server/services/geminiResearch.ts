@@ -8,13 +8,13 @@
  *   • Gemini 2.5 Flash — Fast county info extraction and document parsing
  *     Grounded search for county assessor portals, deadlines, filing procedures.
  *
- * REPLACES: serperSearch.ts (Serper returned raw links; Gemini reads and synthesizes)
+ * Gemini 2.5 Pro reads and synthesizes sources directly via Google Search grounding
  *
  * PIPELINE INTEGRATION:
  *   analysisJob.ts  → runPropertyResearch() → feeds into analyzeProperty()
  *   counties router → lookupCountyInfo()    → feeds into county eligibility
  *
- * EXPORTED INTERFACE: Drop-in compatible with serperSearch.ts exports so
+ * EXPORTED INTERFACE: GeminiInsight, GeminiResearchResult, CountyInfo —
  * analysisJob.ts and appraisalAnalyzer.ts require minimal changes.
  */
 
@@ -27,7 +27,7 @@ const GEMINI_PRO   = "gemini-2.5-pro";    // Deep research + synthesis
 const GEMINI_FLASH = "gemini-2.5-flash";  // Fast extraction + county lookup
 const GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1/models";
 
-// ─── Types (drop-in compatible with serperSearch.ts) ─────────────────────────
+// ─── Types (Gemini-native types) ─────────────────────────
 
 /** A single web source cited by Gemini */
 export interface GeminiSource {
@@ -38,7 +38,7 @@ export interface GeminiSource {
   source?: string;
 }
 
-/** Structured research insight for one scenario — same shape as SerperInsight */
+/** Structured research insight for one scenario — structured research insight */
 export interface GeminiInsight {
   scenario: ResearchScenario;
   query: string;
@@ -48,7 +48,6 @@ export interface GeminiInsight {
 }
 
 // Keep backward-compat alias so appraisalAnalyzer.ts import still works
-export type SerperInsight = GeminiInsight;
 
 export type ResearchScenario =
   | "assessorOvervaluation"
@@ -376,10 +375,10 @@ function parseResearchIntoInsights(
 
 /**
  * Runs comprehensive property research using Gemini 2.5 Pro with Google Search grounding.
- * Replaces the 6 separate Serper searches with one deep synthesis call that actually
+ * Performs one deep synthesis call that
  * reads the source pages and returns structured market intelligence.
  *
- * Drop-in replacement for serperSearch.runPropertyResearch()
+ * Primary property research function
  */
 export async function runPropertyResearch(
   ctx: PropertySearchContext
@@ -410,10 +409,10 @@ export async function runPropertyResearch(
 
 /**
  * Looks up county filing info using Gemini 2.5 Flash with Google Search grounding.
- * Replaces the 3 separate Serper county searches with one intelligent lookup that
+ * Performs one intelligent lookup that
  * reads the actual county assessor portal and returns structured filing data.
  *
- * Drop-in replacement for serperSearch.lookupCountyInfo()
+ * Dynamic county information lookup
  */
 export async function lookupCountyInfo(
   countyName: string,
@@ -601,7 +600,7 @@ Return your analysis as JSON:
 
 /**
  * Formats all Gemini insights into a single block of text for LLM consumption.
- * Drop-in replacement for serperSearch.formatInsightsForLLM()
+ * Format research insights for LLM context injection
  */
 export function formatInsightsForLLM(insights: GeminiInsight[]): string {
   if (!insights.length) return "";

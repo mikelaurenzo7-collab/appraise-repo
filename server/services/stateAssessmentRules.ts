@@ -6,7 +6,7 @@
  * 
  * Used by: appraisalAnalyzer.ts (state-specific LLM prompts, assessment levels)
  *          analysisJob.ts (state-specific appeal strength scoring)
- *          serperSearch.ts (state-specific Serper query templates)
+ *          geminiResearch.ts (state-specific Gemini research prompts)
  */
 
 export interface StateAssessmentRules {
@@ -18,7 +18,7 @@ export interface StateAssessmentRules {
   appealChain: string[]; // Hierarchy of appeal bodies
   primaryAppealBody: string;
   typicalAppealDeadline: string; // e.g., "45 days from notice"
-  serperQueryTemplate: string; // Template for state-specific Serper searches
+  geminiResearchPrompt: string; // Research prompt template for Gemini 2.5 Pro grounded search
   uspapNotes: string;
   multiunitStrategy?: string;
   commercialStrategy?: string;
@@ -42,7 +42,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "State Board of Equalization"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "45 days from assessment notice",
-    serperQueryTemplate: "Alabama property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Alabama property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Alabama requires USPAP-compliant appraisals for formal appeals. Use three comparable sales minimum.",
   },
 
@@ -61,7 +61,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Borough Assessor", "Borough Assessment Review Board", "Alaska Superior Court"],
     primaryAppealBody: "Borough Assessment Review Board",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Alaska property tax appeal {borough} assessment comparable sales {city}",
+    geminiResearchPrompt: "Alaska property tax appeal {borough} assessment comparable sales {city}",
     uspapNotes: "Alaska assessments often lack current market data. Document all comparable sales found.",
   },
 
@@ -80,7 +80,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Supervisors", "Arizona Tax Court"],
     primaryAppealBody: "County Board of Supervisors",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Arizona property tax assessment {county} county {city} comparable sales market value 2024",
+    geminiResearchPrompt: "Arizona property tax assessment {county} county {city} comparable sales market value 2024",
     uspapNotes: "Arizona requires detailed comparable analysis. Use at least 3-5 recent sales.",
   },
 
@@ -99,7 +99,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "State Board of Equalization"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Arkansas property tax assessment {county} county comparable sales market value",
+    geminiResearchPrompt: "Arkansas property tax assessment {county} county comparable sales market value",
     uspapNotes: "Arkansas allows informal appeals. Document all comparable sales and market data.",
   },
 
@@ -119,7 +119,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "Assessment Appeals Board", "Superior Court"],
     primaryAppealBody: "Assessment Appeals Board",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "California Prop 13 assessment {county} {city} comparable sales market value",
+    geminiResearchPrompt: "California Prop 13 assessment {county} {city} comparable sales market value",
     uspapNotes: "California requires formal appraisals for Appeals Board. Use USPAP-compliant methodology.",
     multiunitStrategy: "For multifamily: use income approach as primary, reconcile with SCA using price per unit",
   },
@@ -139,7 +139,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Colorado Court of Appeals"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Colorado property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Colorado property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Colorado requires detailed comparable analysis. Emphasize recent sales within 6 months.",
   },
 
@@ -158,7 +158,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Assessor", "Board of Assessment Appeals", "Superior Court"],
     primaryAppealBody: "Board of Assessment Appeals",
     typicalAppealDeadline: "45 days from assessment notice",
-    serperQueryTemplate: "Connecticut property tax assessment {county} {city} comparable sales market value",
+    geminiResearchPrompt: "Connecticut property tax assessment {county} {city} comparable sales market value",
     uspapNotes: "Connecticut requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -177,7 +177,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Assessment Review Board", "Delaware Superior Court"],
     primaryAppealBody: "County Assessment Review Board",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Delaware property tax assessment {county} comparable sales market value",
+    geminiResearchPrompt: "Delaware property tax assessment {county} comparable sales market value",
     uspapNotes: "Delaware requires formal appraisals for appeals. Use USPAP methodology.",
   },
 
@@ -197,7 +197,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Property Appraiser", "Value Adjustment Board", "Florida Department of Revenue"],
     primaryAppealBody: "Value Adjustment Board",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Florida property tax assessment {county} {city} comparable sales market value homestead",
+    geminiResearchPrompt: "Florida property tax assessment {county} {city} comparable sales market value homestead",
     uspapNotes: "Florida requires USPAP-compliant appraisals. Use recent sales within 6 months.",
     multiunitStrategy: "For multifamily: use income approach with conservative cap rates (8-10%)",
   },
@@ -217,7 +217,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "Board of Equalization", "Georgia Superior Court"],
     primaryAppealBody: "Board of Equalization",
     typicalAppealDeadline: "45 days from assessment notice",
-    serperQueryTemplate: "Georgia property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Georgia property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Georgia requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -236,7 +236,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Review", "Hawaii Tax Appeal Court"],
     primaryAppealBody: "County Board of Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Hawaii property tax assessment {county} {city} comparable sales market value",
+    geminiResearchPrompt: "Hawaii property tax assessment {county} {city} comparable sales market value",
     uspapNotes: "Hawaii requires formal appraisals. Document all comparable sales found.",
   },
 
@@ -255,7 +255,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Idaho Tax Commission"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Idaho property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Idaho property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Idaho requires detailed comparable analysis. Use recent sales within 6 months.",
   },
 
@@ -276,7 +276,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Review", "Illinois Property Tax Appeal Board"],
     primaryAppealBody: "County Board of Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Illinois property tax assessment {county} county {city} comparable sales market value appeal",
+    geminiResearchPrompt: "Illinois property tax assessment {county} county {city} comparable sales market value appeal",
     uspapNotes: "Illinois requires USPAP-compliant appraisals. Always calculate implied market value first.",
     multiunitStrategy: "For multifamily: use income approach with conservative cap rates (8-10%), reconcile with SCA",
     commercialStrategy: "For commercial: use income approach as primary, emphasize conservative rent projections",
@@ -297,7 +297,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Review", "Indiana Tax Court"],
     primaryAppealBody: "County Board of Review",
     typicalAppealDeadline: "45 days from assessment notice",
-    serperQueryTemplate: "Indiana property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Indiana property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Indiana requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -316,7 +316,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Review", "Iowa District Court"],
     primaryAppealBody: "County Board of Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Iowa property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Iowa property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Iowa requires detailed comparable analysis. Use recent sales within 6 months.",
   },
 
@@ -335,7 +335,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Appraiser", "County Board of Equalization", "Kansas District Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Kansas property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Kansas property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Kansas requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -354,7 +354,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Assessment Appeals", "Kentucky Tax Court"],
     primaryAppealBody: "County Board of Assessment Appeals",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Kentucky property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Kentucky property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Kentucky requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -374,7 +374,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Parish Assessor", "Parish Board of Review", "Louisiana Tax Commission"],
     primaryAppealBody: "Parish Board of Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Louisiana property tax assessment {parish} parish {city} comparable sales market value",
+    geminiResearchPrompt: "Louisiana property tax assessment {parish} parish {city} comparable sales market value",
     uspapNotes: "Louisiana requires USPAP-compliant appraisals. Use recent sales within 6 months.",
   },
 
@@ -393,7 +393,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Town Assessor", "Board of Assessment Review", "Maine Superior Court"],
     primaryAppealBody: "Board of Assessment Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Maine property tax assessment {county} {city} comparable sales market value",
+    geminiResearchPrompt: "Maine property tax assessment {county} {city} comparable sales market value",
     uspapNotes: "Maine requires formal appraisals. Document all comparable sales found.",
   },
 
@@ -412,7 +412,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Appeals", "Maryland Tax Court"],
     primaryAppealBody: "County Board of Appeals",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Maryland property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Maryland property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Maryland requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -431,7 +431,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Assessor", "Board of Assessors", "Appellate Tax Board"],
     primaryAppealBody: "Appellate Tax Board",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Massachusetts property tax assessment {county} {city} comparable sales market value",
+    geminiResearchPrompt: "Massachusetts property tax assessment {county} {city} comparable sales market value",
     uspapNotes: "Massachusetts requires USPAP-compliant appraisals for Appellate Tax Board.",
   },
 
@@ -450,7 +450,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Township Assessor", "Board of Review", "Michigan Tax Tribunal"],
     primaryAppealBody: "Board of Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Michigan property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Michigan property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Michigan requires USPAP-compliant appraisals. Calculate implied market value first.",
   },
 
@@ -469,7 +469,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Review", "Minnesota Tax Court"],
     primaryAppealBody: "County Board of Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Minnesota property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Minnesota property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Minnesota requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -488,7 +488,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Supervisors", "Mississippi Tax Commission"],
     primaryAppealBody: "County Board of Supervisors",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Mississippi property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Mississippi property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Mississippi requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -507,7 +507,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Missouri Tax Commission"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Missouri property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Missouri property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Missouri requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -526,7 +526,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Montana Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Montana property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Montana property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Montana requires detailed comparable analysis. Use recent sales within 6 months.",
   },
 
@@ -545,7 +545,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Nebraska Tax Equalization and Review Commission"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Nebraska property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Nebraska property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Nebraska requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -564,7 +564,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Nevada Tax Commission"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Nevada property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Nevada property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Nevada requires USPAP-compliant appraisals. Calculate implied market value first.",
   },
 
@@ -583,7 +583,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Town Assessor", "Board of Tax and Land Appeals", "New Hampshire Superior Court"],
     primaryAppealBody: "Board of Tax and Land Appeals",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "New Hampshire property tax assessment {county} {city} comparable sales market value",
+    geminiResearchPrompt: "New Hampshire property tax assessment {county} {city} comparable sales market value",
     uspapNotes: "New Hampshire requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -602,7 +602,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Municipal Assessor", "County Board of Taxation", "New Jersey Tax Court"],
     primaryAppealBody: "County Board of Taxation",
     typicalAppealDeadline: "45 days from assessment notice",
-    serperQueryTemplate: "New Jersey property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "New Jersey property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "New Jersey requires USPAP-compliant appraisals for Tax Court.",
   },
 
@@ -621,7 +621,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "New Mexico Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "New Mexico property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "New Mexico property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "New Mexico requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -640,7 +640,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Town/City Assessor", "Board of Assessment Review", "New York Supreme Court"],
     primaryAppealBody: "Board of Assessment Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "New York property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "New York property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "New York requires USPAP-compliant appraisals for Supreme Court appeals.",
   },
 
@@ -659,7 +659,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "North Carolina Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "North Carolina property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "North Carolina property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "North Carolina requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -678,7 +678,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "North Dakota Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "North Dakota property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "North Dakota property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "North Dakota requires detailed comparable analysis. Use recent sales within 6 months.",
   },
 
@@ -697,7 +697,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Auditor", "County Board of Revision", "Ohio Board of Tax Appeals"],
     primaryAppealBody: "County Board of Revision",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Ohio property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Ohio property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Ohio requires USPAP-compliant appraisals. Calculate implied market value first.",
   },
 
@@ -716,7 +716,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Oklahoma Tax Commission"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Oklahoma property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Oklahoma property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Oklahoma requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -735,7 +735,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Oregon Tax and Revenue Department"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Oregon property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Oregon property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Oregon requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -754,7 +754,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Assessment Appeals", "Pennsylvania Tax Court"],
     primaryAppealBody: "County Board of Assessment Appeals",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Pennsylvania property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Pennsylvania property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Pennsylvania requires USPAP-compliant appraisals for Tax Court appeals.",
   },
 
@@ -773,7 +773,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Town Assessor", "Board of Tax Review", "Rhode Island Superior Court"],
     primaryAppealBody: "Board of Tax Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Rhode Island property tax assessment {city} comparable sales market value",
+    geminiResearchPrompt: "Rhode Island property tax assessment {city} comparable sales market value",
     uspapNotes: "Rhode Island requires USPAP-compliant appraisals for Superior Court appeals.",
   },
 
@@ -792,7 +792,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "South Carolina Tax Commission"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "South Carolina property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "South Carolina property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "South Carolina requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -811,7 +811,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "South Dakota Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "South Dakota property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "South Dakota property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "South Dakota requires detailed comparable analysis. Use recent sales within 6 months.",
   },
 
@@ -830,7 +830,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Tennessee Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Tennessee property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Tennessee property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Tennessee requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -850,7 +850,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Appraisal District", "Appraisal Review Board", "Texas Tax Court"],
     primaryAppealBody: "Appraisal Review Board",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Texas property tax assessment {county} county {city} comparable sales market value appraisal district",
+    geminiResearchPrompt: "Texas property tax assessment {county} county {city} comparable sales market value appraisal district",
     uspapNotes: "Texas requires USPAP-compliant appraisals for Tax Court appeals.",
     multiunitStrategy: "For multifamily: use income approach with conservative cap rates (8-10%)",
   },
@@ -870,7 +870,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Utah Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Utah property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Utah property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Utah requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -889,7 +889,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Town Assessor", "Board of Civil Authority", "Vermont Superior Court"],
     primaryAppealBody: "Board of Civil Authority",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Vermont property tax assessment {county} {city} comparable sales market value",
+    geminiResearchPrompt: "Vermont property tax assessment {county} {city} comparable sales market value",
     uspapNotes: "Vermont requires formal appraisals. Document all comparable sales found.",
   },
 
@@ -908,7 +908,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "Board of Supervisors", "Virginia Tax Court"],
     primaryAppealBody: "Board of Supervisors",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Virginia property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Virginia property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Virginia requires USPAP-compliant appraisals for Tax Court appeals.",
   },
 
@@ -927,7 +927,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Washington Tax Court"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Washington property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Washington property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Washington requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -946,7 +946,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Commission", "West Virginia Tax Commission"],
     primaryAppealBody: "County Commission",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "West Virginia property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "West Virginia property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "West Virginia requires USPAP-compliant appraisals. Calculate implied market value first.",
   },
 
@@ -965,7 +965,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["Municipal Assessor", "Board of Review", "Wisconsin Tax Appeals Commission"],
     primaryAppealBody: "Board of Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Wisconsin property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Wisconsin property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Wisconsin requires USPAP-compliant appraisals for formal appeals.",
   },
 
@@ -984,7 +984,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["County Assessor", "County Board of Equalization", "Wyoming Tax Commission"],
     primaryAppealBody: "County Board of Equalization",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "Wyoming property tax assessment {county} county {city} comparable sales market value",
+    geminiResearchPrompt: "Wyoming property tax assessment {county} county {city} comparable sales market value",
     uspapNotes: "Wyoming requires detailed comparable analysis. Use recent sales within 6 months.",
   },
 
@@ -1003,7 +1003,7 @@ export const STATE_RULES: Record<string, StateAssessmentRules> = {
     appealChain: ["DC Assessor", "Board of Equalization and Review", "DC Superior Court"],
     primaryAppealBody: "Board of Equalization and Review",
     typicalAppealDeadline: "30 days from assessment notice",
-    serperQueryTemplate: "DC property tax assessment {city} comparable sales market value",
+    geminiResearchPrompt: "DC property tax assessment {city} comparable sales market value",
     uspapNotes: "DC requires USPAP-compliant appraisals for Superior Court appeals.",
   },
 };

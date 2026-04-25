@@ -171,7 +171,7 @@ export default function GetStarted() {
   const [selectedState, setSelectedState] = useState("");
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
-  // County name from geocoding (used for dynamic Serper lookup when county not in DB)
+  // County name from geocoding (used for dynamic Gemini lookup when county not in DB)
   const [detectedCountyName, setDetectedCountyName] = useState("");
 
   // Auto-detect state from address when moving to step 2
@@ -202,7 +202,7 @@ export default function GetStarted() {
     { enabled: !!selectedCountyId && filingMethod !== "none" }
   );
 
-  // Dynamic county lookup via Serper — fires when no counties found for the selected state
+  // Dynamic county lookup via Gemini — fires when no counties found for the selected state
   // and we have a county name from geocoding
   const noCountiesFound =
     !!selectedState &&
@@ -537,7 +537,7 @@ export default function GetStarted() {
                         </button>
                       ))
                     ) : (
-                      /* No counties seeded — show dynamic Serper-powered info */
+                      /* No counties seeded — show dynamic Gemini-powered info */
                       <div className="col-span-full space-y-3">
                         {dynamicCountyQuery.isLoading ? (
                           <div className="rounded-lg border-2 border-[#E2E8F0] bg-white p-5 flex items-center gap-3">
@@ -614,7 +614,7 @@ export default function GetStarted() {
                             </div>
                           </div>
                         ) : (
-                          /* Serper lookup failed or returned nothing */
+                          /* Gemini lookup failed or returned nothing */
                           <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-5">
                             <div className="flex items-start gap-3">
                               <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />

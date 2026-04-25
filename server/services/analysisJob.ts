@@ -138,7 +138,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     // assessor overvaluation evidence, comparable sales, market trends, neighborhood
     // distress, zoning issues, and prior appeal outcomes in the same county.
     // Gemini 2.5 Flash analyzes any user-uploaded property photos for condition scoring.
-    let serperInsights = undefined;
+    let researchInsights = undefined;
     let photoAnalysis = undefined;
 
     // Run Gemini research + photo analysis in parallel
@@ -165,14 +165,14 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     ]);
 
     if (researchResult.status === "fulfilled" && researchResult.value) {
-      serperInsights = researchResult.value;
-      const sourceCount = serperInsights.reduce((sum, i) => sum + i.results.length, 0);
-      console.log(`[AnalysisJob] ✓ Gemini research complete — ${serperInsights.length} scenarios, ${sourceCount} grounded sources`);
+      researchInsights = researchResult.value;
+      const sourceCount = researchInsights.reduce((sum, i) => sum + i.results.length, 0);
+      console.log(`[AnalysisJob] ✓ Gemini research complete — ${researchInsights.length} scenarios, ${sourceCount} grounded sources`);
       await persistActivityLog({
         submissionId,
         type: "api_aggregation_complete",
         actor: "system",
-        description: `Gemini market intelligence complete — ${serperInsights.length} research scenarios with ${sourceCount} live sources (overvaluation evidence, comps, market trends, neighborhood distress, zoning, appeal outcomes)`,
+        description: `Gemini market intelligence complete — ${researchInsights.length} research scenarios with ${sourceCount} live sources (overvaluation evidence, comps, market trends, neighborhood distress, zoning, appeal outcomes)`,
         status: "success",
       });
     } else if (researchResult.status === "rejected") {
@@ -206,7 +206,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
-    const analysis = await analyzeProperty(propertyData, propertyType, serperInsights, photoAnalysis);
+    const analysis = await analyzeProperty(propertyData, propertyType, researchInsights, photoAnalysis);
 
     await persistActivityLog({
       submissionId,

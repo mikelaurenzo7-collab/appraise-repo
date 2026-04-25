@@ -3,7 +3,7 @@ import type { PropertyData, ComparableSale } from "./propertyDataAggregator";
 import type { GeminiInsight } from "./geminiResearch";
 import { formatInsightsForLLM } from "./geminiResearch";
 // Backward-compat alias
-type SerperInsight = GeminiInsight;
+// Legacy alias removed — using GeminiInsight directly
 import { getStateRules } from "./stateAssessmentRules";
 
 // ─── ASSESSMENT LEVEL TABLE ───────────────────────────────────────────────────
@@ -365,7 +365,7 @@ interface PhotoAnalysisResult {
 export async function analyzeProperty(
   propertyData: PropertyData,
   propertyType: string = "residential",
-  serperInsights?: GeminiInsight[],
+  researchInsights?: GeminiInsight[],
   photoAnalysis?: PhotoAnalysisResult
 ): Promise<AppraisalAnalysis> {
   try {
@@ -469,7 +469,7 @@ Condition Score: ${photoAnalysis.conditionScore}/5
 Condition Notes: ${photoAnalysis.conditionNotes}
 Defects Identified: ${photoAnalysis.defectsFound.length > 0 ? photoAnalysis.defectsFound.join("; ") : "None"}
 Estimated Cost-to-Cure: $${photoAnalysis.costToCureEstimate.toLocaleString()}
-Appeal Impact: ${photoAnalysis.appealImpact}` : ""}${serperInsights ? formatInsightsForLLM(serperInsights) : ""}
+Appeal Impact: ${photoAnalysis.appealImpact}` : ""}${researchInsights ? formatInsightsForLLM(researchInsights) : ""}
     `;
 
     // Get state-specific rules for LLM context
