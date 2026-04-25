@@ -492,3 +492,11 @@
 - [x] Payment gate working correctly — "Complete Payment to Download Report" shown for Pro Se tier
 - [ ] All analysis values showing N/A — ATTOM 401 (expected, key deleted), ReGRID 401 (needs investigation), Redfin region ID lookup failed
 - [ ] RentCast returned data but assessed value / market value / sqft all N/A for test address
+
+## Realie API Integration (NEW)
+- [ ] Set REALIE_API_KEY as environment secret
+- [ ] Add REALIE_API_KEY to server/_core/env.ts
+- [ ] Integrate Realie into propertyDataAggregator as primary parcel/zoning source (replacing ReGRID)
+- [ ] Test Realie with Naperville address and evaluate data quality
+- [ ] Report data quality findings to user
+- [ ] Save checkpoint

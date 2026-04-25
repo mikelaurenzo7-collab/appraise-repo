@@ -4,7 +4,7 @@
  * Each API is PRIMARY for its domain — not a fallback:
  *
  *   RentCast  → Tax assessments, property characteristics, AVM, sale history
- *   ReGRID   → Parcel boundaries, zoning, GIS-measured lot size, parcel number
+ *   Realie   → Parcel boundaries, zoning, GIS-measured lot size, parcel number ($50/mo)
  *   Redfin   → Recent comparable sold properties with photos, DOM, price data
  *   ATTOM    → (Future) Foreclosure, climate risk, crime, school data
  *
@@ -167,36 +167,76 @@ async function queryRentCast(address: string, city: string, state: string): Prom
   });
 }
 
-// ─── REGRID ─────────────────────────────────────────────────────────────────
+// ─── REALIE ─────────────────────────────────────────────────────────────────
 // PRIMARY for: Parcel boundaries, zoning, GIS-measured lot size, parcel number
-
-async function queryReGRID(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
-  return withCache("regrid", address, city, state, async () => {
+// Replaces ReGRID ($375/mo) at $50/mo with equivalent parcel/GIS data
+async function queryRealie(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
+  return withCache("realie", address, city, state, async () => {
     try {
-      if (!process.env.REGRID_API_KEY) { console.warn("[ReGRID] API key not configured"); return {}; }
-      const response = await axios.get("https://app.regrid.com/api/v1/search.json", {
-        params: { query: `${address}, ${city}, ${state}`, limit: 1 },
-        headers: { token: process.env.REGRID_API_KEY },
-        timeout: 8000,
+      const apiKey = process.env.REALIE_API_KEY;
+      if (!apiKey) { console.warn("[Realie] API key not configured"); return {}; }
+      // Strip directional prefixes and suffixes for better matching
+      // Realie works best with just the street number and name
+      const streetOnly = address.replace(/^(\d+\s+)(N|S|E|W|NE|NW|SE|SW)\s+/i, '$1').trim();
+      const response = await axios.get("https://app.realie.ai/api/public/property/search/", {
+        params: {
+          address: streetOnly,
+          city,
+          state,
+          limit: 3,
+          residential: true,
+        },
+        headers: { Authorization: apiKey },
+        timeout: 10000,
       });
-      const parcel = response.data?.results?.[0]?.properties?.fields;
-      if (!parcel) return {};
-      console.log(`[ReGRID] Got parcel data for ${address}`);
-      return {
-        assessedValue: parcel.taxtotal ? Math.round(parcel.taxtotal / 0.012) : undefined,
-        squareFeet: parcel.sqft,
-        lotSize: parcel.ll_gisacre ? Math.round(parcel.ll_gisacre * 43560) : undefined,
-        yearBuilt: parcel.yearbuilt,
-        county: parcel.county,
-        parcelNumber: parcel.parcelnumb,
-        zoning: parcel.zoning,
-        source: "regrid",
-      };
+      const properties = response.data?.properties;
+      if (!properties || properties.length === 0) {
+        // Fallback: try without city filter (broader search)
+        const fallback = await axios.get("https://app.realie.ai/api/public/property/search/", {
+          params: { address: streetOnly, state, limit: 3 },
+          headers: { Authorization: apiKey },
+          timeout: 10000,
+        });
+        const fbProps = fallback.data?.properties;
+        if (!fbProps || fbProps.length === 0) {
+          console.warn(`[Realie] No parcel data found for ${address}, ${city}, ${state}`);
+          return {};
+        }
+        const p = fbProps[0];
+        return mapRealieProperty(p, address);
+      }
+      const p = properties[0];
+      return mapRealieProperty(p, address);
     } catch (error) {
-      console.error("[ReGRID] Error:", (error as any)?.response?.status ?? error);
+      console.error("[Realie] Error:", (error as any)?.response?.status ?? error);
       return {};
     }
   });
+}
+function mapRealieProperty(p: any, address: string): Partial<PropertyData> {
+  console.log(`[Realie] Got parcel data for ${address} — parcel: ${p.parcelId}, county: ${p.county}`);
+  // Convert acres to sqft for lot size (1 acre = 43,560 sqft)
+  const lotSize = p.acres ? Math.round(p.acres * 43560) : (p.landArea || undefined);
+  // Realie provides assessed value directly
+  const assessedValue = p.totalAssessedValue || undefined;
+  // Realie provides AVM (model value)
+  const marketValue = p.modelValue || p.totalMarketValue || undefined;
+  return {
+    assessedValue,
+    marketValue,
+    squareFeet: p.buildingArea || undefined,
+    lotSize,
+    yearBuilt: p.yearBuilt || undefined,
+    bedrooms: p.totalBedrooms || undefined,
+    bathrooms: p.totalBathrooms || undefined,
+    county: p.county || p.countyUSPS || undefined,
+    parcelNumber: p.parcelId || undefined,
+    zoning: p.zoningCode || undefined,
+    lastSalePrice: p.transferPrice || undefined,
+    lastSaleDate: p.transferDate ? String(p.transferDate) : undefined,
+    propertyTax: p.taxValue || undefined,
+    source: "realie",
+  };
 }
 
 // ─── REDFIN ─────────────────────────────────────────────────────────────────
@@ -226,16 +266,29 @@ async function getRedfinRegionId(city: string, state: string): Promise<string | 
       timeout: 8000,
     });
 
-    const data = response.data?.data;
-    if (!data || !Array.isArray(data)) return null;
-
-    // Find the city-level result (type 2 = city in Redfin's taxonomy)
+     const rawData = response.data?.data;
+    if (!rawData) return null;
+    // API returns either:
+    //   (a) flat array of result objects (old format)
+    //   (b) array of category groups, each with a `rows` array (new format)
+    // Flatten both formats into a single list of result items
+    let items: any[] = [];
+    if (Array.isArray(rawData)) {
+      for (const entry of rawData) {
+        if (Array.isArray(entry?.rows)) {
+          items.push(...entry.rows); // new grouped format
+        } else if (entry?.id !== undefined) {
+          items.push(entry); // old flat format
+        }
+      }
+    }
+    if (items.length === 0) return null;
+    // Find the city-level result (type "2" = city in Redfin's taxonomy)
     // The id format is like "6_29501" — we need this exact format
-    const cityResult = data.find((r: any) =>
-      r.type === 2 || r.subType === "city" ||
-      (r.name && r.name.toLowerCase().includes(city.toLowerCase()))
+    const cityResult = items.find((r: any) =>
+      r.type === "2" || r.type === 2 || r.subType === "city" ||
+      (r.name && r.name.toLowerCase() === city.toLowerCase())
     );
-
     if (cityResult?.id) {
       const regionId = String(cityResult.id);
       console.log(`[Redfin] Region ID for ${city}, ${state}: ${regionId}`);
@@ -243,17 +296,15 @@ async function getRedfinRegionId(city: string, state: string): Promise<string | 
       try { await setCachedApiResponse(cacheKey, "redfin", regionId, 2592000); } catch { /* non-critical */ }
       return regionId;
     }
-
-    // Fallback: take the first result that has an id with the 6_ prefix
-    const fallback = data.find((r: any) => String(r.id || "").startsWith("6_"));
+    // Fallback: take the first result that has an id with the 6_ prefix (city IDs)
+    const fallback = items.find((r: any) => String(r.id || "").startsWith("6_"));
     if (fallback?.id) {
       const regionId = String(fallback.id);
       console.log(`[Redfin] Region ID (fallback) for ${city}, ${state}: ${regionId}`);
       try { await setCachedApiResponse(cacheKey, "redfin", regionId, 2592000); } catch { /* non-critical */ }
       return regionId;
     }
-
-    console.warn(`[Redfin] No region ID found for ${city}, ${state}`);
+    console.warn(`[Redfin] No region ID found for ${city}, ${state}. Items found: ${items.map((r: any) => `${r.name}(${r.id})`).join(', ')}`);
     return null;
   } catch (error) {
     console.error("[Redfin] Auto-complete error:", (error as any)?.response?.status ?? error);
@@ -450,22 +501,21 @@ export async function aggregatePropertyData(address: string, city: string, state
       setTimeout(() => reject(new Error("API aggregation timeout after 45s")), 45000)
     );
 
-    // Phase 1: Get core property data from RentCast + ReGRID + ATTOM in parallel
-    const [rentcastData, regridData, attomData] = await Promise.race([
+    // Phase 1: Get core property data from RentCast + Realie + ATTOM in parallel
+    const [rentcastData, realieData, attomData] = await Promise.race([
       Promise.all([
         queryRentCast(address, city, state),
-        queryReGRID(address, city, state),
+        queryRealie(address, city, state),
         queryAttomData(address, city, state),
       ]),
       timeoutPromise,
     ]);
-
     // Phase 2: Get Redfin comps using subject property characteristics for similarity scoring
     const subjectData = {
-      bedrooms: rentcastData.bedrooms || attomData.bedrooms,
-      bathrooms: rentcastData.bathrooms || attomData.bathrooms,
-      squareFeet: rentcastData.squareFeet || attomData.squareFeet || regridData.squareFeet,
-      yearBuilt: rentcastData.yearBuilt || attomData.yearBuilt || regridData.yearBuilt,
+      bedrooms: rentcastData.bedrooms || attomData.bedrooms || realieData.bedrooms,
+      bathrooms: rentcastData.bathrooms || attomData.bathrooms || realieData.bathrooms,
+      squareFeet: rentcastData.squareFeet || attomData.squareFeet || realieData.squareFeet,
+      yearBuilt: rentcastData.yearBuilt || attomData.yearBuilt || realieData.yearBuilt,
     };
 
     let redfinResult: { comparableSales: ComparableSale[]; redfinRegionId?: string } = { comparableSales: [] };
@@ -510,24 +560,23 @@ export async function aggregatePropertyData(address: string, city: string, state
       source: "aggregated",
 
       // Tax assessment: RentCast is primary (real assessor data), ATTOM backup, ReGRID derived
-      assessedValue: rentcastData.assessedValue || attomData.assessedValue || regridData.assessedValue,
+      assessedValue: rentcastData.assessedValue || attomData.assessedValue || realieData.assessedValue,
       propertyTax: rentcastData.propertyTax,
 
       // Market value: RentCast AVM is primary, then last sale as proxy
       marketValue: rentcastData.marketValue || rentcastData.lastSalePrice || attomData.lastSalePrice,
 
-      // Physical attributes: RentCast primary, ATTOM secondary, ReGRID for GIS data
-      squareFeet: rentcastData.squareFeet || attomData.squareFeet || regridData.squareFeet,
-      lotSize: regridData.lotSize || rentcastData.lotSize, // ReGRID GIS lot size is most accurate
-      yearBuilt: rentcastData.yearBuilt || attomData.yearBuilt || regridData.yearBuilt,
-      bedrooms: rentcastData.bedrooms || attomData.bedrooms,
-      bathrooms: rentcastData.bathrooms || attomData.bathrooms,
-
-      // Location & parcel: ReGRID is primary for parcel/zoning, RentCast for county
-      county: rentcastData.county || regridData.county || attomData.county,
+      // Physical attributes: RentCast primary, ATTOM secondary, Realie for GIS data
+      squareFeet: rentcastData.squareFeet || attomData.squareFeet || realieData.squareFeet,
+      lotSize: realieData.lotSize || rentcastData.lotSize, // Realie GIS lot size is most accurate
+      yearBuilt: rentcastData.yearBuilt || attomData.yearBuilt || realieData.yearBuilt,
+      bedrooms: rentcastData.bedrooms || attomData.bedrooms || realieData.bedrooms,
+      bathrooms: rentcastData.bathrooms || attomData.bathrooms || realieData.bathrooms,
+      // Location & parcel: Realie is primary for parcel/zoning, RentCast for county
+      county: rentcastData.county || realieData.county || attomData.county,
       zipCode: rentcastData.zipCode,
-      parcelNumber: regridData.parcelNumber || rentcastData.parcelNumber || attomData.parcelNumber,
-      zoning: regridData.zoning, // ReGRID is the authoritative source for zoning
+      parcelNumber: realieData.parcelNumber || rentcastData.parcelNumber || attomData.parcelNumber,
+      zoning: realieData.zoning, // Realie is the authoritative source for zoning
 
       // Sale history: RentCast primary, ATTOM secondary
       lastSalePrice: rentcastData.lastSalePrice || attomData.lastSalePrice,
@@ -544,7 +593,7 @@ export async function aggregatePropertyData(address: string, city: string, state
     const hasData = merged.assessedValue || merged.marketValue || merged.squareFeet;
     const sources = [
       rentcastData.source ? "RentCast" : null,
-      regridData.source ? "ReGRID" : null,
+      realieData.source ? "Realie" : null,
       redfinComps.length > 0 ? "Redfin" : null,
       attomData.source ? "ATTOM" : null,
     ].filter(Boolean).join(" + ");

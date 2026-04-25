@@ -10,4 +10,5 @@ export const ENV = {
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? "",
   googleCseApiKey: process.env.GOOGLE_CSE_API_KEY ?? "",
   googleCseCx: process.env.GOOGLE_CSE_CX ?? "",
+  realieApiKey: process.env.REALIE_API_KEY ?? "",
 };
