@@ -43,18 +43,27 @@ export interface ReportData {
   successProbability: number;
   annualSavings: number;
   estimatedSavings40Year: number;
-  photos?: Array<{ url: string; category: string; defects?: string[] }>;
+  photos?: Array<{
+    url: string;
+    category: string;
+    description?: string;
+    annotations?: Array<{ x: number; y: number; text: string; severity?: 'critical' | 'major' | 'minor' }>;
+    defects?: string[];
+    costToCure?: number;
+  }>;
   costToCure?: Array<{ defect: string; estimatedCost: number }>;
   countyDeadlines?: Array<{ event: string; deadline: string }>;
+  propertyLocationMapUrl?: string;
+  comparablesMapUrl?: string;
 }
 
 export class ProfessionalReportTemplate {
   private colors = {
-    primary: "#7C3AED", // Electric Purple
-    accent: "#14B8A6", // Teal
-    gold: "#F59E0B", // Gold
-    dark: "#1F2937", // Dark Gray
-    light: "#F3F4F6", // Light Gray
+    primary: "#7C3AED",
+    accent: "#14B8A6",
+    gold: "#F59E0B",
+    dark: "#1F2937",
+    light: "#F3F4F6",
     white: "#FFFFFF",
     border: "#E5E7EB",
   };
@@ -62,7 +71,7 @@ export class ProfessionalReportTemplate {
   private doc: InstanceType<typeof PDFDocument>;
   private pageCount = 0;
   private currentPage = 1;
-  private targetPages = 50; // Target 50-60 pages
+  private targetPages = 50;
 
   constructor() {
     this.doc = new PDFDocument({
@@ -79,6 +88,7 @@ export class ProfessionalReportTemplate {
     this.addTableOfContents();
     this.addExecutiveSummary(data);
     this.addComparableSalesAnalysis(data);
+    this.addPropertyLocationMap(data);
     this.addMarketAnalysis(data);
     this.addPropertyCondition(data);
     this.addPhotosAndDefects(data);
@@ -102,7 +112,6 @@ export class ProfessionalReportTemplate {
     this.addHeader();
     this.doc.moveDown(2);
 
-    // Title
     this.doc
       .fontSize(28)
       .fillColor(this.colors.primary)
@@ -110,7 +119,6 @@ export class ProfessionalReportTemplate {
     this.doc.text("PROPERTY TAX APPEAL REPORT", { align: "center" });
     this.doc.moveDown(1);
 
-    // Property details
     this.doc.fontSize(16).fillColor(this.colors.dark).font("Helvetica-Bold");
     this.doc.text(data.propertyAddress, { align: "center" });
     this.doc.text(`${data.city}, ${data.state} ${data.zipCode}`, {
@@ -122,7 +130,6 @@ export class ProfessionalReportTemplate {
     this.doc.text(`${data.county} Assessor's Office`, { align: "center" });
     this.doc.moveDown(2);
 
-    // Key metrics box
     this.doc.rect(50, this.doc.y, 495, 140).stroke(this.colors.primary);
     this.doc.moveDown(0.3);
 
@@ -135,7 +142,6 @@ export class ProfessionalReportTemplate {
 
     this.doc.moveDown(1);
 
-    // Report date
     this.doc.fontSize(10).fillColor("#999999").font("Helvetica");
     this.doc.text(`Report Generated: ${new Date().toLocaleDateString()}`, {
       align: "center",
@@ -154,20 +160,21 @@ export class ProfessionalReportTemplate {
     const sections = [
       "1. Executive Summary",
       "2. Comparable Sales Analysis",
-      "3. Market Analysis",
+      "2A. Property Location Map",
+      "3. Market Analysis & Trends",
       "4. Property Condition Assessment",
       "5. Photos & Defect Analysis",
       "6. Cost-to-Cure Analysis",
-      "7A. Detailed Calculation Methodology",
-      "7B. Cost Approach Analysis",
-      "7C. Depreciation Analysis",
-      "7D. Valuation Reconciliation",
-      "8. Valuation Justification",
-      "9. Appeal Strength Analysis",
-      "10. County Deadlines & Procedures",
-      "11. Recommendations",
-      "12. Conclusion",
-      "13. Appendix",
+      "8A. Detailed Calculation Methodology",
+      "8B. Cost Approach Analysis",
+      "8C. Depreciation Analysis",
+      "8D. Valuation Reconciliation",
+      "9. Valuation Justification",
+      "10. Appeal Strength Analysis",
+      "11. County Deadlines & Procedures",
+      "12. Recommendations",
+      "13. Conclusion",
+      "14. Appendix",
     ];
 
     this.doc.fontSize(10).fillColor(this.colors.dark).font("Helvetica");
@@ -224,7 +231,6 @@ The analysis presented in this report is based on recent comparable sales data, 
 
     this.doc.moveDown(0.3);
 
-    // Comparables table
     const avgPrice =
       data.comparableSales.reduce((sum, s) => sum + s.salePrice, 0) /
       data.comparableSales.length;
@@ -260,36 +266,69 @@ The analysis presented in this report is based on recent comparable sales data, 
     this.addNewPage();
   }
 
+  private addPropertyLocationMap(data: ReportData): void {
+    if (!data.propertyLocationMapUrl) {
+      return;
+    }
+
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("2A. PROPERTY LOCATION MAP");
+
+    this.addBodyText(
+      "The following map shows the location of the subject property and nearby comparable sales:"
+    );
+
+    this.doc.moveDown(0.3);
+    this.addBodyText(
+      `Property Address: ${data.propertyAddress}, ${data.city}, ${data.state} ${data.zipCode}`
+    );
+    this.addBodyText(`County: ${data.county}`);
+
+    this.doc.moveDown(0.5);
+    this.doc.fontSize(9).fillColor(this.colors.dark).font("Helvetica");
+    this.doc.text("[Map Image: Property Location and Comparable Sales]", {
+      align: "center",
+      width: 495,
+    });
+
+    this.addNewPage();
+  }
+
   private addMarketAnalysis(data: ReportData): void {
     this.addHeader();
     this.doc.moveDown(0.5);
 
-    this.addSectionHeader("3. MARKET ANALYSIS");
+    this.addSectionHeader("3. MARKET ANALYSIS & TRENDS");
 
     this.addBodyText(
-      `The ${data.county} real estate market has experienced a ${data.marketTrends.yearOverYearChange < 0 ? "cooling" : "strengthening"} trend over the past 12 months:`
+      `The ${data.county} real estate market has experienced significant changes over the past 12 months. ` +
+      `This analysis demonstrates that the subject property's assessment does not reflect current market conditions.`
     );
 
-    this.doc.moveDown(0.2);
-    this.addKeyMetric(
-      "Year-over-Year Change:",
-      `${data.marketTrends.yearOverYearChange.toFixed(1)}%`,
-      this.colors.gold
-    );
-    this.addKeyMetric(
-      "Six-Month Change:",
-      `${data.marketTrends.sixMonthChange.toFixed(1)}%`,
-      this.colors.gold
-    );
-    this.addKeyMetric(
-      "Market Status:",
-      data.marketTrends.marketStatus,
-      this.colors.gold
+    this.doc.moveDown(0.3);
+    this.addSubsectionHeader("Market Performance Metrics:");
+
+    this.addTable(
+      ["Period", "Change", "Interpretation"],
+      [
+        ["Year-over-Year", `${data.marketTrends.yearOverYearChange.toFixed(1)}%`, data.marketTrends.yearOverYearChange < 0 ? "Market Cooling" : "Market Strengthening"],
+        ["Six-Month", `${data.marketTrends.sixMonthChange.toFixed(1)}%`, data.marketTrends.sixMonthChange < 0 ? "Recent Decline" : "Recent Growth"],
+        ["Market Status", data.marketTrends.marketStatus, "Current Conditions"],
+      ]
     );
 
-    this.addBodyText(
-      "The subject property was assessed during a period of higher market values. Current market conditions clearly support a lower valuation."
-    );
+    this.doc.moveDown(0.3);
+    this.addSubsectionHeader("Market Analysis:");
+
+    const marketAnalysis = `The ${data.county} market has been ${data.marketTrends.yearOverYearChange < 0 ? "cooling" : "strengthening"} over the past year. The year-over-year change of ${data.marketTrends.yearOverYearChange.toFixed(1)}% and the six-month change of ${data.marketTrends.sixMonthChange.toFixed(1)}% indicate ${data.marketTrends.yearOverYearChange < 0 ? "declining" : "stable"} market conditions.
+
+The subject property's assessed value of $${data.assessedValue.toLocaleString()} was likely established during a period of ${data.marketTrends.yearOverYearChange > 0 ? "higher" : "similar"} market values. Current market conditions and comparable sales data clearly support a reduction to $${data.marketValue.toLocaleString()}.
+
+This represents a ${((data.assessmentGap / data.assessedValue) * 100).toFixed(1)}% over-assessment that is not justified by current market conditions.`;
+
+    this.addBodyText(marketAnalysis);
 
     this.addNewPage();
   }
@@ -339,19 +378,45 @@ The analysis presented in this report is based on recent comparable sales data, 
       "The following photos document the condition of the subject property and identified defects:"
     );
 
-    data.photos.forEach((photo) => {
+    data.photos.forEach((photo, idx) => {
       this.doc.moveDown(0.3);
-      this.addSubsectionHeader(photo.category);
+      this.addSubsectionHeader(`${photo.category} - Photo ${idx + 1}`);
+
+      if (photo.description) {
+        this.addBodyText(`Description: ${photo.description}`);
+      }
 
       if (photo.defects && photo.defects.length > 0) {
         this.doc.fontSize(9).fillColor(this.colors.dark).font("Helvetica");
+        this.doc.text("Identified Defects:");
+        this.doc.moveDown(0.1);
         photo.defects.forEach((defect) => {
-          this.doc.text(`• ${defect}`);
+          this.doc.text(`  • ${defect}`);
           this.doc.moveDown(0.1);
         });
       }
 
-      this.doc.moveDown(0.2);
+      if (photo.annotations && photo.annotations.length > 0) {
+        this.doc.moveDown(0.2);
+        this.doc.fontSize(9).fillColor(this.colors.dark).font("Helvetica-Bold");
+        this.doc.text("Detailed Annotations:");
+        this.doc.moveDown(0.1);
+        photo.annotations.forEach((ann) => {
+          const severityColor = ann.severity === 'critical' ? this.colors.primary :
+                               ann.severity === 'major' ? this.colors.gold : this.colors.accent;
+          this.doc.fontSize(8).fillColor(severityColor).font("Helvetica");
+          this.doc.text(`  [${ann.severity?.toUpperCase() || 'NOTED'}] ${ann.text}`);
+          this.doc.moveDown(0.1);
+        });
+      }
+
+      if (photo.costToCure && photo.costToCure > 0) {
+        this.doc.moveDown(0.2);
+        this.doc.fontSize(9).fillColor(this.colors.dark).font("Helvetica-Bold");
+        this.doc.text(`Estimated Cost to Cure: $${photo.costToCure.toLocaleString()}`);
+      }
+
+      this.doc.moveDown(0.3);
     });
 
     this.addNewPage();
@@ -387,11 +452,130 @@ The analysis presented in this report is based on recent comparable sales data, 
     this.addNewPage();
   }
 
+  private addDetailedCalculationMethodology(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("8A. DETAILED CALCULATION METHODOLOGY");
+
+    this.addBodyText(
+      "The following section details the step-by-step calculations used to arrive at the market value estimate:"
+    );
+
+    this.doc.moveDown(0.3);
+    this.addSubsectionHeader("Sales Comparison Approach Calculation:");
+
+    const avgPrice =
+      data.comparableSales.reduce((sum, s) => sum + s.salePrice, 0) /
+      data.comparableSales.length;
+    const avgPricePerSqft =
+      data.comparableSales.reduce((sum, s) => sum + s.salePrice / s.squareFeet, 0) /
+      data.comparableSales.length;
+
+    this.addBodyText(
+      `Step 1: Calculate average price per square foot from comparable sales:\n` +
+      `  Average: $${avgPricePerSqft.toFixed(2)}/sqft\n` +
+      `Step 2: Apply to subject property (${data.squareFeet.toLocaleString()} sqft):\n` +
+      `  Indicated Value: $${(avgPricePerSqft * data.squareFeet).toLocaleString()}\n` +
+      `Step 3: Compare to assessed value:\n` +
+      `  Overassessment: $${data.assessmentGap.toLocaleString()} (${((data.assessmentGap / data.assessedValue) * 100).toFixed(1)}%)`
+    );
+
+    this.addNewPage();
+  }
+
+  private addCostApproachAnalysis(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("8B. COST APPROACH ANALYSIS");
+
+    this.addBodyText(
+      "The cost approach estimates value by calculating the replacement cost of the improvements and adding land value:"
+    );
+
+    this.doc.moveDown(0.3);
+
+    const landValue = data.assessedValue * 0.25;
+    const buildingCost = data.assessedValue * 0.75;
+    const depreciation = buildingCost * 0.30;
+    const costApproachValue = landValue + (buildingCost - depreciation);
+
+    this.addTable(
+      ["Component", "Amount"],
+      [
+        ["Land Value (estimated)", `$${landValue.toLocaleString()}`],
+        ["Building Cost (new)", `$${buildingCost.toLocaleString()}`],
+        ["Less: Depreciation (30%)", `($${depreciation.toLocaleString()})`],
+        ["Cost Approach Value", `$${costApproachValue.toLocaleString()}`],
+      ]
+    );
+
+    this.addNewPage();
+  }
+
+  private addDepreciationAnalysis(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("8C. DEPRECIATION ANALYSIS");
+
+    this.addBodyText(
+      "Depreciation represents the loss in value due to physical deterioration, functional obsolescence, and external factors:"
+    );
+
+    this.doc.moveDown(0.3);
+
+    const age = new Date().getFullYear() - data.yearBuilt;
+    const physicalDep = Math.min(age * 0.5, 40);
+    const functionalDep = 5;
+    const externalDep = 3;
+    const totalDep = Math.min(physicalDep + functionalDep + externalDep, 50);
+
+    this.addTable(
+      ["Depreciation Type", "Percentage"],
+      [
+        ["Physical Depreciation", `${physicalDep.toFixed(1)}%`],
+        ["Functional Obsolescence", `${functionalDep.toFixed(1)}%`],
+        ["External Obsolescence", `${externalDep.toFixed(1)}%`],
+        ["Total Depreciation", `${totalDep.toFixed(1)}%`],
+      ]
+    );
+
+    this.addNewPage();
+  }
+
+  private addValuationReconciliation(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("8D. VALUATION RECONCILIATION");
+
+    this.addBodyText(
+      "The following table reconciles the conclusions from the different valuation approaches:"
+    );
+
+    this.doc.moveDown(0.3);
+
+    const costApproachValue = data.assessedValue * 0.70;
+
+    this.addTable(
+      ["Approach", "Indicated Value", "Weight", "Weighted Value"],
+      [
+        ["Sales Comparison", `$${data.marketValue.toLocaleString()}`, "60%", `$${(data.marketValue * 0.60).toLocaleString()}`],
+        ["Cost Approach", `$${costApproachValue.toLocaleString()}`, "40%", `$${(costApproachValue * 0.40).toLocaleString()}`],
+        ["Final Market Value", `$${data.marketValue.toLocaleString()}`, "100%", `$${data.marketValue.toLocaleString()}`],
+      ]
+    );
+
+    this.addNewPage();
+  }
+
   private addValuationJustification(data: ReportData): void {
     this.addHeader();
     this.doc.moveDown(0.5);
 
-    this.addSectionHeader("7. VALUATION JUSTIFICATION");
+    this.addSectionHeader("9. VALUATION JUSTIFICATION");
 
     this.addBodyText(
       "Using the Sales Comparison Approach (most appropriate for residential properties):"
@@ -425,7 +609,7 @@ The analysis presented in this report is based on recent comparable sales data, 
     this.addHeader();
     this.doc.moveDown(0.5);
 
-    this.addSectionHeader("8. APPEAL STRENGTH ANALYSIS");
+    this.addSectionHeader("10. APPEAL STRENGTH ANALYSIS");
 
     this.addBodyText(
       `This property has a strong appeal case with a score of ${data.appealScore}/100 and an estimated success probability of ${(data.successProbability * 100).toFixed(1)}%.`
@@ -451,7 +635,7 @@ The analysis presented in this report is based on recent comparable sales data, 
     this.addHeader();
     this.doc.moveDown(0.5);
 
-    this.addSectionHeader("9. COUNTY DEADLINES & PROCEDURES");
+    this.addSectionHeader("11. COUNTY DEADLINES & PROCEDURES");
 
     this.addBodyText(
       `Important deadlines for ${data.county} property tax appeals:`
@@ -471,9 +655,8 @@ The analysis presented in this report is based on recent comparable sales data, 
     this.addHeader();
     this.doc.moveDown(0.5);
 
-    this.addSectionHeader("10. RECOMMENDATIONS");
+    this.addSectionHeader("12. RECOMMENDATIONS");
 
-    // Recommendation box
     this.doc.rect(50, this.doc.y, 495, 80).fill(this.colors.light);
     this.doc.moveDown(0.3);
 
@@ -506,130 +689,11 @@ The analysis presented in this report is based on recent comparable sales data, 
     this.addNewPage();
   }
 
-  private addDetailedCalculationMethodology(data: ReportData): void {
-    this.addHeader();
-    this.doc.moveDown(0.5);
-
-    this.addSectionHeader("7A. DETAILED CALCULATION METHODOLOGY");
-
-    this.addBodyText(
-      "The following section details the step-by-step calculations used to arrive at the market value estimate:"
-    );
-
-    this.doc.moveDown(0.3);
-    this.addSubsectionHeader("Sales Comparison Approach Calculation:");
-
-    const avgPrice =
-      data.comparableSales.reduce((sum, s) => sum + s.salePrice, 0) /
-      data.comparableSales.length;
-    const avgPricePerSqft =
-      data.comparableSales.reduce((sum, s) => sum + s.salePrice / s.squareFeet, 0) /
-      data.comparableSales.length;
-
-    this.addBodyText(
-      `Step 1: Calculate average price per square foot from comparable sales:\n` +
-      `  Average: $${avgPricePerSqft.toFixed(2)}/sqft\n` +
-      `Step 2: Apply to subject property (${data.squareFeet.toLocaleString()} sqft):\n` +
-      `  Indicated Value: $${(avgPricePerSqft * data.squareFeet).toLocaleString()}\n` +
-      `Step 3: Compare to assessed value:\n` +
-      `  Overassessment: $${data.assessmentGap.toLocaleString()} (${((data.assessmentGap / data.assessedValue) * 100).toFixed(1)}%)`
-    );
-
-    this.addNewPage();
-  }
-
-  private addCostApproachAnalysis(data: ReportData): void {
-    this.addHeader();
-    this.doc.moveDown(0.5);
-
-    this.addSectionHeader("7B. COST APPROACH ANALYSIS");
-
-    this.addBodyText(
-      "The cost approach estimates value by calculating the replacement cost of the improvements and adding land value:"
-    );
-
-    this.doc.moveDown(0.3);
-
-    const landValue = data.assessedValue * 0.25;
-    const buildingCost = data.assessedValue * 0.75;
-    const depreciation = buildingCost * 0.30;
-    const costApproachValue = landValue + (buildingCost - depreciation);
-
-    this.addTable(
-      ["Component", "Amount"],
-      [
-        ["Land Value (estimated)", `$${landValue.toLocaleString()}`],
-        ["Building Cost (new)", `$${buildingCost.toLocaleString()}`],
-        ["Less: Depreciation (30%)", `($${depreciation.toLocaleString()})`],
-        ["Cost Approach Value", `$${costApproachValue.toLocaleString()}`],
-      ]
-    );
-
-    this.addNewPage();
-  }
-
-  private addDepreciationAnalysis(data: ReportData): void {
-    this.addHeader();
-    this.doc.moveDown(0.5);
-
-    this.addSectionHeader("7C. DEPRECIATION ANALYSIS");
-
-    this.addBodyText(
-      "Depreciation represents the loss in value due to physical deterioration, functional obsolescence, and external factors:"
-    );
-
-    this.doc.moveDown(0.3);
-
-    const age = new Date().getFullYear() - data.yearBuilt;
-    const physicalDep = Math.min(age * 0.5, 40);
-    const functionalDep = 5;
-    const externalDep = 3;
-    const totalDep = Math.min(physicalDep + functionalDep + externalDep, 50);
-
-    this.addTable(
-      ["Depreciation Type", "Percentage"],
-      [
-        ["Physical Depreciation", `${physicalDep.toFixed(1)}%`],
-        ["Functional Obsolescence", `${functionalDep.toFixed(1)}%`],
-        ["External Obsolescence", `${externalDep.toFixed(1)}%`],
-        ["Total Depreciation", `${totalDep.toFixed(1)}%`],
-      ]
-    );
-
-    this.addNewPage();
-  }
-
-  private addValuationReconciliation(data: ReportData): void {
-    this.addHeader();
-    this.doc.moveDown(0.5);
-
-    this.addSectionHeader("7D. VALUATION RECONCILIATION");
-
-    this.addBodyText(
-      "The following table reconciles the conclusions from the different valuation approaches:"
-    );
-
-    this.doc.moveDown(0.3);
-
-    const costApproachValue = data.assessedValue * 0.70;
-
-    this.addTable(
-      ["Approach", "Indicated Value", "Weight", "Weighted Value"],
-      [
-        ["Sales Comparison", `$${data.marketValue.toLocaleString()}`, "60%", `$${(data.marketValue * 0.60).toLocaleString()}`],
-        ["Cost Approach", `$${costApproachValue.toLocaleString()}`, "40%", `$${(costApproachValue * 0.40).toLocaleString()}`],
-        ["Final Market Value", `$${data.marketValue.toLocaleString()}`, "100%", `$${data.marketValue.toLocaleString()}`],
-      ]
-    );
-
-    this.addNewPage();
-  }
-
   private addConclusion(data: ReportData): void {
     this.addHeader();
     this.doc.moveDown(0.5);
 
-    this.addSectionHeader("11. CONCLUSION");
+    this.addSectionHeader("13. CONCLUSION");
 
     const conclusion = `
 The evidence presented in this report clearly demonstrates that the subject property has been over-assessed by the ${data.county} Assessor's Office. A reduction to fair market value of approximately $${data.marketValue.toLocaleString()} is strongly supported by:
@@ -653,7 +717,7 @@ With an appeal strength score of ${data.appealScore}/100 and a success probabili
     this.addHeader();
     this.doc.moveDown(0.5);
 
-    this.addSectionHeader("12. APPENDIX");
+    this.addSectionHeader("14. APPENDIX");
 
     this.addBodyText(
       "Supporting Documents:\n" +
@@ -665,7 +729,6 @@ With an appeal strength score of ${data.appealScore}/100 and a success probabili
     );
   }
 
-  // Helper methods
   private addHeader(): void {
     this.doc.fontSize(10).fillColor(this.colors.dark);
     this.doc.text("APPRAISEAI", { width: 200, align: "left" });
@@ -714,7 +777,6 @@ With an appeal strength score of ${data.appealScore}/100 and a success probabili
     const colWidth = 495 / headers.length;
     const rowHeight = 20;
 
-    // Header
     this.doc.fontSize(9).fillColor("white").font("Helvetica-Bold");
     this.doc.rect(50, this.doc.y, 495, rowHeight).fill(this.colors.primary);
 
@@ -728,7 +790,6 @@ With an appeal strength score of ${data.appealScore}/100 and a success probabili
 
     this.doc.moveDown(0.8);
 
-    // Rows
     this.doc.fontSize(8).fillColor(this.colors.dark).font("Helvetica");
     rows.forEach((row, idx) => {
       const bgColor = idx % 2 === 0 ? this.colors.light : "white";
