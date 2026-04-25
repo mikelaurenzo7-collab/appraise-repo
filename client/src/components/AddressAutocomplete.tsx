@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 interface AddressAutocompleteProps {
   value: string;
   onChange: (address: string) => void;
+  onAddressSelected?: (address: string) => void;
   placeholder?: string;
 }
 
@@ -18,10 +19,16 @@ function newSessionToken(): string {
 
 const DEBOUNCE_MS = 180;
 
-export function AddressAutocomplete({ value, onChange, placeholder = "Enter property address..." }: AddressAutocompleteProps) {
+export function AddressAutocomplete({ 
+  value, 
+  onChange, 
+  onAddressSelected,
+  placeholder = "Enter property address..." 
+}: AddressAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isCapturingStreetView, setIsCapturingStreetView] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,6 +49,22 @@ export function AddressAutocomplete({ value, onChange, placeholder = "Enter prop
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+  }, []);
+
+  const captureStreetView = useCallback(async (address: string) => {
+    setIsCapturingStreetView(true);
+    try {
+      // Trigger Street View capture on the backend
+      await fetch("/api/capture-street-view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      }).catch(() => {
+        // Non-blocking; Street View capture is optional enhancement
+      });
+    } finally {
+      setIsCapturingStreetView(false);
+    }
   }, []);
 
   const fetchSuggestions = useCallback(async (input: string) => {
@@ -88,6 +111,10 @@ export function AddressAutocomplete({ value, onChange, placeholder = "Enter prop
     setIsOpen(false);
     // Google bills per-session; rotate the token after each successful pick.
     sessionTokenRef.current = newSessionToken();
+    
+    // Trigger Street View capture and callback
+    captureStreetView(suggestion);
+    onAddressSelected?.(suggestion);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -132,7 +159,13 @@ export function AddressAutocomplete({ value, onChange, placeholder = "Enter prop
           aria-expanded={isOpen}
           aria-controls="address-autocomplete-listbox"
           role="combobox"
+          disabled={isCapturingStreetView}
         />
+        {isCapturingStreetView && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="animate-spin h-4 w-4 border-2 border-[#7C3AED] border-t-transparent rounded-full" />
+          </div>
+        )}
       </div>
 
       {isOpen && suggestions.length > 0 && (

@@ -2,18 +2,15 @@
  * Provider-agnostic address autocomplete.
  *
  * Providers:
- *   - "photon"  (default)  Komoot's hosted Photon — OSM-backed, no API key,
- *                          no IP bias, true prefix autocomplete. Best default.
- *   - "google"             Legacy Places Autocomplete via the Forge proxy.
- *                          Was defaulting to IP-biased results (all caller
- *                          traffic egresses from Texas, so everything clustered
- *                          around Austin). We now pass explicit continental-US
- *                          bias, but Forge + Google has shown reliability
- *                          issues (Chicago not returning, etc.), so it's opt-in.
+ *   - "google"  (default)  Google Places Autocomplete via the Forge proxy.
+ *                          Provides comprehensive US address data with
+ *                          structured place details (city, state, zip, county).
+ *   - "photon"             Komoot's hosted Photon — OSM-backed, no API key,
+ *                          no IP bias, true prefix autocomplete. Fallback.
  *   - "mapbox"             Mapbox Geocoding v6 — excellent US data, 100k/mo
  *                          free. Requires MAPBOX_ACCESS_TOKEN.
  *
- * Selection via env var ADDRESS_AUTOCOMPLETE_PROVIDER (default: "photon").
+ * Selection via env var ADDRESS_AUTOCOMPLETE_PROVIDER (default: "google").
  * Runtime fallback: if the selected provider errors or returns zero
  * predictions for a ≥3-char query, Photon is consulted as a safety net.
  */
@@ -30,7 +27,7 @@ export interface PlacesAutocompleteOptions {
 function selectedProvider(): Provider {
   const raw = (process.env.ADDRESS_AUTOCOMPLETE_PROVIDER || "").toLowerCase();
   if (raw === "google" || raw === "mapbox" || raw === "photon") return raw;
-  return "photon";
+  return "google";
 }
 
 export async function getPlacePredictions(

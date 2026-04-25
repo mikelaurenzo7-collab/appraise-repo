@@ -141,6 +141,26 @@ async function startServer() {
       res.json({ predictions: [] });
     }
   });
+
+  // Street View capture endpoint — async, non-blocking
+  app.post("/api/capture-street-view", async (req: any, res: any) => {
+    try {
+      const address = typeof req.body?.address === "string" ? req.body.address : "";
+      if (!address) {
+        return res.status(400).json({ error: "Address required" });
+      }
+      // Fire and forget — don't block the response
+      const { captureStreetView } = await import("./streetViewCapture");
+      captureStreetView({ address }).catch((err: any) => {
+        console.error("[StreetViewCapture] Background capture failed:", err);
+      });
+      res.json({ status: "queued" });
+    } catch (error) {
+      console.error("[Street View Capture Error]", error);
+      res.json({ status: "queued" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
