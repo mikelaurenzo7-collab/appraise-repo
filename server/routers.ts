@@ -97,6 +97,7 @@ import { hashAuthorizationText } from "./services/filingRecipeEngine";
 import { queueFilingJob } from "./services/filingJobQueue";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { generateImage } from "./_core/imageGeneration";
+import { ENV } from "./_core/env";
 
 // Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
 // is missing (e.g. during tests or first-time local setup). The first payment
@@ -393,12 +394,50 @@ export const appRouter = router({
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve analysis." });
         }
       }),
-    generateReport: publicProcedure
+    // Payment status check for a submission
+    getPaymentStatus: publicProcedure
       .input(z.object({ submissionId: z.number() }))
-      .mutation(async ({ input }) => {
+      .query(async ({ input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+        // Free tier ("none") doesn't require payment
+        if (submission.filingMethod === "none") {
+          return { requiresPayment: false, paymentStatus: "free" as const, filingMethod: "none" as const };
+        }
+
+        // Check filing tier payment status
+        const tier = await getFilingTierBySubmission(input.submissionId);
+        return {
+          requiresPayment: true,
+          paymentStatus: tier?.paymentStatus || ("pending" as const),
+          filingMethod: submission.filingMethod,
+        };
+      }),
+
+    generateReport: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
         try {
           const submission = await getPropertySubmissionById(input.submissionId);
           if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+          // ─── PAYMENT GATE ──────────────────────────────────────────
+          // Owner and admins bypass payment. Everyone else must have paid
+          // if they selected a paid filing method (poa or pro-se).
+          const isOwner = ctx.user.openId === ENV.ownerOpenId;
+          const isAdmin = ctx.user.role === "admin";
+          const isFree = submission.filingMethod === "none";
+
+          if (!isOwner && !isAdmin && !isFree) {
+            const tier = await getFilingTierBySubmission(input.submissionId);
+            if (!tier || tier.paymentStatus !== "paid") {
+              throw new TRPCError({
+                code: "PAYMENT_REQUIRED" as any,
+                message: "Payment is required before generating a report. Please complete checkout first.",
+              });
+            }
+          }
 
           const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
           const photos = await getSubmissionPhotos(input.submissionId);
@@ -439,7 +478,8 @@ export const appRouter = router({
           await persistActivityLog({
             submissionId: submission.id,
             type: "report_generated",
-            actor: "system",
+            actor: "user",
+            actorId: ctx.user.id,
             description: `PDF report generated (${Math.round(sizeBytes / 1024)}KB)`,
             metadata: JSON.stringify({ pdfUrl: url }),
             status: "success",
@@ -447,6 +487,7 @@ export const appRouter = router({
 
           return { success: true, url, sizeBytes };
         } catch (error) {
+          if (error instanceof TRPCError) throw error;
           console.error("[PDF] Generation failed:", error);
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate PDF report. Please try again." });
         }
@@ -906,9 +947,24 @@ export const appRouter = router({
     // Generate certified appraisal report
     generateReport: protectedProcedure
       .input(z.object({ submissionId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
         if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+        // ─── PAYMENT GATE ──────────────────────────────────────────
+        const isOwner = ctx.user.openId === ENV.ownerOpenId;
+        const isAdmin = ctx.user.role === "admin";
+        const isFree = submission.filingMethod === "none";
+
+        if (!isOwner && !isAdmin && !isFree) {
+          const tier = await getFilingTierBySubmission(input.submissionId);
+          if (!tier || tier.paymentStatus !== "paid") {
+            throw new TRPCError({
+              code: "PAYMENT_REQUIRED" as any,
+              message: "Payment is required before generating a report. Please complete checkout first.",
+            });
+          }
+        }
 
         const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
         if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
@@ -1094,6 +1150,22 @@ export const appRouter = router({
             code: "PRECONDITION_FAILED",
             message: `Report is not ready (status: ${job.status})`,
           });
+        }
+
+        // ─── PAYMENT GATE ──────────────────────────────────────────
+        const submissionForGate = await getPropertySubmissionById(job.submissionId);
+        const isOwner = ctx.user.openId === ENV.ownerOpenId;
+        const isAdmin = ctx.user.role === "admin";
+        const isFree = submissionForGate?.filingMethod === "none";
+
+        if (!isOwner && !isAdmin && !isFree) {
+          const tier = await getFilingTierBySubmission(job.submissionId);
+          if (!tier || tier.paymentStatus !== "paid") {
+            throw new TRPCError({
+              code: "PAYMENT_REQUIRED" as any,
+              message: "Payment is required before downloading the report.",
+            });
+          }
         }
 
         const submission = await getPropertySubmissionById(job.submissionId);
@@ -1883,6 +1955,19 @@ export const appRouter = router({
         if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
+
+        // ─── PAYMENT GATE ──────────────────────────────────────────
+        const isOwner = ctx.user.openId === ENV.ownerOpenId;
+        const isAdmin = ctx.user.role === "admin";
+        if (!isOwner && !isAdmin) {
+          const tier = await getFilingTierBySubmission(input.submissionId);
+          if (!tier || tier.paymentStatus !== "paid") {
+            throw new TRPCError({
+              code: "PAYMENT_REQUIRED" as any,
+              message: "Payment is required before filing. Please complete checkout first.",
+            });
+          }
         }
 
         const eligibility = await getCountyEligibility(input.countyId);

@@ -30,6 +30,9 @@ import {
 } from "../../../shared/analysisProgress";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { AnalyticsEvent, track } from "@/lib/analytics";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
+import { Lock, CreditCard } from "lucide-react";
 
 function ScoreGauge({ score }: { score: number }) {
   const color =
@@ -88,6 +91,19 @@ export default function AnalysisResults() {
   const params = new URLSearchParams(searchString);
   const submissionId = params.get("id") ? parseInt(params.get("id")!, 10) : null;
   const generateReportMutation = trpc.properties.generateReport.useMutation();
+  const { isAuthenticated } = useAuth();
+
+  // Check payment status for this submission
+  const paymentStatusQuery = trpc.properties.getPaymentStatus.useQuery(
+    { submissionId: submissionId! },
+    { enabled: !!submissionId }
+  );
+  const paymentStatus = paymentStatusQuery.data;
+  const requiresPayment = paymentStatus?.requiresPayment ?? false;
+  const isPaid = paymentStatus?.paymentStatus === "paid" || paymentStatus?.paymentStatus === "free";
+
+  // Checkout session mutation for inline payment
+  const createCheckoutMutation = trpc.payments.createCheckoutSession.useMutation();
 
   const { data, isLoading, error } = trpc.properties.getAnalysis.useQuery(
     { submissionId: submissionId! },
@@ -574,36 +590,106 @@ export default function AnalysisResults() {
             <p className="text-white/70 mb-6 max-w-md mx-auto">
               Get a professional, certified PDF report ready for your appeal filing or personal records.
             </p>
-            <button
-              onClick={async () => {
-                setPdfGenerating(true);
-                try {
-                  await generateReportMutation.mutateAsync({ submissionId: submissionId! });
-                } catch (err) {
-                  console.error("PDF generation failed:", err);
-                } finally {
-                  setPdfGenerating(false);
-                }
-              }}
-              disabled={pdfGenerating || generateReportMutation.isPending}
-              className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {pdfGenerating || generateReportMutation.isPending ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Generating PDF...
-                </>
-              ) : (
-                <>
-                  <FileText size={16} />
-                  Download PDF Report
-                </>
-              )}
-            </button>
-            {generateReportMutation.data?.url && (
-              <div className="mt-4 text-sm text-green-300">
-                ✓ PDF ready! Check your downloads folder.
+
+            {/* PAYMENT GATE: Show checkout button if payment is required and not yet paid */}
+            {requiresPayment && !isPaid ? (
+              <div className="space-y-4">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">
+                  <Lock size={14} />
+                  Payment required to download your full report
+                </div>
+                {!isAuthenticated ? (
+                  <div>
+                    <a
+                    href={getLoginUrl()}
+                    className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold"
+                  >
+                    <CreditCard size={16} />
+                    Sign In to Complete Payment
+                  </a>
+                  </div>
+                ) : (
+                  <div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const result = await createCheckoutMutation.mutateAsync({
+                            submissionId: submissionId!,
+                          });
+                          if (result.url) {
+                            window.open(result.url, "_blank");
+                          }
+                        } catch (err) {
+                          console.error("Checkout failed:", err);
+                        }
+                      }}
+                      disabled={createCheckoutMutation.isPending}
+                      className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {createCheckoutMutation.isPending ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Redirecting to checkout...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard size={16} />
+                          Complete Payment to Download Report
+                        </>
+                      )}
+                    </button>
+                    <p className="text-white/50 text-xs mt-3">60-day money-back guarantee. Secure checkout via Stripe.</p>
+                  </div>
+                )}
               </div>
+            ) : (
+              /* FREE or PAID: show download button */
+              <>
+                {!isAuthenticated ? (
+                  <a
+                    href={getLoginUrl()}
+                    className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold"
+                  >
+                    <FileText size={16} />
+                    Sign In to Download Report
+                  </a>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setPdfGenerating(true);
+                      try {
+                        const result = await generateReportMutation.mutateAsync({ submissionId: submissionId! });
+                        if (result.url) {
+                          window.open(result.url, "_blank");
+                        }
+                      } catch (err) {
+                        console.error("PDF generation failed:", err);
+                      } finally {
+                        setPdfGenerating(false);
+                      }
+                    }}
+                    disabled={pdfGenerating || generateReportMutation.isPending}
+                    className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pdfGenerating || generateReportMutation.isPending ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Generating PDF...
+                      </>
+                    ) : (
+                      <>
+                        <FileText size={16} />
+                        Download PDF Report
+                      </>
+                    )}
+                  </button>
+                )}
+                {generateReportMutation.data?.url && (
+                  <div className="mt-4 text-sm text-green-300">
+                    ✓ PDF ready! Check your downloads folder.
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

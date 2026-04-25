@@ -651,6 +651,27 @@ export async function getFilingTierBySubmission(submissionId: number): Promise<F
   }
 }
 
+export async function updateFilingTierPayment(
+  submissionId: number,
+  updates: {
+    paymentStatus: "pending" | "paid" | "failed" | "refunded";
+    paymentMethod?: "stripe" | "none";
+    stripePaymentIntentId?: string;
+  }
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    await db.update(filingTiers)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(filingTiers.submissionId, submissionId));
+    return true;
+  } catch (error) {
+    console.error("[FilingTier] Failed to update payment status:", error);
+    return false;
+  }
+}
+
 // ─── POA FILINGS ─────────────────────────────────────────────────────────────
 
 export async function createPOAFiling(filing: InsertPOAFiling): Promise<POAFiling | null> {

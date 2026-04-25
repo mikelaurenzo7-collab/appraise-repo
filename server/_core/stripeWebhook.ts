@@ -7,6 +7,9 @@ import {
   getReferralTrackingBySubmission,
   updateReferralTracking,
   creditReferral,
+  getFilingTierBySubmission,
+  updateFilingTierPayment,
+  createFilingTier,
 } from "../db";
 
 let _stripe: Stripe | null = null;
@@ -107,6 +110,43 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   if (!submissionId || !userId) {
     console.error("[Stripe Webhook] Missing metadata in session");
     return;
+  }
+
+  const tierId = session.metadata?.tierId || "";
+  const paymentIntentId = (session.payment_intent as string) || "";
+
+  // ─── UPDATE FILING TIER PAYMENT STATUS ──────────────────────────────
+  // This is the critical payment gate: mark the filing tier as "paid"
+  // so report generation and filing submission can verify payment.
+  try {
+    const existingTier = await getFilingTierBySubmission(submissionId);
+    if (existingTier) {
+      await updateFilingTierPayment(submissionId, {
+        paymentStatus: "paid",
+        paymentMethod: "stripe",
+        stripePaymentIntentId: paymentIntentId,
+      });
+      console.log(`[Stripe Webhook] Filing tier payment marked as paid for submission ${submissionId}`);
+    } else {
+      // Create a filing tier record if one doesn't exist yet
+      // (e.g., user went through checkout before the tier was persisted)
+      const tierMapping: Record<string, "pro-se" | "poa"> = {
+        starter: "pro-se",
+        standard: "poa",
+        premium: "poa",
+      };
+      await createFilingTier({
+        submissionId,
+        tier: tierMapping[tierId] || "poa",
+        paymentStatus: "paid",
+        paymentMethod: "stripe",
+        stripePaymentIntentId: paymentIntentId,
+        proSePrice: session.amount_total || 0,
+      });
+      console.log(`[Stripe Webhook] Created filing tier (paid) for submission ${submissionId}`);
+    }
+  } catch (err) {
+    console.error("[Stripe Webhook] Failed to update filing tier payment status:", err);
   }
 
   // Calculate contingency fee (25% of annual tax savings)

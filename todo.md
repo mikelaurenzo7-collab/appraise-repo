@@ -453,3 +453,13 @@
 - [x] Merge Redfin comps with RentCast comps (deduplicate, prioritize Redfin for recency)
 - [x] Store Redfin API key as environment secret
 - [x] Test full pipeline with only RentCast + ReGRID + Redfin active
+
+## CRITICAL BUG: Payment Bypass (FIXED)
+- [x] Users can access paid tier reports without paying (selecting $99 tier goes straight to reports page)
+- [x] Audit full payment flow: tier selection → checkout → payment verification → report access
+- [x] Enforce payment gate on 4 backend procedures: properties.generateReport, payments.generateReport, payments.getReportDownloadUrl, filings.submit
+- [x] Stripe webhook now updates filingTiers.paymentStatus to "paid" on checkout.session.completed
+- [x] Frontend AnalysisResults.tsx shows payment gate UI with checkout button for unpaid users
+- [x] Free tier (filingMethod "none") correctly bypasses payment
+- [x] Owner and admin accounts correctly bypass payment
+- [x] All 302 tests passing, zero TypeScript errors

@@ -39,6 +39,7 @@ vi.mock("./db", async () => {
     getReportJobById: vi.fn(),
     getReportJobBySubmissionId: vi.fn(),
     getPropertySubmissionById: vi.fn(),
+    getFilingTierBySubmission: vi.fn(),
   };
 });
 
@@ -85,9 +86,11 @@ describe("payments.getReportDownloadUrl", () => {
       updatedAt: now,
     } as any);
 
+    // Submission has filingMethod "none" (free tier) — no payment required
     vi.mocked(db.getPropertySubmissionById).mockResolvedValue({
       id: 7,
       address: "123 Main St",
+      filingMethod: "none",
     } as any);
 
     vi.mocked(storage.storageGet).mockResolvedValue({
@@ -128,7 +131,7 @@ describe("payments.getReportDownloadUrl", () => {
       sizeBytes: 100,
       completedAt: new Date(),
     } as any);
-    vi.mocked(db.getPropertySubmissionById).mockResolvedValue({ id: 7, address: "1 Admin Way" } as any);
+    vi.mocked(db.getPropertySubmissionById).mockResolvedValue({ id: 7, address: "1 Admin Way", filingMethod: "poa" } as any);
     vi.mocked(storage.storageGet).mockResolvedValue({ key: "k", url: "https://fresh/signed" });
 
     const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin" })));
@@ -164,7 +167,8 @@ describe("payments.getReportDownloadUrl", () => {
       sizeBytes: 200,
       completedAt: new Date(),
     } as any);
-    vi.mocked(db.getPropertySubmissionById).mockResolvedValue({ id: 7, address: "77 Oak" } as any);
+    // Submission has filingMethod "none" (free tier) — no payment required
+    vi.mocked(db.getPropertySubmissionById).mockResolvedValue({ id: 7, address: "77 Oak", filingMethod: "none" } as any);
     vi.mocked(storage.storageGet).mockResolvedValue({ key: "appraisals/7-latest.pdf", url: "https://fresh/signed" });
 
     const caller = appRouter.createCaller(makeCtx(makeUser({ id: 1 })));
