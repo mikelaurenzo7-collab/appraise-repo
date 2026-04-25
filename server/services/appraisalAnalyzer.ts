@@ -101,8 +101,6 @@ export interface AppraisalAnalysis {
   cookCountyClassCode?: string;
   triennialReassessmentYear?: number | null;
   isReassessmentYear?: boolean;
-  highestAndBestUse?: string;
-  marketingTimeEstimate?: string;
   pricePerUnit?: number;
   pricePerUnitComps?: number;
 }
@@ -522,14 +520,13 @@ OUTPUT REQUIREMENTS:
               valuationJustification: { type: "string" },
               potentialSavings: { type: "number" },
               nextSteps: { type: "array", items: { type: "string" } },
-              highestAndBestUse: { type: "string" },
-              marketingTimeEstimate: { type: "string" },
+
             },
             required: [
               "marketValueEstimate", "assessmentGap", "assessmentGapPercent",
               "appealStrengthScore", "appealStrengthFactors", "recommendedApproach",
               "executiveSummary", "valuationJustification", "potentialSavings",
-              "nextSteps", "highestAndBestUse", "marketingTimeEstimate",
+              "nextSteps",
             ],
             additionalProperties: false,
           },
@@ -556,8 +553,6 @@ OUTPUT REQUIREMENTS:
       conditionAdjustment: undefined,
       compSelectionRationale: rationale,
       marketWeaknessFactors: marketWeakness,
-      marketingTimeEstimate: llmResult.marketingTimeEstimate || "6-12 months",
-      highestAndBestUse: llmResult.highestAndBestUse || "Continued current use as improved",
     };
 
     return analysis;
@@ -648,8 +643,6 @@ function computeFallbackAnalysis(
     triennialReassessmentYear: triennialYear,
     isReassessmentYear,
     pricePerUnit: propertyData.marketValue ? Math.round(propertyData.marketValue / 2) : undefined,
-    marketingTimeEstimate: "6-12 months",
-    highestAndBestUse: "Continued current use as improved",
   };
 }
 

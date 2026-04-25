@@ -77,8 +77,6 @@ export interface AppraisalReportData {
   }>;
   streetViewUrl?: string;
   satelliteImageUrl?: string;
-  highestAndBestUse?: string;
-  marketingTimeEstimate?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
