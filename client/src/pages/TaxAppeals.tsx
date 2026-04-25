@@ -74,7 +74,7 @@ export default function TaxAppeals() {
               { icon: <Shield size={20} />, title: "Money-Back Guarantee", desc: "Full refund if your assessment isn’t reduced." },
               { icon: <Scale size={20} />, title: "Pro Se, By Design", desc: "You remain the filer. We’re the tool." },
               { icon: <Clock size={20} />, title: "4-Minute Filing", desc: "For supported counties with online portals." },
-              { icon: <DollarSign size={20} />, title: "Flat Fee Pricing", desc: "$79, $149, or $299 by assessed value." },
+              { icon: <DollarSign size={20} />, title: "Flat Fee Pricing", desc: "Free assessment, $49 Pro Se, or $99 Automated Filing." },
             ].map((f) => (
               <div key={f.title} className="p-6 rounded-lg bg-white border border-[#E2E8F0]">
                 <div className="w-10 h-10 rounded bg-[#0F172A] text-[#7C3AED] flex items-center justify-center mb-4">{f.icon}</div>

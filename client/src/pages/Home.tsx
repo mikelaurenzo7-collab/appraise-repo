@@ -291,7 +291,7 @@ export default function Home() {
               You file. <span className="text-[#7C3AED]">Our software types.</span>
             </div>
             <div className="flex flex-wrap items-center gap-6 text-[#020617] text-sm font-semibold">
-              <span>$79 · $149 · $299 flat</span>
+              <span>Free · $49 · $99 flat</span>
               <span className="h-4 w-px bg-[#020617]/30" />
               <span>Money-back guarantee</span>
               <span className="h-4 w-px bg-[#020617]/30" />
@@ -641,20 +641,20 @@ export default function Home() {
                 highlight: false,
               },
               {
-                name: "Standard Filing",
-                price: "$149",
-                sub: "homes $500k – $1.5M",
-                features: ["Everything in Instant", "Full appraisal report", "Automated online filing", "Scrivener authorization + audit trail", "60-day money-back guarantee"],
-                cta: "Start My Filing",
-                highlight: true,
+                name: "Pro Se",
+                price: "$49",
+                sub: "You file — we prepare everything",
+                features: ["Everything in Free", "Full PDF appraisal report", "Comparable sales + adjustment grid", "Step-by-step DIY filing guide", "Email support", "60-day money-back guarantee"],
+                cta: "Get Full Report — $49",
+                highlight: false,
               },
               {
-                name: "Premium Filing",
-                price: "$299",
-                sub: "homes $1.5M+ and small commercial",
-                features: ["Everything in Standard", "Priority filing slot", "Portfolio dashboard", "Priority email support", "60-day money-back guarantee"],
-                cta: "Start My Filing",
-                highlight: false,
+                name: "Automated Filing",
+                price: "$99",
+                sub: "We file it for you — done in minutes",
+                features: ["Everything in Pro Se", "Auto-fill county portal form", "Scrivener authorization + audit trail", "Real-time filing status tracking", "Priority email support", "60-day money-back guarantee"],
+                cta: "File Automatically — $99",
+                highlight: true,
               },
             ].map((plan) => (
               <div

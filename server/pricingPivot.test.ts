@@ -3,7 +3,7 @@ import type { TrpcContext } from "./_core/context";
 import type { User } from "../drizzle/schema";
 import {
   PRICING_TIERS,
-  selectPricingTier,
+  getTierByFilingMethod,
   SCRIVENER_AUTHORIZATION_TEXT,
 } from "../shared/pricing";
 import { hashAuthorizationText } from "./services/filingRecipeEngine";
@@ -119,28 +119,24 @@ function baseCtx(overrides: Partial<TrpcContext> = {}): TrpcContext {
   };
 }
 
-describe("selectPricingTier", () => {
-  it("defaults to the lowest tier for a null value", () => {
-    expect(selectPricingTier(null).id).toBe("starter");
-    expect(selectPricingTier(undefined).id).toBe("starter");
-    expect(selectPricingTier(0).id).toBe("starter");
+describe("getTierByFilingMethod", () => {
+  it("defaults to free tier for null/none", () => {
+    expect(getTierByFilingMethod(null).id).toBe("free");
+    expect(getTierByFilingMethod(undefined).id).toBe("free");
+    expect(getTierByFilingMethod("none").id).toBe("free");
   });
 
-  it("selects starter under $500k", () => {
-    expect(selectPricingTier(450_000 * 100).id).toBe("starter");
+  it("returns pro_se tier for pro-se filing — $49", () => {
+    expect(getTierByFilingMethod("pro-se").id).toBe("pro_se");
+    expect(getTierByFilingMethod("pro-se").priceCents).toBe(4900);
   });
 
-  it("selects standard between $500k and $1.5M", () => {
-    expect(selectPricingTier(900_000 * 100).id).toBe("standard");
-    expect(selectPricingTier(1_500_000 * 100).id).toBe("standard");
+  it("returns automated tier for poa filing — $99", () => {
+    expect(getTierByFilingMethod("poa").id).toBe("automated");
+    expect(getTierByFilingMethod("poa").priceCents).toBe(9900);
   });
 
-  it("selects premium above $1.5M", () => {
-    expect(selectPricingTier(1_500_001 * 100).id).toBe("premium");
-    expect(selectPricingTier(10_000_000 * 100).id).toBe("premium");
-  });
-
-  it("exposes three distinct, ordered tiers", () => {
+  it("exposes three distinct, ordered tiers (free < pro_se < automated)", () => {
     expect(PRICING_TIERS).toHaveLength(3);
     expect(PRICING_TIERS[0].priceCents).toBeLessThan(PRICING_TIERS[1].priceCents);
     expect(PRICING_TIERS[1].priceCents).toBeLessThan(PRICING_TIERS[2].priceCents);

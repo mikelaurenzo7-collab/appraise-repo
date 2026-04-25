@@ -131,6 +131,11 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       // Create a filing tier record if one doesn't exist yet
       // (e.g., user went through checkout before the tier was persisted)
       const tierMapping: Record<string, "pro-se" | "poa"> = {
+        // New tier IDs
+        free: "pro-se",
+        pro_se: "pro-se",
+        automated: "poa",
+        // Legacy tier IDs (backward compat)
         starter: "pro-se",
         standard: "poa",
         premium: "poa",

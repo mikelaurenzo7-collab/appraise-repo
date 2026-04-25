@@ -8,6 +8,8 @@ const mockGetSubmissionById = vi.fn(async () => ({
   email: "owner@example.com",
   address: "1",
   assessedValue: 500_000,
+  filingMethod: "pro-se" as const,
+  createdAt: new Date(),
 }));
 const mockGetAuth = vi.fn(async () => ({ id: 111, submissionId: 5 } as any));
 const mockGetActiveRecipe = vi.fn(async () => null as any);

@@ -33,6 +33,7 @@ import { trpc } from "@/lib/trpc";
 import { AddressAutocomplete, type StructuredAddress } from "@/components/AddressAutocomplete";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { AnalyticsEvent, track } from "@/lib/analytics";
+import PhotoUpload from "@/components/PhotoUpload";
 
 // US state abbreviation map for auto-detection from address
 const STATE_ABBREVS: Record<string, string> = {
@@ -86,7 +87,7 @@ const FILING_METHODS = [
     icon: <Scale size={20} />,
     desc: "For supported counties with online portals. Our software pre-fills and submits the county's form after you review and sign a per-filing scrivener authorization. You stay the filer of record.",
     badge: "Most Popular",
-    price: "$149 flat",
+    price: "$99 flat",
     priceDesc: "60-day money-back guarantee",
     badgeColor: "bg-[#7C3AED] text-[#020617]",
   },
@@ -96,7 +97,7 @@ const FILING_METHODS = [
     icon: <FileText size={20} />,
     desc: "You file yourself. We prepare all documents, coach you through the process, and support you at the hearing.",
     badge: "DIY + Support",
-    price: "$99",
+    price: "$49",
     priceDesc: "One-time fee",
     badgeColor: "bg-[#0F172A] text-white",
   },
@@ -151,6 +152,8 @@ export default function GetStarted() {
   const [phone, setPhone] = useState("");
   const [filingMethod, setFilingMethod] = useState<"poa" | "pro-se" | "none">("poa");
   const [selectedCountyId, setSelectedCountyId] = useState<number | null>(null);
+  const [photoSubmissionId, setPhotoSubmissionId] = useState<number | null>(null);
+  const [photosUploaded, setPhotosUploaded] = useState<number>(0);
   const [, navigate] = useLocation();
 
   // Fire once when the user first interacts (not on mount), so page views
@@ -216,6 +219,19 @@ export default function GetStarted() {
     }
   );
 
+  // Pre-submission: create a draft submission to get an ID for photo uploads
+  const preMutation = trpc.properties.submitAddress.useMutation({
+    onSuccess: (data) => {
+      if (data.submissionId) {
+        setPhotoSubmissionId(data.submissionId);
+        setStep(3); // advance to photo upload step
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to submit. Please try again.");
+    },
+  });
+
   const submitMutation = trpc.properties.submitAddress.useMutation({
     onSuccess: (data) => {
       track(AnalyticsEvent.FormSubmit, {
@@ -254,8 +270,29 @@ export default function GetStarted() {
     setStep((s) => s + 1);
   };
 
+  // Step 2 → Step 3: pre-create submission to get ID for photo uploads
+  const handleGoToPhotos = () => {
+    if (photoSubmissionId) {
+      // Already created, just advance
+      setStep(3);
+      return;
+    }
+    preMutation.mutate({ address, email, phone, filingMethod: filingMethod as "poa" | "pro-se" | "none" });
+  };
+
+  // Step 3 (photos) → Step 4 (final analysis redirect)
   const handleSubmit = () => {
-    submitMutation.mutate({ address, email, phone, filingMethod: filingMethod as "poa" | "pro-se" | "none" });
+    if (photoSubmissionId) {
+      track(AnalyticsEvent.FormSubmit, {
+        submissionId: photoSubmissionId,
+        filingMethod,
+        propertyType,
+      });
+      toast.success("Analysis started! Redirecting...");
+      navigate(`/analysis?id=${photoSubmissionId}`);
+    } else {
+      submitMutation.mutate({ address, email, phone, filingMethod: filingMethod as "poa" | "pro-se" | "none" });
+    }
   };
 
   const selectedFiling = FILING_METHODS.find((f) => f.value === filingMethod)!;
@@ -274,12 +311,12 @@ export default function GetStarted() {
             <h1 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-3">
               {step === 1 && "Tell Us About Your Property"}
               {step === 2 && "Your Contact Information"}
-              {step === 3 && "Review & Submit"}
+              {step === 3 && "Add Property Photos"}
             </h1>
             <p className="text-[#64748B]">
               {step === 1 && "Enter your property address and type for the most accurate analysis."}
               {step === 2 && "We'll send your analysis results and keep you updated on your appeal."}
-              {step === 3 && "Review your submission details before we start the analysis."}
+              {step === 3 && "Photos give our AI visual evidence of your property's condition — a major advantage over the assessor's records."}
             </p>
           </div>
 
@@ -638,79 +675,42 @@ export default function GetStarted() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleNext}
-                  className="btn-gold flex-1 py-3.5 rounded text-base font-semibold flex items-center justify-center gap-2"
+                  onClick={handleGoToPhotos}
+                  disabled={preMutation.isPending}
+                  className="btn-gold flex-1 py-3.5 rounded text-base font-semibold flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Review Submission <ArrowRight size={18} />
+                  {preMutation.isPending ? (
+                    <><div className="w-4 h-4 border-2 border-[#020617] border-t-transparent rounded-full animate-spin" />Saving...</>
+                  ) : (
+                    <>Add Photos <ArrowRight size={18} /></>
+                  )}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ─── STEP 3: Review ─── */}
+          {/* ─── STEP 3: Photo Upload ─── */}
           {step === 3 && (
             <div className="space-y-6">
-              {/* Review card */}
-              <div className="rounded-xl border border-[#E2E8F0] bg-white overflow-hidden">
-                <div className="bg-[#0F172A] px-6 py-4">
-                  <h3 className="font-display text-base font-semibold text-white">Submission Summary</h3>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <MapPin size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
-                    <div>
-                      <div className="text-xs text-[#64748B] uppercase tracking-widest mb-0.5">Property</div>
-                      <div className="font-medium text-[#0F172A] text-sm">{address}</div>
-                      <div className="text-xs text-[#64748B] capitalize">{selectedType?.label}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="ml-auto text-xs text-[#7C3AED] hover:underline font-medium"
-                    >
-                      Edit
-                    </button>
-                  </div>
-
-                  <div className="h-px bg-[#F1F5F9]" />
-
-                  <div className="flex items-start gap-3">
-                    <Mail size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
-                    <div>
-                      <div className="text-xs text-[#64748B] uppercase tracking-widest mb-0.5">Contact</div>
-                      <div className="font-medium text-[#0F172A] text-sm">{email}</div>
-                      {phone && <div className="text-xs text-[#64748B]">{phone}</div>}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="ml-auto text-xs text-[#7C3AED] hover:underline font-medium"
-                    >
-                      Edit
-                    </button>
-                  </div>
-
-                  <div className="h-px bg-[#F1F5F9]" />
-
-                  <div className="flex items-start gap-3">
-                    {selectedFiling?.icon && (
-                      <div className="text-[#7C3AED] mt-0.5 shrink-0">{selectedFiling.icon}</div>
-                    )}
-                    <div>
-                      <div className="text-xs text-[#64748B] uppercase tracking-widest mb-0.5">Filing Method</div>
-                      <div className="font-medium text-[#0F172A] text-sm">{selectedFiling?.label}</div>
-                      <div className="text-xs text-[#64748B]">{selectedFiling?.desc}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="ml-auto text-xs text-[#7C3AED] hover:underline font-medium"
-                    >
-                      Edit
-                    </button>
-                  </div>
+              {/* Why photos matter callout */}
+              <div className="p-4 rounded-xl bg-[#7C3AED]/8 border border-[#7C3AED]/20 flex items-start gap-3">
+                <Shield size={18} className="text-[#7C3AED] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-sm font-semibold text-[#0F172A] mb-1">Why photos matter</div>
+                  <p className="text-xs text-[#64748B] leading-relaxed">
+                    Assessors typically use outdated or generic photos. Your photos document actual condition — deferred maintenance, functional obsolescence, or damage — that can justify a lower assessed value. They become part of your appraisal report.
+                  </p>
                 </div>
               </div>
+
+              {/* Photo upload component */}
+              {photoSubmissionId && (
+                <PhotoUpload
+                  submissionId={photoSubmissionId}
+                  onPhotosUploaded={(count) => setPhotosUploaded(count)}
+                  maxPhotos={12}
+                />
+              )}
 
               {/* What happens next */}
               <div className="p-5 rounded-xl bg-[#0F172A]/5 border border-[#0F172A]/10">
@@ -718,9 +718,9 @@ export default function GetStarted() {
                 <div className="space-y-2.5">
                   {[
                     "AI queries 4 property data APIs simultaneously",
+                    "Your photos are analyzed for condition adjustments",
                     "Comparable sales and market data are analyzed",
                     "LLM generates your personalized appraisal report",
-                    "Appeal strength score and strategy are calculated",
                     "Results ready in 30–60 seconds",
                   ].map((item, i) => (
                     <div key={i} className="flex items-start gap-2.5 text-sm text-[oklch(0.35_0.04_255)]">
@@ -750,20 +750,12 @@ export default function GetStarted() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={submitMutation.isPending}
-                  className="btn-gold flex-1 py-3.5 rounded text-base font-semibold flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="btn-gold flex-1 py-3.5 rounded text-base font-semibold flex items-center justify-center gap-2"
                 >
-                  {submitMutation.isPending ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-[#020617] border-t-transparent rounded-full animate-spin" />
-                      Starting Analysis...
-                    </>
-                  ) : (
-                    <>
-                      <Zap size={18} />
-                      Start My Free Analysis
-                    </>
-                  )}
+                  <Zap size={18} />
+                  {photosUploaded > 0
+                    ? `Start Analysis with ${photosUploaded} Photo${photosUploaded !== 1 ? 's' : ''}`
+                    : 'Start Analysis (Skip Photos)'}
                 </button>
               </div>
 

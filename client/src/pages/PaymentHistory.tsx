@@ -127,10 +127,11 @@ export default function PaymentHistory() {
       <Card className="bg-purple-50 border-purple-200 p-4">
         <h3 className="font-semibold text-purple-900 mb-2">About Our Flat Fee</h3>
         <p className="text-sm text-purple-800">
-          AppraiseAI charges a flat software fee by assessed-value tier
-          ($79 / $149 / $299). If the county doesn&apos;t reduce your
-          assessment after we file, request a refund within 60 days of the
-          decision.
+          AppraiseAI charges a flat software fee by filing method: Free
+          assessment, $49 Pro Se (full report + DIY guide), or $99 Automated
+          Filing (we submit the county portal form for you). If the county
+          doesn&apos;t reduce your assessment, request a refund within 60 days
+          of the decision.
         </p>
       </Card>
     </div>

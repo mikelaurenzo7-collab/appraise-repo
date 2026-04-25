@@ -64,7 +64,8 @@ import { countiesRouter } from "./routers/counties";
 import { enforceRateLimit } from "./_core/rateLimit";
 import {
   PRICING_TIERS,
-  selectPricingTier,
+  getTierByFilingMethod,
+  getTierById,
   SCRIVENER_AUTHORIZATION_TEXT,
 } from "../shared/pricing";
 import {
@@ -189,7 +190,7 @@ async function maybeAutoRequestRefund(submissionId: number, adminUserId: number)
     return;
   }
 
-  const tier = selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
+  const tier = getTierByFilingMethod(submission.filingMethod);
 
   const req = await createRefundRequest({
     submissionId,
@@ -732,8 +733,12 @@ export const appRouter = router({
         label: t.label,
         priceCents: t.priceCents,
         price: t.priceCents / 100,
-        assessedValueMaxCents: t.assessedValueMaxCents,
+        filingMethod: t.filingMethod,
+        tagline: t.tagline,
         blurb: t.blurb,
+        features: t.features,
+        cta: t.cta,
+        highlighted: t.highlighted ?? false,
       }));
     }),
 
@@ -746,7 +751,7 @@ export const appRouter = router({
           submissionId: z.number(),
           // Optional override for callers who want to preview a tier before
           // the submission has an assessed value recorded.
-          overrideTier: z.enum(["starter", "standard", "premium"]).optional(),
+          overrideTier: z.enum(["free", "pro_se", "automated"]).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -759,8 +764,8 @@ export const appRouter = router({
         }
 
         const tier = input.overrideTier
-          ? PRICING_TIERS.find((t) => t.id === input.overrideTier) ?? PRICING_TIERS[0]
-          : selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
+          ? getTierById(input.overrideTier)
+          : getTierByFilingMethod(submission.filingMethod);
 
         // Idempotency key: a double-click or retry within the same 5-minute
         // bucket returns the same Checkout Session instead of creating a new
@@ -1044,8 +1049,8 @@ export const appRouter = router({
           await db.insert(filingTiers).values({
             submissionId: input.submissionId,
             tier: input.tier,
-            proSePrice: 14900,
-            contingencyPercentage: 25,
+            proSePrice: 4900,
+            contingencyPercentage: 0,
             paymentStatus: "pending",
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -1071,8 +1076,8 @@ export const appRouter = router({
 
         return {
           tier: tier.tier,
-          proSePrice: tier.proSePrice ? tier.proSePrice / 100 : 149,
-          contingencyPercentage: tier.contingencyPercentage || 25,
+          proSePrice: tier.proSePrice ? tier.proSePrice / 100 : 49,
+          contingencyPercentage: tier.contingencyPercentage || 0,
           paymentStatus: tier.paymentStatus,
         };
       }),

@@ -7,112 +7,88 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function Pricing() {
   usePageMeta({
-    title: "Pricing — Flat-fee Property Tax Appeal",
-    description: "Starter $79, Standard $149, Premium $299. Flat fee indexed to your property's assessed value. 60-day money-back guarantee.",
+    title: "Pricing — AppraiseAI Property Tax Appeal",
+    description: "Free AI assessment, $49 Pro Se full report, $99 Automated Filing. Flat fee by filing method. 60-day money-back guarantee.",
     canonicalPath: "/pricing",
   });
+
   return (
     <div className="min-h-screen bg-[#F1F5F9]">
       <Navbar />
+
+      {/* Hero */}
       <section className="bg-[#0F172A] pt-32 pb-20">
         <div className="container max-w-3xl">
           <span className="gold-rule" />
           <h1 className="font-display text-4xl lg:text-5xl font-bold text-white mb-5">
-            Flat-fee pricing. 60-day money-back guarantee.
+            Simple, flat-fee pricing.
           </h1>
           <p className="text-white/70 text-lg">
-            Software fee indexed to your property&apos;s assessed value. Full
-            refund if the county doesn&apos;t reduce your assessment.
+            Start free. Upgrade only when you're ready to file. Full refund if the county
+            doesn't reduce your assessment.
           </p>
         </div>
       </section>
 
+      {/* Tiers */}
       <section className="py-20 lg:py-28">
         <div className="container">
-          <div className="grid md:grid-cols-4 gap-8 max-w-6xl mx-auto">
-            <div className="rounded-xl p-8 bg-white border border-[#E2E8F0]">
-              <h3 className="font-display text-lg font-semibold mb-1 text-[#0F172A]">
-                Instant Appraisal
-              </h3>
-              <div className="font-data text-4xl font-medium mb-1 text-[#0F172A]">Free</div>
-              <div className="text-xs mb-8 text-[#64748B]">No credit card required</div>
-              <ul className="space-y-3 mb-8">
-                {[
-                  "AI-powered valuation",
-                  "Comparable sales analysis",
-                  "Assessment vs. market value",
-                  "Filing recommendation",
-                ].map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 size={14} className="text-[#7C3AED] mt-0.5 shrink-0" />
-                    <span className="text-[#64748B]">{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/get-started"
-                className="block text-center py-3 rounded text-sm font-semibold border border-[#0F172A] text-[#0F172A] hover:bg-[#0F172A] hover:text-white transition-all"
-              >
-                Get Free Analysis
-              </Link>
-            </div>
-
-            {PRICING_TIERS.map((tier, idx) => (
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {PRICING_TIERS.map((tier) => (
               <div
                 key={tier.id}
-                className={`rounded-xl p-8 ${
-                  idx === 1
+                className={`rounded-xl p-8 flex flex-col ${
+                  tier.highlighted
                     ? "bg-[#0F172A] text-white shadow-2xl shadow-[#0F172A]/30 scale-105"
                     : "bg-white border border-[#E2E8F0]"
                 }`}
               >
-                {idx === 1 && (
-                  <div className="text-xs font-semibold text-[#7C3AED] uppercase tracking-widest mb-3">
-                    Most common
+                {tier.highlighted && (
+                  <div className="text-xs font-semibold text-[#FBBF24] uppercase tracking-widest mb-3">
+                    Most Popular
                   </div>
                 )}
                 <h3
                   className={`font-display text-lg font-semibold mb-1 ${
-                    idx === 1 ? "text-white" : "text-[#0F172A]"
+                    tier.highlighted ? "text-white" : "text-[#0F172A]"
                   }`}
                 >
                   {tier.label}
                 </h3>
                 <div
                   className={`font-data text-4xl font-medium mb-1 ${
-                    idx === 1 ? "text-[#7C3AED]" : "text-[#0F172A]"
+                    tier.highlighted ? "text-[#7C3AED]" : "text-[#0F172A]"
                   }`}
                 >
-                  ${tier.priceCents / 100}
+                  {tier.priceCents === 0 ? "Free" : `$${tier.priceCents / 100}`}
                 </div>
                 <div
-                  className={`text-xs mb-8 ${idx === 1 ? "text-white/50" : "text-[#64748B]"}`}
+                  className={`text-xs mb-2 ${tier.highlighted ? "text-white/50" : "text-[#64748B]"}`}
+                >
+                  {tier.tagline}
+                </div>
+                <div
+                  className={`text-sm mb-6 leading-relaxed ${tier.highlighted ? "text-white/70" : "text-[#475569]"}`}
                 >
                   {tier.blurb}
                 </div>
-                <ul className="space-y-3 mb-8">
-                  {[
-                    "Full appraisal report",
-                    "Automated online filing",
-                    "Scrivener authorization logged",
-                    "Filing confirmation + audit trail",
-                    "60-day money-back guarantee",
-                  ].map((f) => (
+                <ul className="space-y-3 mb-8 flex-1">
+                  {tier.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
                       <CheckCircle2 size={14} className="text-[#7C3AED] mt-0.5 shrink-0" />
-                      <span className={idx === 1 ? "text-white/80" : "text-[#64748B]"}>{f}</span>
+                      <span className={tier.highlighted ? "text-white/80" : "text-[#64748B]"}>{f}</span>
                     </li>
                   ))}
                 </ul>
                 <Link
                   href="/get-started"
                   className={`block text-center py-3 rounded text-sm font-semibold transition-all ${
-                    idx === 1
+                    tier.highlighted
                       ? "btn-gold"
                       : "border border-[#0F172A] text-[#0F172A] hover:bg-[#0F172A] hover:text-white"
                   }`}
                 >
-                  Get started
+                  {tier.cta}
                 </Link>
               </div>
             ))}
@@ -124,6 +100,7 @@ export default function Pricing() {
         </div>
       </section>
 
+      {/* FAQ */}
       <section className="bg-[oklch(0.94_0.018_85)] py-20 lg:py-28">
         <div className="container max-w-3xl">
           <span className="gold-rule" />
@@ -137,8 +114,12 @@ export default function Pricing() {
                 a: "No. AppraiseAI is a software tool. We help you file your own tax-assessment appeal (pro se). We do not provide legal advice about your specific case and we do not represent you in a legal capacity.",
               },
               {
+                q: "What's the difference between Pro Se and Automated Filing?",
+                a: "With Pro Se ($49), you receive a full professional appraisal report and step-by-step filing guide — you submit the appeal yourself. With Automated Filing ($99), our software auto-fills and submits the county's online portal form after you review and sign a scrivener authorization. You remain the filer of record in both cases.",
+              },
+              {
                 q: "How does the money-back guarantee work?",
-                a: "If the county does not reduce your assessment as a result of the appeal we filed on your behalf, you can request a full refund of the software fee within 60 days of the decision. No negotiation — we issue the refund to your original payment method.",
+                a: "If the county does not reduce your assessment as a result of the appeal, you can request a full refund of the software fee within 60 days of the decision. No negotiation — we issue the refund to your original payment method.",
               },
               {
                 q: "Why flat fee instead of contingency?",
@@ -146,7 +127,7 @@ export default function Pricing() {
               },
               {
                 q: "Which counties are supported for automated filing?",
-                a: "We start with counties that offer online filing portals with PIN-based access for taxpayers. Check your county at eligibility time — if your county isn't supported yet, we'll still generate a ready-to-mail pro-se packet for you.",
+                a: "We support counties that offer online filing portals with PIN-based access for taxpayers. Check your county at eligibility time — if your county isn't supported yet, we'll still generate a ready-to-file pro-se packet for you.",
               },
               {
                 q: "Are there any hidden fees?",
@@ -164,6 +145,7 @@ export default function Pricing() {
         </div>
       </section>
 
+      {/* CTA */}
       <section className="py-16">
         <div className="container text-center max-w-xl">
           <h2 className="font-display text-2xl lg:text-3xl font-bold text-[#0F172A] mb-4">

@@ -25,7 +25,7 @@ software tool that helps homeowners file their own (pro se) tax appeals.
 
 Key facts (use exactly these):
 - Free AI property analysis.
-- Flat-fee filing pricing: $79 (under $500k assessed), $149 ($500k–$1.5M), $299 ($1.5M+).
+- Flat-fee filing pricing: Free (AI assessment + appeal score), $49 Pro Se (full PDF report + step-by-step DIY filing guide), $99 Automated Filing (we auto-fill and submit the county portal form for you).
 - 60-day money-back guarantee if the county doesn't reduce your assessment.
 - Automated online filing in supported counties with online portals; mail-in pro-se packet otherwise.
 - The user is always the filer of record; the user signs a per-filing scrivener authorization before submission.

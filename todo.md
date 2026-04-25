@@ -536,3 +536,19 @@
 - [x] Final TypeScript audit — 0 errors
 - [x] Run full test suite — 313/315 passing
 - [x] Save launch checkpoint
+
+## Phase 17: User-Reported Fixes (Post-Test) — COMPLETE
+
+- [x] Add photo upload step to GetStarted/analysis flow (multi-photo, S3 upload, passed to analyzer)
+- [x] Wire uploaded photos into appraisalAnalyzer.ts for condition adjustment (cost-to-cure)
+- [x] Add PDF download button to user dashboard for completed analyses
+- [x] Wire tier-based PDF delivery: free = teaser, pro_se = full PDF, automated = full PDF + filing
+- [x] Decide new pricing tiers: Free / Pro Se $49 / Automated Filing $99
+- [x] Update Stripe products/prices to match new pricing (priceCents: 4900 / 9900)
+- [x] Update landing page pricing section with new prices
+- [x] Update Pricing page with new prices
+- [x] Update all hardcoded price references in codebase (pricing.ts, routers, UI components)
+- [x] Ensure Stripe checkout amounts match displayed prices exactly
+- [x] Embed Street View + satellite imagery in PDF reports
+- [x] Fix polishPivot.test.ts mock submission (filingMethod: pro-se for correct amountCents)
+- [x] Rewrite UserDashboard with live trpc.user.getSubmissions + real PDF generate/download buttons
