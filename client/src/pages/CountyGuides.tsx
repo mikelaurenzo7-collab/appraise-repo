@@ -14,15 +14,13 @@ export default function CountyGuidesPage() {
     state: selectedState,
   });
 
-  // TODO: Fix type inference issue with guides router
-  // const { data: guide } = trpc.guides.getCountyGuide.useQuery(
-  //   {
-  //     state: selectedState,
-  //     county: selectedCounty,
-  //   },
-  //   { enabled: !!selectedCounty }
-  // );
-  const guide = null;
+  const { data: guide } = trpc.guides.getCountyGuide.useQuery(
+    {
+      state: selectedState,
+      county: selectedCounty,
+    },
+    { enabled: !!selectedCounty }
+  );
 
   const states = [
     { code: "TX", name: "Texas" },

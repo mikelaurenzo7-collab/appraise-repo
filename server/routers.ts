@@ -423,6 +423,36 @@ export const appRouter = router({
       if (!email) return [];
       return listUserFilings(email);
     }),
+
+    // Get photos for a submission
+    getPhotos: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+        const photos = await getSubmissionPhotos(input.submissionId);
+        return photos.map((p, idx) => ({
+          id: idx + 1,
+          url: p.url,
+          fileName: p.fileName || "photo.jpg",
+          category: p.category || "exterior",
+          caption: p.caption || "",
+          analyzed: false,
+          aiDescription: null as string | null,
+          defects: [] as any[],
+        }));
+      }),
+
+    // Analyze a photo with AI vision
+    analyzePhoto: protectedProcedure
+      .input(z.object({ photoId: z.number() }))
+      .mutation(async ({ input }) => {
+        // Placeholder: AI photo analysis would use LLM vision here
+        return { success: true, message: "Photo analysis queued" };
+      }),
   }),
 
   // ─── CHAT (LEAD CAPTURE + FAQ) ──────────────────────────────────────────

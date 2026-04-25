@@ -3,13 +3,21 @@ import twilio from 'twilio';
 /**
  * Twilio SMS Service
  * Sends SMS notifications for hearing dates, appeal status updates, and important alerts
+ * Uses MessagingServiceSid for number management and compliance
  */
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID || '';
 const authToken = process.env.TWILIO_AUTH_TOKEN || '';
-const fromNumber = process.env.TWILIO_PHONE_NUMBER || '';
+const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID || '';
 
-const client = twilio(accountSid, authToken);
+// Lazy-init client to avoid errors when env vars are missing at import time
+let _client: ReturnType<typeof twilio> | null = null;
+function getClient() {
+  if (!_client && accountSid && authToken) {
+    _client = twilio(accountSid, authToken);
+  }
+  return _client;
+}
 
 export interface SMSNotification {
   to: string;
@@ -18,11 +26,12 @@ export interface SMSNotification {
 }
 
 /**
- * Send SMS notification
+ * Send SMS notification via Twilio MessagingService
  */
 export async function sendSMS(notification: SMSNotification): Promise<boolean> {
   try {
-    if (!accountSid || !authToken || !fromNumber) {
+    const client = getClient();
+    if (!client || !messagingServiceSid) {
       console.warn('[SMS] Twilio credentials not configured, logging instead');
       logSMSLocally(notification);
       return true;
@@ -30,7 +39,7 @@ export async function sendSMS(notification: SMSNotification): Promise<boolean> {
 
     const message = await client.messages.create({
       body: notification.message,
-      from: fromNumber,
+      messagingServiceSid,
       to: notification.to,
     });
 
@@ -54,11 +63,9 @@ export async function notifyHearingScheduled(phoneNumber: string, hearingDate: D
     day: 'numeric',
   });
 
-  const message = `🎯 Your property tax appeal hearing is scheduled for ${dateStr} in ${county} County. Reply CONFIRM to acknowledge.`;
-
   return sendSMS({
     to: phoneNumber,
-    message,
+    message: `Your property tax appeal hearing is scheduled for ${dateStr} in ${county} County. Reply CONFIRM to acknowledge. - AppraiseAI`,
     type: 'hearing_scheduled',
   });
 }
@@ -67,11 +74,9 @@ export async function notifyHearingScheduled(phoneNumber: string, hearingDate: D
  * Send appeal filed notification
  */
 export async function notifyAppealFiled(phoneNumber: string, county: string, assessmentValue: number): Promise<boolean> {
-  const message = `✅ Your property tax appeal has been filed in ${county} County. Assessed value: $${assessmentValue.toLocaleString()}. You'll receive updates as the case progresses.`;
-
   return sendSMS({
     to: phoneNumber,
-    message,
+    message: `Your property tax appeal has been filed in ${county} County. Assessed value: $${assessmentValue.toLocaleString()}. You'll receive updates as the case progresses. - AppraiseAI`,
     type: 'appeal_filed',
   });
 }
@@ -80,11 +85,9 @@ export async function notifyAppealFiled(phoneNumber: string, county: string, ass
  * Send appeal won notification
  */
 export async function notifyAppealWon(phoneNumber: string, county: string, savingsPerYear: number): Promise<boolean> {
-  const message = `🎉 Great news! Your property tax appeal was successful! You'll save approximately $${savingsPerYear.toLocaleString()} per year. Check your account for details.`;
-
   return sendSMS({
     to: phoneNumber,
-    message,
+    message: `Great news! Your property tax appeal in ${county} County was successful! You'll save approximately $${savingsPerYear.toLocaleString()} per year. Check your account for details. - AppraiseAI`,
     type: 'appeal_won',
   });
 }
@@ -93,11 +96,9 @@ export async function notifyAppealWon(phoneNumber: string, county: string, savin
  * Send appeal lost notification
  */
 export async function notifyAppealLost(phoneNumber: string, county: string): Promise<boolean> {
-  const message = `📋 Your property tax appeal in ${county} County was not successful. You have the right to appeal this decision. Contact us for next steps.`;
-
   return sendSMS({
     to: phoneNumber,
-    message,
+    message: `Your property tax appeal in ${county} County was not successful. You have the right to appeal this decision. Contact us for next steps. - AppraiseAI`,
     type: 'appeal_lost',
   });
 }
@@ -106,11 +107,9 @@ export async function notifyAppealLost(phoneNumber: string, county: string): Pro
  * Send deadline reminder notification
  */
 export async function notifyDeadlineReminder(phoneNumber: string, county: string, daysUntilDeadline: number): Promise<boolean> {
-  const message = `⏰ Reminder: Property tax appeal deadline for ${county} County is in ${daysUntilDeadline} days. File now to avoid missing the deadline.`;
-
   return sendSMS({
     to: phoneNumber,
-    message,
+    message: `Reminder: Property tax appeal deadline for ${county} County is in ${daysUntilDeadline} days. File now to avoid missing the deadline. - AppraiseAI`,
     type: 'deadline_reminder',
   });
 }
@@ -119,11 +118,9 @@ export async function notifyDeadlineReminder(phoneNumber: string, county: string
  * Send status update notification
  */
 export async function notifyStatusUpdate(phoneNumber: string, status: string, details: string): Promise<boolean> {
-  const message = `📌 Status Update: ${status}. ${details}. View full details in your AppraiseAI account.`;
-
   return sendSMS({
     to: phoneNumber,
-    message,
+    message: `Status Update: ${status}. ${details}. View full details in your AppraiseAI account. - AppraiseAI`,
     type: 'status_update',
   });
 }
@@ -141,10 +138,8 @@ function logSMSLocally(notification: SMSNotification) {
  * Verify phone number format
  */
 export function isValidPhoneNumber(phoneNumber: string): boolean {
-  // Simple validation: E.164 format or US format
   const e164Regex = /^\+?[1-9]\d{1,14}$/;
   const usRegex = /^(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})$/;
-
   return e164Regex.test(phoneNumber) || usRegex.test(phoneNumber);
 }
 
@@ -152,19 +147,22 @@ export function isValidPhoneNumber(phoneNumber: string): boolean {
  * Format phone number to E.164
  */
 export function formatPhoneNumber(phoneNumber: string): string {
-  // Remove all non-digit characters
   const cleaned = phoneNumber.replace(/\D/g, '');
-
-  // If 10 digits, assume US number
-  if (cleaned.length === 10) {
-    return `+1${cleaned}`;
-  }
-
-  // If 11 digits starting with 1, assume US number
-  if (cleaned.length === 11 && cleaned.startsWith('1')) {
-    return `+${cleaned}`;
-  }
-
-  // Otherwise, add + prefix
+  if (cleaned.length === 10) return `+1${cleaned}`;
+  if (cleaned.length === 11 && cleaned.startsWith('1')) return `+${cleaned}`;
   return `+${cleaned}`;
+}
+
+/**
+ * Verify Twilio credentials by fetching account info
+ */
+export async function verifyTwilioCredentials(): Promise<{ valid: boolean; accountName?: string; error?: string }> {
+  try {
+    const client = getClient();
+    if (!client) return { valid: false, error: 'Twilio client not configured' };
+    const account = await client.api.accounts(accountSid).fetch();
+    return { valid: true, accountName: account.friendlyName };
+  } catch (error: any) {
+    return { valid: false, error: error.message || 'Failed to verify credentials' };
+  }
 }

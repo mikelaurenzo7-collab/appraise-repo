@@ -26,6 +26,9 @@ import ReportDownload from "./pages/ReportDownload";
 import FilingStatus from "./pages/FilingStatus";
 import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
 import LeadChatWidget from "./components/LeadChatWidget";
+import AppealScoring from "./pages/AppealScoring";
+import PhotoAnalysis from "./pages/PhotoAnalysis";
+import CountyGuides from "./pages/CountyGuides";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -55,6 +58,11 @@ function Router() {
       <Route path="/appeal-workflow/:submissionId">
         {(params) => <AppealFilingWorkflow submissionId={params.submissionId} />}
       </Route>
+      <Route path="/appeal-scoring" component={AppealScoring} />
+      <Route path="/photo-analysis" component={PhotoAnalysis} />
+      <Route path="/county-guides" component={CountyGuides} />
+      <Route path="/county-guides/:stateCode" component={CountyGuides} />
+      <Route path="/county-guides/:stateCode/:countySlug" component={CountyGuides} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route path="/disclaimer" component={Disclaimer} />
