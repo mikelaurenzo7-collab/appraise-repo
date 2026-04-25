@@ -2,8 +2,8 @@
  * County-specific filing endpoints
  * Handles form generation, county lookup, and filing management
  */
-
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
+import { lookupCountyInfo } from "../services/serperSearch";
 import { z } from "zod";
 import { generateCountyForm, generateFilingChecklist } from "../services/formGenerator";
 import {
@@ -115,6 +115,22 @@ export const countiesRouter = router({
     .input(z.object({ countyId: z.number() }))
     .query(async ({ input }) => {
       return getCountyEligibility(input.countyId);
+    }),
+
+  /**
+   * Dynamically look up county deadline and filing info via Serper + LLM.
+   * Used when a county is not seeded in the database — gives nationwide coverage.
+   */
+  lookupDynamic: publicProcedure
+    .input(
+      z.object({
+        countyName: z.string().min(1).max(120),
+        state: z.string().length(2),
+      })
+    )
+    .query(async ({ input }) => {
+      const info = await lookupCountyInfo(input.countyName, input.state);
+      return info;
     }),
 
   /**

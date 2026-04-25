@@ -168,6 +168,8 @@ export default function GetStarted() {
   const [selectedState, setSelectedState] = useState("");
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  // County name from geocoding (used for dynamic Serper lookup when county not in DB)
+  const [detectedCountyName, setDetectedCountyName] = useState("");
 
   // Auto-detect state from address when moving to step 2
   useEffect(() => {
@@ -197,6 +199,22 @@ export default function GetStarted() {
     { enabled: !!selectedCountyId && filingMethod !== "none" }
   );
 
+  // Dynamic county lookup via Serper — fires when no counties found for the selected state
+  // and we have a county name from geocoding
+  const noCountiesFound =
+    !!selectedState &&
+    !countiesQuery.isLoading &&
+    countiesQuery.data !== undefined &&
+    countiesQuery.data.length === 0;
+
+  const dynamicCountyQuery = trpc.counties.lookupDynamic.useQuery(
+    { countyName: detectedCountyName || selectedState, state: selectedState },
+    {
+      enabled: noCountiesFound && !!selectedState,
+      staleTime: 1000 * 60 * 30, // Cache for 30 minutes
+      retry: false,
+    }
+  );
 
   const submitMutation = trpc.properties.submitAddress.useMutation({
     onSuccess: (data) => {
@@ -280,10 +298,14 @@ export default function GetStarted() {
                   onChange={setAddress}
                   placeholder="123 Main St, Austin, TX 78701"
                   onStructuredAddress={(data: StructuredAddress) => {
-                    // Auto-detect state from geocoded data (more reliable than regex)
+                    // Auto-detect state and county from geocoded data (more reliable than regex)
                     if (data.stateCode) {
                       setSelectedState(data.stateCode);
                       setSelectedCountyId(null);
+                    }
+                    if (data.county) {
+                      // Strip " County" suffix for cleaner lookup
+                      setDetectedCountyName(data.county.replace(/\s*county$/i, "").trim());
                     }
                   }}
                 />
@@ -478,49 +500,128 @@ export default function GetStarted() {
                         </button>
                       ))
                     ) : (
-                      /* No counties for this state — graceful fallback */
-                      <div className="col-span-full rounded-lg border-2 border-amber-200 bg-amber-50 p-5">
-                        <div className="flex items-start gap-3">
-                          <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
-                          <div>
-                            <h4 className="font-semibold text-sm text-[#0F172A] mb-1">
-                              Filing not yet available in {selectedState}
-                            </h4>
-                            <p className="text-xs text-[#64748B] leading-relaxed mb-3">
-                              We're actively expanding to new jurisdictions. You can still get your <strong>free AI appraisal analysis</strong> — it works nationwide. We'll notify you the moment filing opens in your area.
-                            </p>
-                            {!waitlistSubmitted ? (
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setFilingMethod("none");
-                                    setSelectedCountyId(null);
-                                    toast.success("Switched to Analysis Only — no commitment, full report included.");
-                                  }}
-                                  className="px-3 py-1.5 rounded bg-[#7C3AED] text-white text-xs font-semibold hover:bg-[#6D28D9] transition-colors"
-                                >
-                                  Continue with Free Analysis
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setWaitlistSubmitted(true);
-                                    toast.success(`You'll be notified when filing opens in ${selectedState}!`);
-                                  }}
-                                  className="px-3 py-1.5 rounded border border-[#E2E8F0] text-[#64748B] text-xs font-semibold hover:bg-[#F1F5F9] transition-colors flex items-center gap-1"
-                                >
-                                  <Clock size={12} /> Notify Me When Available
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 text-xs text-green-700 font-medium">
-                                <CheckCircle2 size={14} />
-                                You're on the waitlist! We'll email you at {email || "your address"} when filing opens.
-                              </div>
-                            )}
+                      /* No counties seeded — show dynamic Serper-powered info */
+                      <div className="col-span-full space-y-3">
+                        {dynamicCountyQuery.isLoading ? (
+                          <div className="rounded-lg border-2 border-[#E2E8F0] bg-white p-5 flex items-center gap-3">
+                            <div className="w-5 h-5 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin shrink-0" />
+                            <div>
+                              <p className="text-sm font-semibold text-[#0F172A]">Looking up {detectedCountyName || selectedState} county filing info...</p>
+                              <p className="text-xs text-[#64748B] mt-0.5">Searching public records and assessor portals</p>
+                            </div>
                           </div>
-                        </div>
+                        ) : dynamicCountyQuery.data ? (
+                          <div className="rounded-lg border-2 border-[#7C3AED]/30 bg-[#7C3AED]/5 p-5">
+                            <div className="flex items-start gap-3 mb-3">
+                              <Zap size={18} className="text-[#7C3AED] shrink-0 mt-0.5" />
+                              <div>
+                                <h4 className="font-semibold text-sm text-[#0F172A] mb-0.5">
+                                  {dynamicCountyQuery.data.countyName} County — Filing Info Found
+                                </h4>
+                                <p className="text-xs text-[#64748B]">Sourced from public records via AI research</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                              {dynamicCountyQuery.data.appealDeadline && (
+                                <div className="bg-white rounded p-3 border border-[#E2E8F0]">
+                                  <div className="text-xs text-[#64748B] mb-0.5">Appeal Deadline</div>
+                                  <div className="text-sm font-semibold text-[#0F172A]">{dynamicCountyQuery.data.appealDeadline}</div>
+                                </div>
+                              )}
+                              {dynamicCountyQuery.data.filingFee && (
+                                <div className="bg-white rounded p-3 border border-[#E2E8F0]">
+                                  <div className="text-xs text-[#64748B] mb-0.5">Filing Fee</div>
+                                  <div className="text-sm font-semibold text-[#0F172A]">{dynamicCountyQuery.data.filingFee}</div>
+                                </div>
+                              )}
+                              {dynamicCountyQuery.data.assessorPhone && (
+                                <div className="bg-white rounded p-3 border border-[#E2E8F0]">
+                                  <div className="text-xs text-[#64748B] mb-0.5">Assessor Phone</div>
+                                  <div className="text-sm font-semibold text-[#0F172A]">{dynamicCountyQuery.data.assessorPhone}</div>
+                                </div>
+                              )}
+                              {dynamicCountyQuery.data.requiredForms && (
+                                <div className="bg-white rounded p-3 border border-[#E2E8F0]">
+                                  <div className="text-xs text-[#64748B] mb-0.5">Required Forms</div>
+                                  <div className="text-sm font-semibold text-[#0F172A]">{dynamicCountyQuery.data.requiredForms}</div>
+                                </div>
+                              )}
+                            </div>
+                            {dynamicCountyQuery.data.portalUrl && (
+                              <a
+                                href={dynamicCountyQuery.data.portalUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-[#7C3AED] font-semibold hover:underline mb-3"
+                              >
+                                <MapPin size={12} /> View Assessor Portal
+                              </a>
+                            )}
+                            {dynamicCountyQuery.data.filingInstructions && (
+                              <p className="text-xs text-[#64748B] leading-relaxed border-t border-[#E2E8F0] pt-3">
+                                {dynamicCountyQuery.data.filingInstructions}
+                              </p>
+                            )}
+                            <div className="flex gap-2 mt-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFilingMethod("none");
+                                  setSelectedCountyId(null);
+                                  toast.success("Switched to Analysis Only — full report included.");
+                                }}
+                                className="px-3 py-1.5 rounded bg-[#7C3AED] text-white text-xs font-semibold hover:bg-[#6D28D9] transition-colors"
+                              >
+                                Continue with Free Analysis
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Serper lookup failed or returned nothing */
+                          <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-5">
+                            <div className="flex items-start gap-3">
+                              <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                              <div>
+                                <h4 className="font-semibold text-sm text-[#0F172A] mb-1">
+                                  Filing not yet available in {selectedState}
+                                </h4>
+                                <p className="text-xs text-[#64748B] leading-relaxed mb-3">
+                                  We're actively expanding to new jurisdictions. You can still get your <strong>free AI appraisal analysis</strong> — it works nationwide.
+                                </p>
+                                {!waitlistSubmitted ? (
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setFilingMethod("none");
+                                        setSelectedCountyId(null);
+                                        toast.success("Switched to Analysis Only — no commitment, full report included.");
+                                      }}
+                                      className="px-3 py-1.5 rounded bg-[#7C3AED] text-white text-xs font-semibold hover:bg-[#6D28D9] transition-colors"
+                                    >
+                                      Continue with Free Analysis
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setWaitlistSubmitted(true);
+                                        toast.success(`You'll be notified when filing opens in ${selectedState}!`);
+                                      }}
+                                      className="px-3 py-1.5 rounded border border-[#E2E8F0] text-[#64748B] text-xs font-semibold hover:bg-[#F1F5F9] transition-colors flex items-center gap-1"
+                                    >
+                                      <Clock size={12} /> Notify Me When Available
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2 text-xs text-green-700 font-medium">
+                                    <CheckCircle2 size={14} />
+                                    You're on the waitlist! We'll email you at {email || "your address"} when filing opens.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -510,3 +510,15 @@
 - [x] Extract structured data from Serper results (titles, snippets, links, dates, prices)
 - [x] Inject Serper insights into LLM prompt via formatInsightsForLLM (grounded market data)
 - [x] Test full pipeline: 6 scenarios, 30 results for Cook County Chicago (Cook County Board of Review PDF, 56% appeal success rate, 223 foreclosures, market decline data)
+
+## Serper County Deadline & Filing Info (NEW)
+- [ ] Add county deadline search scenario to serperSearch.ts (filing window, deadline date, assessor portal URL)
+- [ ] Add county filing procedure search scenario (how to file, required forms, fee schedule)
+- [ ] Add county assessor contact search scenario (office address, phone, email, portal URL)
+- [ ] Create serperCountyLookup function that runs all 3 county scenarios in parallel
+- [ ] Wire serperCountyLookup into analysisJob.ts for unseeded counties (Step 2.5 extension)
+- [ ] Wire serperCountyLookup into GetStarted county fallback (WaitlistCapture replacement)
+- [ ] Use LLM to extract structured county data from Serper results (deadline date, portal URL, filing instructions)
+- [ ] Store dynamically discovered county info in DB (counties table or new serper_county_cache table)
+- [ ] Test with unseeded county (e.g., DuPage County IL, Tarrant County TX)
+- [ ] Verify LLM extracts correct deadline dates and portal URLs
