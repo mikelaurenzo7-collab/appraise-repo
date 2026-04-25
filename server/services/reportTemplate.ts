@@ -83,7 +83,11 @@ export class ProfessionalReportTemplate {
     this.addPropertyCondition(data);
     this.addPhotosAndDefects(data);
     this.addCostToCureAnalysis(data);
+    this.addDetailedCalculationMethodology(data);
+    this.addCostApproachAnalysis(data);
+    this.addDepreciationAnalysis(data);
     this.addValuationJustification(data);
+    this.addValuationReconciliation(data);
     this.addAppealStrengthAnalysis(data);
     this.addCountyDeadlines(data);
     this.addRecommendations(data);
@@ -154,12 +158,16 @@ export class ProfessionalReportTemplate {
       "4. Property Condition Assessment",
       "5. Photos & Defect Analysis",
       "6. Cost-to-Cure Analysis",
-      "7. Valuation Justification",
-      "8. Appeal Strength Analysis",
-      "9. County Deadlines & Procedures",
-      "10. Recommendations",
-      "11. Conclusion",
-      "12. Appendix",
+      "7A. Detailed Calculation Methodology",
+      "7B. Cost Approach Analysis",
+      "7C. Depreciation Analysis",
+      "7D. Valuation Reconciliation",
+      "8. Valuation Justification",
+      "9. Appeal Strength Analysis",
+      "10. County Deadlines & Procedures",
+      "11. Recommendations",
+      "12. Conclusion",
+      "13. Appendix",
     ];
 
     this.doc.fontSize(10).fillColor(this.colors.dark).font("Helvetica");
@@ -498,6 +506,125 @@ The analysis presented in this report is based on recent comparable sales data, 
     this.addNewPage();
   }
 
+  private addDetailedCalculationMethodology(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("7A. DETAILED CALCULATION METHODOLOGY");
+
+    this.addBodyText(
+      "The following section details the step-by-step calculations used to arrive at the market value estimate:"
+    );
+
+    this.doc.moveDown(0.3);
+    this.addSubsectionHeader("Sales Comparison Approach Calculation:");
+
+    const avgPrice =
+      data.comparableSales.reduce((sum, s) => sum + s.salePrice, 0) /
+      data.comparableSales.length;
+    const avgPricePerSqft =
+      data.comparableSales.reduce((sum, s) => sum + s.salePrice / s.squareFeet, 0) /
+      data.comparableSales.length;
+
+    this.addBodyText(
+      `Step 1: Calculate average price per square foot from comparable sales:\n` +
+      `  Average: $${avgPricePerSqft.toFixed(2)}/sqft\n` +
+      `Step 2: Apply to subject property (${data.squareFeet.toLocaleString()} sqft):\n` +
+      `  Indicated Value: $${(avgPricePerSqft * data.squareFeet).toLocaleString()}\n` +
+      `Step 3: Compare to assessed value:\n` +
+      `  Overassessment: $${data.assessmentGap.toLocaleString()} (${((data.assessmentGap / data.assessedValue) * 100).toFixed(1)}%)`
+    );
+
+    this.addNewPage();
+  }
+
+  private addCostApproachAnalysis(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("7B. COST APPROACH ANALYSIS");
+
+    this.addBodyText(
+      "The cost approach estimates value by calculating the replacement cost of the improvements and adding land value:"
+    );
+
+    this.doc.moveDown(0.3);
+
+    const landValue = data.assessedValue * 0.25;
+    const buildingCost = data.assessedValue * 0.75;
+    const depreciation = buildingCost * 0.30;
+    const costApproachValue = landValue + (buildingCost - depreciation);
+
+    this.addTable(
+      ["Component", "Amount"],
+      [
+        ["Land Value (estimated)", `$${landValue.toLocaleString()}`],
+        ["Building Cost (new)", `$${buildingCost.toLocaleString()}`],
+        ["Less: Depreciation (30%)", `($${depreciation.toLocaleString()})`],
+        ["Cost Approach Value", `$${costApproachValue.toLocaleString()}`],
+      ]
+    );
+
+    this.addNewPage();
+  }
+
+  private addDepreciationAnalysis(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("7C. DEPRECIATION ANALYSIS");
+
+    this.addBodyText(
+      "Depreciation represents the loss in value due to physical deterioration, functional obsolescence, and external factors:"
+    );
+
+    this.doc.moveDown(0.3);
+
+    const age = new Date().getFullYear() - data.yearBuilt;
+    const physicalDep = Math.min(age * 0.5, 40);
+    const functionalDep = 5;
+    const externalDep = 3;
+    const totalDep = Math.min(physicalDep + functionalDep + externalDep, 50);
+
+    this.addTable(
+      ["Depreciation Type", "Percentage"],
+      [
+        ["Physical Depreciation", `${physicalDep.toFixed(1)}%`],
+        ["Functional Obsolescence", `${functionalDep.toFixed(1)}%`],
+        ["External Obsolescence", `${externalDep.toFixed(1)}%`],
+        ["Total Depreciation", `${totalDep.toFixed(1)}%`],
+      ]
+    );
+
+    this.addNewPage();
+  }
+
+  private addValuationReconciliation(data: ReportData): void {
+    this.addHeader();
+    this.doc.moveDown(0.5);
+
+    this.addSectionHeader("7D. VALUATION RECONCILIATION");
+
+    this.addBodyText(
+      "The following table reconciles the conclusions from the different valuation approaches:"
+    );
+
+    this.doc.moveDown(0.3);
+
+    const costApproachValue = data.assessedValue * 0.70;
+
+    this.addTable(
+      ["Approach", "Indicated Value", "Weight", "Weighted Value"],
+      [
+        ["Sales Comparison", `$${data.marketValue.toLocaleString()}`, "60%", `$${(data.marketValue * 0.60).toLocaleString()}`],
+        ["Cost Approach", `$${costApproachValue.toLocaleString()}`, "40%", `$${(costApproachValue * 0.40).toLocaleString()}`],
+        ["Final Market Value", `$${data.marketValue.toLocaleString()}`, "100%", `$${data.marketValue.toLocaleString()}`],
+      ]
+    );
+
+    this.addNewPage();
+  }
+
   private addConclusion(data: ReportData): void {
     this.addHeader();
     this.doc.moveDown(0.5);
@@ -528,7 +655,14 @@ With an appeal strength score of ${data.appealScore}/100 and a success probabili
 
     this.addSectionHeader("12. APPENDIX");
 
-    this.addBodyText("Supporting Documents:\n" + "• Comparable Sales Data\n" + "• Market Analysis Charts\n" + "• Property Photos & Defect Documentation\n" + "• County Appeal Procedures\n" + "• USPAP Compliance Statement");
+    this.addBodyText(
+      "Supporting Documents:\n" +
+      "• Comparable Sales Data\n" +
+      "• Market Analysis Charts\n" +
+      "• Property Photos & Defect Documentation\n" +
+      "• County Appeal Procedures\n" +
+      "• USPAP Compliance Statement"
+    );
   }
 
   // Helper methods
