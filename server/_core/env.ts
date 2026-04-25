@@ -11,5 +11,5 @@ export const ENV = {
   googleCseApiKey: process.env.GOOGLE_CSE_API_KEY ?? "",
   googleCseCx: process.env.GOOGLE_CSE_CX ?? "",
   realieApiKey: process.env.REALIE_API_KEY ?? "",
-  serperApiKey: process.env.SERPER_API_KEY ?? "",
+  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
 };

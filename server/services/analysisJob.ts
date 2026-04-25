@@ -20,7 +20,7 @@ import {
   persistActivityLog,
 } from "../db";
 import { notifyOwner } from "../_core/notification";
-import { runPropertyResearch } from "./serperSearch";
+import { runPropertyResearch, analyzePropertyPhotos } from "./geminiResearch";
 import { getJurisdictionRules } from "../data/jurisdictionRules";
 import { capturePropertyImagery } from "../_core/streetViewCapture";
 
@@ -133,13 +133,17 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
-    // ── Step 2.5: Run Serper web research in parallel (non-blocking, best-effort) ──────────
-    // Fires 6 scenario-specific Google searches to ground the LLM analysis in
-    // current market data: assessor overvaluation, comps, market trends, zoning,
-    // neighborhood distress, and prior appeal outcomes in the same county.
+    // ── Step 2.5: Gemini dual-model research (non-blocking, best-effort) ────────────────────
+    // Gemini 2.5 Pro with Google Search grounding synthesizes live market intelligence:
+    // assessor overvaluation evidence, comparable sales, market trends, neighborhood
+    // distress, zoning issues, and prior appeal outcomes in the same county.
+    // Gemini 2.5 Flash analyzes any user-uploaded property photos for condition scoring.
     let serperInsights = undefined;
-    try {
-      serperInsights = await Promise.race([
+    let photoAnalysis = undefined;
+
+    // Run Gemini research + photo analysis in parallel
+    const [researchResult, photoResult] = await Promise.allSettled([
+      Promise.race([
         runPropertyResearch({
           address: submission.address,
           city: submission.city || "",
@@ -148,21 +152,46 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           propertyType,
           assessedValue: propertyData.assessedValue,
         }),
-        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 15000)),
-      ]);
-      if (serperInsights) {
-        const resultsCount = serperInsights.reduce((sum, i) => sum + i.results.length, 0);
-        console.log(`[AnalysisJob] Serper research complete — ${serperInsights.length} scenarios, ${resultsCount} total results`);
-        await persistActivityLog({
-          submissionId,
-          type: "api_aggregation_complete",
-          actor: "system",
-          description: `Web research complete — ${serperInsights.length} search scenarios, ${resultsCount} results (assessor overvaluation, comps, market trends, zoning, distress, appeal outcomes)`,
-          status: "success",
-        });
-      }
-    } catch (err) {
-      console.warn("[AnalysisJob] Serper research failed (non-critical):", (err as Error).message);
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30000)),
+      ]),
+      // Analyze uploaded photos if available
+      (submission as Record<string, unknown>).photoUrls && Array.isArray((submission as Record<string, unknown>).photoUrls) && ((submission as Record<string, unknown>).photoUrls as string[]).length > 0
+        ? analyzePropertyPhotos(
+            (submission as Record<string, unknown>).photoUrls as string[],
+            propertyType,
+            submission.address
+          )
+        : Promise.resolve(undefined),
+    ]);
+
+    if (researchResult.status === "fulfilled" && researchResult.value) {
+      serperInsights = researchResult.value;
+      const sourceCount = serperInsights.reduce((sum, i) => sum + i.results.length, 0);
+      console.log(`[AnalysisJob] ✓ Gemini research complete — ${serperInsights.length} scenarios, ${sourceCount} grounded sources`);
+      await persistActivityLog({
+        submissionId,
+        type: "api_aggregation_complete",
+        actor: "system",
+        description: `Gemini market intelligence complete — ${serperInsights.length} research scenarios with ${sourceCount} live sources (overvaluation evidence, comps, market trends, neighborhood distress, zoning, appeal outcomes)`,
+        status: "success",
+      });
+    } else if (researchResult.status === "rejected") {
+      console.warn("[AnalysisJob] Gemini research failed (non-critical):", (researchResult.reason as Error)?.message);
+    }
+
+    if (photoResult.status === "fulfilled" && photoResult.value) {
+      photoAnalysis = photoResult.value;
+      console.log(`[AnalysisJob] ✓ Photo analysis complete — condition score: ${photoAnalysis.conditionScore}/5, cost-to-cure: $${photoAnalysis.costToCureEstimate.toLocaleString()}`);
+      await persistActivityLog({
+        submissionId,
+        type: "api_aggregation_complete",
+        actor: "system",
+        description: `Property photo analysis complete — condition score: ${photoAnalysis.conditionScore}/5, ${photoAnalysis.defectsFound.length} defects identified, estimated cost-to-cure: $${photoAnalysis.costToCureEstimate.toLocaleString()}`,
+        metadata: JSON.stringify(photoAnalysis),
+        status: "success",
+      });
+    } else if (photoResult.status === "rejected") {
+      console.warn("[AnalysisJob] Photo analysis failed (non-critical):", (photoResult.reason as Error)?.message);
     }
     // ── Step 3: Get jurisdiction rules ───────────────────────────────────────
     const state = submission.state || "";
@@ -177,13 +206,13 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
-    const analysis = await analyzeProperty(propertyData, propertyType, serperInsights);
+    const analysis = await analyzeProperty(propertyData, propertyType, serperInsights, photoAnalysis);
 
     await persistActivityLog({
       submissionId,
       type: "llm_analysis_complete",
       actor: "system",
-      description: `LLM analysis complete — appeal strength: ${analysis.appealStrengthScore}/100, potential savings: $${analysis.potentialSavings?.toLocaleString() ?? "N/A"}, approach: ${analysis.recommendedApproach}`,
+      description: `Gemini + LLM analysis complete — appeal strength: ${analysis.appealStrengthScore}/100, potential savings: $${analysis.potentialSavings?.toLocaleString() ?? "N/A"}, approach: ${analysis.recommendedApproach}${photoAnalysis ? `, condition: ${photoAnalysis.conditionScore}/5` : ""}`,
       metadata: JSON.stringify({
         appealStrengthScore: analysis.appealStrengthScore,
         potentialSavings: analysis.potentialSavings,

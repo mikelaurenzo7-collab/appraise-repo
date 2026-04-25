@@ -159,29 +159,7 @@ export default function UserDashboard() {
     refetchInterval: 30_000, // auto-refresh every 30s to catch status changes
   });
 
-  if (loading || subLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Access Denied</h1>
-          <p className="text-muted-foreground mb-6">Please log in to view your dashboard</p>
-          <Link href="/">
-            <Button>Go Home</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Filter and search
+  // Filter and search — all hooks MUST be before any early returns
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((s) => {
       const matchesSearch =
@@ -217,6 +195,28 @@ export default function UserDashboard() {
   }, [submissions]);
 
   const referralLink = `https://appraiseai.manus.space/ref/${user?.name?.toLowerCase().replace(/\s+/g, "-") || "you"}`;
+
+  if (loading || subLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Access Denied</h1>
+          <p className="text-muted-foreground mb-6">Please log in to view your dashboard</p>
+          <Link href="/">
+            <Button>Go Home</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

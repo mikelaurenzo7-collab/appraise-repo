@@ -1,7 +1,9 @@
 import { invokeLLM } from "../_core/llm";
 import type { PropertyData, ComparableSale } from "./propertyDataAggregator";
-import type { SerperInsight } from "./serperSearch";
-import { formatInsightsForLLM } from "./serperSearch";
+import type { GeminiInsight } from "./geminiResearch";
+import { formatInsightsForLLM } from "./geminiResearch";
+// Backward-compat alias
+type SerperInsight = GeminiInsight;
 import { getStateRules } from "./stateAssessmentRules";
 
 // ─── ASSESSMENT LEVEL TABLE ───────────────────────────────────────────────────
@@ -352,10 +354,19 @@ function getMethodologyGuidance(propertyType: string): string {
 }
 
 // ─── MAIN ANALYSIS FUNCTION ───────────────────────────────────────────────────
+interface PhotoAnalysisResult {
+  conditionScore: number;
+  conditionNotes: string;
+  defectsFound: string[];
+  costToCureEstimate: number;
+  appealImpact: string;
+}
+
 export async function analyzeProperty(
   propertyData: PropertyData,
   propertyType: string = "residential",
-  serperInsights?: SerperInsight[]
+  serperInsights?: GeminiInsight[],
+  photoAnalysis?: PhotoAnalysisResult
 ): Promise<AppraisalAnalysis> {
   try {
     // Pre-computations
@@ -451,7 +462,14 @@ MARKET WEAKNESS INDICATORS:
 ${marketWeakness.length > 0 ? marketWeakness.map((f) => `  - ${f}`).join("\n") : "  None identified from available data"}
 
 METHODOLOGY GUIDANCE:
-${methodologyGuidance}${serperInsights ? formatInsightsForLLM(serperInsights) : ""}
+${methodologyGuidance}${photoAnalysis ? `
+
+## GEMINI PHOTO ANALYSIS (Condition Evidence)
+Condition Score: ${photoAnalysis.conditionScore}/5
+Condition Notes: ${photoAnalysis.conditionNotes}
+Defects Identified: ${photoAnalysis.defectsFound.length > 0 ? photoAnalysis.defectsFound.join("; ") : "None"}
+Estimated Cost-to-Cure: $${photoAnalysis.costToCureEstimate.toLocaleString()}
+Appeal Impact: ${photoAnalysis.appealImpact}` : ""}${serperInsights ? formatInsightsForLLM(serperInsights) : ""}
     `;
 
     // Get state-specific rules for LLM context

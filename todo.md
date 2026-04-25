@@ -552,3 +552,18 @@
 - [x] Embed Street View + satellite imagery in PDF reports
 - [x] Fix polishPivot.test.ts mock submission (filingMethod: pro-se for correct amountCents)
 - [x] Rewrite UserDashboard with live trpc.user.getSubmissions + real PDF generate/download buttons
+
+## Phase 18: Gemini Dual-Model Pipeline — COMPLETE
+
+- [x] Save GEMINI_API_KEY to secrets
+- [x] Validate Gemini API key with test call (Gemini 2.5 Flash + Pro both responding)
+- [x] Build server/services/geminiResearch.ts — search grounding, photo analysis, document parsing, county lookup
+- [x] Update server/_core/env.ts to expose GEMINI_API_KEY
+- [x] Update appraisalAnalyzer.ts — import from geminiResearch, inject photo analysis into LLM prompt
+- [x] Update analysisJob.ts — replace Serper step with Gemini dual-model research + photo analysis in parallel
+- [x] Update counties.ts router — lookupDynamic now uses Gemini 2.5 Pro instead of Serper
+- [x] Stub out serperSearch.ts (no-op, backward compat) — Serper key deleted
+- [x] Write geminiApi.validation.test.ts — 3 tests passing
+- [x] TypeScript audit — 0 errors
+- [x] Run full test suite — 35 files, 316 tests passing, 1 skipped
+- [x] Save launch checkpoint

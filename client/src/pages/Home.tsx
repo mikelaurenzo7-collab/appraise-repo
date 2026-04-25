@@ -73,7 +73,7 @@ const steps = [
   {
     number: "03",
     icon: <FileText size={22} />,
-    title: "We Prepare &amp; Transmit",
+    title: "We Prepare & Transmit",
     desc: "Review and sign a per-filing scrivener authorization. Our software prepares your pro-se appeal packet and transmits it to the county — portal, certified mail, or email, whichever the county accepts.",
   },
   {

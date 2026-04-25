@@ -161,9 +161,10 @@ function buildCountyQuery(
 // ─── Serper API Call ──────────────────────────────────────────────────────────
 
 async function searchSerper(query: string, num = 5): Promise<SerperResult[]> {
-  const apiKey = ENV.serperApiKey;
+  // Serper has been replaced by Gemini research — this function is a no-op stub
+  // kept for backward compatibility. All research now flows through geminiResearch.ts.
+  const apiKey = (ENV as Record<string, unknown>).serperApiKey as string | undefined;
   if (!apiKey) {
-    console.warn("[Serper] SERPER_API_KEY not set — skipping search");
     return [];
   }
 

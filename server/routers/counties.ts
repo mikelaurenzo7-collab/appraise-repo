@@ -3,7 +3,7 @@
  * Handles form generation, county lookup, and filing management
  */
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
-import { lookupCountyInfo } from "../services/serperSearch";
+import { lookupCountyInfo } from "../services/geminiResearch";
 import { z } from "zod";
 import { generateCountyForm, generateFilingChecklist } from "../services/formGenerator";
 import {
@@ -118,7 +118,7 @@ export const countiesRouter = router({
     }),
 
   /**
-   * Dynamically look up county deadline and filing info via Serper + LLM.
+   * Dynamically look up county deadline and filing info via Gemini 2.5 Pro (Google Search grounding).
    * Used when a county is not seeded in the database — gives nationwide coverage.
    */
   lookupDynamic: publicProcedure
