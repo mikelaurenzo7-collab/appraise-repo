@@ -500,3 +500,13 @@
 - [x] Test Realie with Naperville address and evaluate data quality (API auth issue — key needs verification with Realie support)
 - [x] Report data quality findings to user (Realie returns rich data when auth works)
 - [x] Save checkpoint
+
+## Serper API Integration (COMPLETED)
+- [x] Store SERPER_API_KEY as environment secret
+- [x] Add SERPER_API_KEY to server/_core/env.ts
+- [x] Build server/services/serperSearch.ts with 6 scenario-specific query templates
+- [x] Implement search scenarios: assessor overvaluation, comparable sales, market trends, zoning/neighborhood, distressed sales, appeal outcomes
+- [x] Wire Serper into analysisJob.ts as Step 2.5 (parallel, 15s timeout, non-blocking)
+- [x] Extract structured data from Serper results (titles, snippets, links, dates, prices)
+- [x] Inject Serper insights into LLM prompt via formatInsightsForLLM (grounded market data)
+- [x] Test full pipeline: 6 scenarios, 30 results for Cook County Chicago (Cook County Board of Review PDF, 56% appeal success rate, 223 foreclosures, market decline data)

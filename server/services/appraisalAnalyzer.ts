@@ -1,5 +1,7 @@
 import { invokeLLM } from "../_core/llm";
 import type { PropertyData, ComparableSale } from "./propertyDataAggregator";
+import type { SerperInsight } from "./serperSearch";
+import { formatInsightsForLLM } from "./serperSearch";
 
 export interface AppraisalAnalysis {
   marketValueEstimate: number;
@@ -199,7 +201,8 @@ function getMethodologyGuidance(propertyType: string): string {
  */
 export async function analyzeProperty(
   propertyData: PropertyData,
-  propertyType: string = "residential"
+  propertyType: string = "residential",
+  serperInsights?: SerperInsight[]
 ): Promise<AppraisalAnalysis> {
   try {
     // Step 1: Select the most favorable comparable sales
@@ -253,7 +256,7 @@ MARKET WEAKNESS INDICATORS:
 ${marketWeakness.length > 0 ? marketWeakness.map((f) => `  - ${f}`).join("\n") : "  None identified from available data"}
 
 METHODOLOGY GUIDANCE:
-${methodologyGuidance}
+${methodologyGuidance}${serperInsights ? formatInsightsForLLM(serperInsights) : ""}
     `;
 
     const systemPrompt = `You are an EXPERT PROPERTY APPRAISER working as an advocate for the homeowner. Your job is to produce a rigorous, data-backed analysis that presents the STRONGEST POSSIBLE CASE for a lower assessed value.

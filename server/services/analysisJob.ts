@@ -20,6 +20,7 @@ import {
   persistActivityLog,
 } from "../db";
 import { notifyOwner } from "../_core/notification";
+import { runPropertyResearch } from "./serperSearch";
 import { getJurisdictionRules } from "../data/jurisdictionRules";
 import { capturePropertyImagery } from "../_core/streetViewCapture";
 
@@ -132,6 +133,37 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
+    // ── Step 2.5: Run Serper web research in parallel (non-blocking, best-effort) ──────────
+    // Fires 6 scenario-specific Google searches to ground the LLM analysis in
+    // current market data: assessor overvaluation, comps, market trends, zoning,
+    // neighborhood distress, and prior appeal outcomes in the same county.
+    let serperInsights = undefined;
+    try {
+      serperInsights = await Promise.race([
+        runPropertyResearch({
+          address: submission.address,
+          city: submission.city || "",
+          state: submission.state || "",
+          county: propertyData.county || submission.county || "",
+          propertyType,
+          assessedValue: propertyData.assessedValue,
+        }),
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 15000)),
+      ]);
+      if (serperInsights) {
+        const resultsCount = serperInsights.reduce((sum, i) => sum + i.results.length, 0);
+        console.log(`[AnalysisJob] Serper research complete — ${serperInsights.length} scenarios, ${resultsCount} total results`);
+        await persistActivityLog({
+          submissionId,
+          type: "api_aggregation_complete",
+          actor: "system",
+          description: `Web research complete — ${serperInsights.length} search scenarios, ${resultsCount} results (assessor overvaluation, comps, market trends, zoning, distress, appeal outcomes)`,
+          status: "success",
+        });
+      }
+    } catch (err) {
+      console.warn("[AnalysisJob] Serper research failed (non-critical):", (err as Error).message);
+    }
     // ── Step 3: Get jurisdiction rules ───────────────────────────────────────
     const state = submission.state || "";
     const jurisdictionRules = getJurisdictionRules(state);
@@ -145,7 +177,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
-    const analysis = await analyzeProperty(propertyData, propertyType);
+    const analysis = await analyzeProperty(propertyData, propertyType, serperInsights);
 
     await persistActivityLog({
       submissionId,
