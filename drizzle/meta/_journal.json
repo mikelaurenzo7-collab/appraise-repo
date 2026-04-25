@@ -71,6 +71,13 @@
       "when": 1776921190365,
       "tag": "0009_outgoing_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1777100373626,
+      "tag": "0010_old_boomer",
+      "breakpoints": true
     }
   ]
 }

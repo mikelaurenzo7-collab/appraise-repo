@@ -19,6 +19,9 @@ import {
   refundRequests, RefundRequest, InsertRefundRequest,
   stripeEventsProcessed, InsertStripeEventProcessed,
   countyWaitlist, CountyWaitlistEntry, InsertCountyWaitlistEntry,
+  referralCodes, ReferralCode, InsertReferralCode,
+  referralTracking, ReferralTrackingEntry, InsertReferralTrackingEntry,
+  referralPayouts, ReferralPayout, InsertReferralPayout,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -1540,5 +1543,254 @@ export async function getFilingStats(windowDays = 30): Promise<FilingStats> {
   } catch (error) {
     console.error("[FilingStats] Query failed:", error);
     return empty;
+  }
+}
+
+// ─── REFERRAL TRACKING ──────────────────────────────────────────────────────
+
+/** Commission cents per tier */
+const TIER_COMMISSION: Record<string, number> = {
+  bronze: 2500,   // $25
+  silver: 4000,   // $40
+  gold: 5000,     // $50
+  platinum: 7500, // $75
+};
+
+/** Tier thresholds based on lifetime referral count */
+function computeTier(lifetimeReferrals: number): "bronze" | "silver" | "gold" | "platinum" {
+  if (lifetimeReferrals >= 51) return "platinum";
+  if (lifetimeReferrals >= 16) return "gold";
+  if (lifetimeReferrals >= 6) return "silver";
+  return "bronze";
+}
+
+/** Get or create a referral code for a user */
+export async function getOrCreateReferralCode(userId: number): Promise<ReferralCode | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const existing = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId)).limit(1);
+    if (existing.length > 0) return existing[0];
+
+    const code = `APPR-${String(userId).padStart(4, "0")}`;
+    await db.insert(referralCodes).values({ userId, code, tier: "bronze" });
+    const created = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId)).limit(1);
+    return created[0];
+  } catch (error) {
+    console.error("[Referral] Failed to get/create referral code:", error);
+    return undefined;
+  }
+}
+
+/** Look up a referral code row by code string */
+export async function getReferralCodeByCode(code: string): Promise<ReferralCode | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const result = await db.select().from(referralCodes).where(eq(referralCodes.code, code)).limit(1);
+    return result[0];
+  } catch (error) {
+    console.error("[Referral] Failed to look up referral code:", error);
+    return undefined;
+  }
+}
+
+/** Record a referral click / sign-up / submission */
+export async function createReferralTracking(entry: InsertReferralTrackingEntry): Promise<ReferralTrackingEntry | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const result = await db.insert(referralTracking).values(entry);
+    const insertedId = (result as any).insertId;
+    const row = await db.select().from(referralTracking).where(eq(referralTracking.id, insertedId)).limit(1);
+    return row[0];
+  } catch (error) {
+    console.error("[Referral] Failed to create tracking entry:", error);
+    return undefined;
+  }
+}
+
+/** Find a referral tracking entry by referred user + referral code */
+export async function getReferralTrackingByReferredUser(referredUserId: number, referralCode: string): Promise<ReferralTrackingEntry | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const result = await db.select().from(referralTracking)
+      .where(and(eq(referralTracking.referredUserId, referredUserId), eq(referralTracking.referralCode, referralCode)))
+      .limit(1);
+    return result[0];
+  } catch (error) {
+    console.error("[Referral] Failed to get tracking by referred user:", error);
+    return undefined;
+  }
+}
+
+/** Find a referral tracking entry by submission ID */
+export async function getReferralTrackingBySubmission(submissionId: number): Promise<ReferralTrackingEntry | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const result = await db.select().from(referralTracking)
+      .where(eq(referralTracking.submissionId, submissionId))
+      .limit(1);
+    return result[0];
+  } catch (error) {
+    console.error("[Referral] Failed to get tracking by submission:", error);
+    return undefined;
+  }
+}
+
+/** Update a referral tracking entry */
+export async function updateReferralTracking(id: number, updates: Partial<InsertReferralTrackingEntry>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const updateData = Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined));
+    await db.update(referralTracking).set(updateData).where(eq(referralTracking.id, id));
+  } catch (error) {
+    console.error("[Referral] Failed to update tracking entry:", error);
+  }
+}
+
+/** Credit a referral: update tracking status, bump referrer stats, recalculate tier */
+export async function creditReferral(trackingId: number, stripePaymentIntentId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    // Get the tracking entry
+    const [entry] = await db.select().from(referralTracking).where(eq(referralTracking.id, trackingId)).limit(1);
+    if (!entry || entry.status === "credited") return;
+
+    // Get the referrer's code row
+    const [codeRow] = await db.select().from(referralCodes).where(eq(referralCodes.userId, entry.referrerUserId)).limit(1);
+    if (!codeRow) return;
+
+    // Calculate commission based on current tier
+    const commissionCents = TIER_COMMISSION[codeRow.tier] || 2500;
+
+    // Update tracking entry
+    await db.update(referralTracking).set({
+      status: "credited",
+      commissionCents,
+      commissionTier: codeRow.tier,
+      stripePaymentIntentId,
+      creditedAt: new Date(),
+    }).where(eq(referralTracking.id, trackingId));
+
+    // Bump referrer stats
+    const newLifetime = codeRow.lifetimeReferrals + 1;
+    const newTier = computeTier(newLifetime);
+    await db.update(referralCodes).set({
+      lifetimeReferrals: newLifetime,
+      lifetimeEarningsCents: codeRow.lifetimeEarningsCents + commissionCents,
+      pendingBalanceCents: codeRow.pendingBalanceCents + commissionCents,
+      tier: newTier,
+    }).where(eq(referralCodes.id, codeRow.id));
+
+    console.log(`[Referral] Credited ${commissionCents / 100} to user ${entry.referrerUserId} (tier: ${newTier})`);
+  } catch (error) {
+    console.error("[Referral] Failed to credit referral:", error);
+  }
+}
+
+/** Reverse a referral credit (e.g. on refund) */
+export async function reverseReferralCredit(submissionId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const [entry] = await db.select().from(referralTracking)
+      .where(and(eq(referralTracking.submissionId, submissionId), eq(referralTracking.status, "credited")))
+      .limit(1);
+    if (!entry) return;
+
+    // Update tracking
+    await db.update(referralTracking).set({
+      status: "reversed",
+      reversedAt: new Date(),
+    }).where(eq(referralTracking.id, entry.id));
+
+    // Deduct from referrer balance
+    const [codeRow] = await db.select().from(referralCodes).where(eq(referralCodes.userId, entry.referrerUserId)).limit(1);
+    if (codeRow) {
+      await db.update(referralCodes).set({
+        pendingBalanceCents: Math.max(0, codeRow.pendingBalanceCents - entry.commissionCents),
+        lifetimeEarningsCents: Math.max(0, codeRow.lifetimeEarningsCents - entry.commissionCents),
+      }).where(eq(referralCodes.id, codeRow.id));
+    }
+
+    console.log(`[Referral] Reversed credit for submission ${submissionId}`);
+  } catch (error) {
+    console.error("[Referral] Failed to reverse referral credit:", error);
+  }
+}
+
+/** Get referral stats for a user's dashboard */
+export async function getReferralDashboard(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const codeRow = await getOrCreateReferralCode(userId);
+    if (!codeRow) return null;
+
+    // Get recent referrals
+    const recentReferrals = await db.select().from(referralTracking)
+      .where(eq(referralTracking.referrerUserId, userId))
+      .orderBy(desc(referralTracking.createdAt))
+      .limit(50);
+
+    const successfulCount = recentReferrals.filter(r => r.status === "credited").length;
+    const pendingCount = recentReferrals.filter(r => ["clicked", "signed_up", "submitted", "paid"].includes(r.status)).length;
+
+    return {
+      code: codeRow.code,
+      tier: codeRow.tier,
+      lifetimeReferrals: codeRow.lifetimeReferrals,
+      lifetimeEarningsCents: codeRow.lifetimeEarningsCents,
+      pendingBalanceCents: codeRow.pendingBalanceCents,
+      paidOutCents: codeRow.paidOutCents,
+      successfulCount,
+      pendingCount,
+      recentReferrals: recentReferrals.map(r => ({
+        id: r.id,
+        referredEmail: r.referredEmail,
+        status: r.status,
+        commissionCents: r.commissionCents,
+        createdAt: r.createdAt,
+        creditedAt: r.creditedAt,
+      })),
+    };
+  } catch (error) {
+    console.error("[Referral] Failed to get dashboard:", error);
+    return null;
+  }
+}
+
+/** Create a payout request */
+export async function createReferralPayout(userId: number, amountCents: number): Promise<ReferralPayout | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const result = await db.insert(referralPayouts).values({
+      userId,
+      amountCents,
+      status: "pending",
+      method: "stripe_transfer",
+    });
+    const insertedId = (result as any).insertId;
+    const row = await db.select().from(referralPayouts).where(eq(referralPayouts.id, insertedId)).limit(1);
+
+    // Deduct from pending balance
+    const [codeRow] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId)).limit(1);
+    if (codeRow) {
+      await db.update(referralCodes).set({
+        pendingBalanceCents: Math.max(0, codeRow.pendingBalanceCents - amountCents),
+        paidOutCents: codeRow.paidOutCents + amountCents,
+      }).where(eq(referralCodes.id, codeRow.id));
+    }
+
+    return row[0];
+  } catch (error) {
+    console.error("[Referral] Failed to create payout:", error);
+    return undefined;
   }
 }

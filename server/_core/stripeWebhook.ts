@@ -4,6 +4,9 @@ import {
   updateAppealOutcome,
   getAppealOutcomeBySubmissionId,
   recordStripeEvent,
+  getReferralTrackingBySubmission,
+  updateReferralTracking,
+  creditReferral,
 } from "../db";
 
 let _stripe: Stripe | null = null;
@@ -121,6 +124,35 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     console.log(`[Stripe Webhook] Updated appeal outcome ${existing.id} with payment info`);
   } else {
     console.warn(`[Stripe Webhook] No appeal outcome found for submission ${submissionId}`);
+  }
+
+  // ─── REFERRAL CREDITING ─────────────────────────────────────────────
+  // If this submission was referred, credit the referrer now that payment
+  // has succeeded. The referral tracking row was created at submission time
+  // with status "submitted". We advance it to "paid" → "credited".
+  try {
+    const referralEntry = await getReferralTrackingBySubmission(submissionId);
+    if (referralEntry && referralEntry.status !== "credited" && referralEntry.status !== "reversed") {
+      // Mark as paid first
+      await updateReferralTracking(referralEntry.id, {
+        status: "paid",
+        paidAt: new Date(),
+        stripePaymentIntentId: (session.payment_intent as string) || undefined,
+      });
+
+      // Credit the referrer (bumps their stats + calculates tier-based commission)
+      await creditReferral(
+        referralEntry.id,
+        (session.payment_intent as string) || ""
+      );
+
+      console.log(
+        `[Stripe Webhook] Referral credited for submission ${submissionId} (referrer: ${referralEntry.referrerUserId})`
+      );
+    }
+  } catch (err) {
+    // Referral crediting should never block the main payment flow
+    console.error("[Stripe Webhook] Referral crediting failed (non-blocking):", err);
   }
 
   console.log(

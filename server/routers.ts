@@ -78,6 +78,14 @@ import {
   updateRefundRequest,
   getFilingJobById,
   getFilingJobBySubmissionId,
+  getOrCreateReferralCode,
+  getReferralCodeByCode,
+  createReferralTracking,
+  getReferralTrackingBySubmission,
+  updateReferralTracking,
+  creditReferral,
+  getReferralDashboard,
+  createReferralPayout,
 } from "./db";
 import { hashAuthorizationText } from "./services/filingRecipeEngine";
 import { queueFilingJob } from "./services/filingJobQueue";
@@ -204,6 +212,57 @@ export const appRouter = router({
   reports: reportsRouter,
   guides: guidesRouter,
 
+  // ─── REFERRAL ──────────────────────────────────────────────────────────
+  referral: router({
+    /** Get or create the current user's referral code + dashboard stats */
+    dashboard: protectedProcedure.query(async ({ ctx }) => {
+      const data = await getReferralDashboard(ctx.user.id);
+      if (!data) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not load referral data" });
+      return data;
+    }),
+
+    /** Validate a referral code (public — used on GetStarted page) */
+    validateCode: publicProcedure
+      .input(z.object({ code: z.string().min(1) }))
+      .query(async ({ input }) => {
+        const codeRow = await getReferralCodeByCode(input.code);
+        return { valid: !!codeRow, code: input.code };
+      }),
+
+    /** Track a referral click (public — called when ?ref= param is present) */
+    trackClick: publicProcedure
+      .input(z.object({ code: z.string().min(1), email: z.string().email().optional() }))
+      .mutation(async ({ input }) => {
+        const codeRow = await getReferralCodeByCode(input.code);
+        if (!codeRow) return { success: false, reason: "invalid_code" };
+        await createReferralTracking({
+          referrerUserId: codeRow.userId,
+          referralCode: input.code,
+          referredEmail: input.email || null,
+          status: "clicked",
+          clickedAt: new Date(),
+        });
+        return { success: true };
+      }),
+
+    /** Request a payout (min $50 = 5000 cents) */
+    requestPayout: protectedProcedure
+      .input(z.object({ amountCents: z.number().int().min(5000) }))
+      .mutation(async ({ ctx, input }) => {
+        const dashboard = await getReferralDashboard(ctx.user.id);
+        if (!dashboard || dashboard.pendingBalanceCents < input.amountCents) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient balance" });
+        }
+        const payout = await createReferralPayout(ctx.user.id, input.amountCents);
+        if (!payout) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create payout" });
+        await notifyOwner({
+          title: "Referral Payout Request",
+          content: `User ${ctx.user.name || ctx.user.email} requested a payout of $${(input.amountCents / 100).toFixed(2)}.`,
+        }).catch(() => {});
+        return { success: true, payoutId: payout.id };
+      }),
+  }),
+
   // ─── AUTH ────────────────────────────────────────────────────────────────
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -222,6 +281,7 @@ export const appRouter = router({
         email: z.string().email("Please enter a valid email"),
         phone: z.string().optional(),
         filingMethod: z.enum(["poa", "pro-se", "none"]).default("poa"),
+        referralCode: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         enforceRateLimit(ctx, {
@@ -270,6 +330,22 @@ export const appRouter = router({
 
             // Queue analysis
             queueAnalysisJob(submission.id, 2000);
+
+            // Track referral if a code was provided
+            if (input.referralCode) {
+              const codeRow = await getReferralCodeByCode(input.referralCode);
+              if (codeRow) {
+                await createReferralTracking({
+                  referrerUserId: codeRow.userId,
+                  referralCode: input.referralCode,
+                  referredEmail: input.email,
+                  submissionId: submission.id,
+                  status: "submitted",
+                  clickedAt: new Date(),
+                });
+                console.log(`[Referral] Tracked submission referral: ${input.referralCode} -> ${input.email}`);
+              }
+            }
           }
 
           return {

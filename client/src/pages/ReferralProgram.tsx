@@ -10,8 +10,9 @@ import {
   Gift,
   ArrowRight,
   CheckCircle2,
-  Zap,
   ChevronRight,
+  Loader2,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,13 +20,14 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 /**
  * Referral Program Page
  * Two modes:
  * 1. Logged-out: marketing page explaining the program + CTA to sign up
- * 2. Logged-in: dashboard with referral code, stats, history, leaderboard
+ * 2. Logged-in: dashboard with real referral code, live stats, history
  */
 
 const tiers = [
@@ -48,16 +50,16 @@ const tiers = [
   {
     label: "Gold",
     range: "16–50 referrals",
-    commission: "$60",
-    perks: "Per referral + early access to new counties",
-    color: "from-yellow-500 to-amber-400",
-    textColor: "text-yellow-900",
+    commission: "$50",
+    perks: "Per referral + free filing",
+    color: "from-[oklch(0.72_0.12_75)] to-[oklch(0.65_0.14_75)]",
+    textColor: "text-[oklch(0.18_0.06_255)]",
   },
   {
     label: "Platinum",
-    range: "50+ referrals",
+    range: "51+ referrals",
     commission: "$75",
-    perks: "Per referral + dedicated account manager",
+    perks: "Per referral + revenue share",
     color: "from-[#7C3AED] to-[#6D28D9]",
     textColor: "text-white",
   },
@@ -67,7 +69,7 @@ const howItWorks = [
   {
     step: "01",
     icon: <Gift size={20} />,
-    title: "Get Your Unique Link",
+    title: "Get Your Link",
     desc: "Sign up or log in to receive your personal referral link. Share it anywhere — email, social media, or word of mouth.",
   },
   {
@@ -84,6 +86,26 @@ const howItWorks = [
   },
 ];
 
+function formatCents(cents: number): string {
+  return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    clicked: "bg-gray-100 text-gray-600",
+    signed_up: "bg-blue-100 text-blue-700",
+    submitted: "bg-amber-100 text-amber-700",
+    paid: "bg-emerald-100 text-emerald-700",
+    credited: "bg-green-100 text-green-700",
+    reversed: "bg-red-100 text-red-700",
+  };
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || "bg-gray-100 text-gray-600"}`}>
+      {status.replace("_", " ")}
+    </span>
+  );
+}
+
 export default function ReferralProgram() {
   usePageMeta({
     title: "Referral Program — Earn Cash Helping Friends Save on Property Taxes",
@@ -95,10 +117,23 @@ export default function ReferralProgram() {
   const { user, isAuthenticated } = useAuth();
   const [copied, setCopied] = useState(false);
 
-  // Generate a deterministic referral code from user ID
-  const referralCode = user
-    ? `APPR-${String(user.id).padStart(4, "0")}`
-    : "APPR-XXXX";
+  // Fetch real dashboard data for logged-in users
+  const { data: dashboard, isLoading: dashboardLoading } = trpc.referral.dashboard.useQuery(
+    undefined,
+    { enabled: isAuthenticated }
+  );
+
+  const payoutMutation = trpc.referral.requestPayout.useMutation({
+    onSuccess: () => {
+      toast.success("Payout request submitted! We'll process it within 24 hours.");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to request payout");
+    },
+  });
+
+  // Use real code from dashboard, fallback to deterministic
+  const referralCode = dashboard?.code || (user ? `APPR-${String(user.id).padStart(4, "0")}` : "APPR-XXXX");
   const shareUrl = `${window.location.origin}/get-started?ref=${referralCode}`;
 
   const copyCode = () => {
@@ -118,6 +153,14 @@ export default function ReferralProgram() {
     } else {
       copyCode();
     }
+  };
+
+  const handlePayout = () => {
+    if (!dashboard || dashboard.pendingBalanceCents < 5000) {
+      toast.error("Minimum payout is $50. Keep referring to build your balance!");
+      return;
+    }
+    payoutMutation.mutate({ amountCents: dashboard.pendingBalanceCents });
   };
 
   return (
@@ -259,24 +302,32 @@ export default function ReferralProgram() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {tiers.map((tier) => (
-              <div
-                key={tier.label}
-                className={`rounded-xl p-6 bg-gradient-to-br ${tier.color} relative overflow-hidden`}
-              >
-                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-x-4 -translate-y-4" />
-                <div className={`relative z-10 ${tier.textColor}`}>
-                  <div className="text-xs font-semibold uppercase tracking-widest opacity-80 mb-1">
-                    {tier.label}
-                  </div>
-                  <div className="text-3xl font-bold mb-1">{tier.commission}</div>
-                  <div className="text-sm opacity-80 mb-3">{tier.range}</div>
-                  <div className="text-xs opacity-70 leading-relaxed">
-                    {tier.perks}
+            {tiers.map((tier) => {
+              const isCurrentTier = dashboard?.tier === tier.label.toLowerCase();
+              return (
+                <div
+                  key={tier.label}
+                  className={`rounded-xl p-6 bg-gradient-to-br ${tier.color} relative overflow-hidden ${isCurrentTier ? "ring-2 ring-white ring-offset-2 ring-offset-[#0F172A]" : ""}`}
+                >
+                  {isCurrentTier && (
+                    <div className="absolute top-2 right-2 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                      Your Tier
+                    </div>
+                  )}
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-x-4 -translate-y-4" />
+                  <div className={`relative z-10 ${tier.textColor}`}>
+                    <div className="text-xs font-semibold uppercase tracking-widest opacity-80 mb-1">
+                      {tier.label}
+                    </div>
+                    <div className="text-3xl font-bold mb-1">{tier.commission}</div>
+                    <div className="text-sm opacity-80 mb-3">{tier.range}</div>
+                    <div className="text-xs opacity-70 leading-relaxed">
+                      {tier.perks}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -295,92 +346,158 @@ export default function ReferralProgram() {
               </p>
             </div>
 
-            {/* Referral Link Card */}
-            <Card className="p-8 mb-8 border-2 border-[#7C3AED]/20 bg-gradient-to-r from-[#7C3AED]/5 to-transparent">
-              <h3 className="font-display text-xl font-bold text-[#0F172A] mb-4">
-                Your Referral Link
-              </h3>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 bg-white rounded-lg px-4 py-3 border border-[#E2E8F0] font-mono text-sm text-[#475569] truncate">
-                  {shareUrl}
-                </div>
-                <Button
-                  onClick={copyCode}
-                  variant="outline"
-                  className="px-5 shrink-0"
-                >
-                  <Copy size={16} className="mr-2" />
-                  {copied ? "Copied!" : "Copy"}
-                </Button>
-                <Button onClick={shareLink} className="px-5 shrink-0 bg-[#7C3AED] hover:bg-[#6D28D9] text-white">
-                  <Share2 size={16} className="mr-2" />
-                  Share
-                </Button>
+            {dashboardLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="animate-spin text-[#7C3AED]" size={32} />
               </div>
-              <p className="text-xs text-[#94A3B8] mt-3">
-                Your code: <strong className="text-[#7C3AED]">{referralCode}</strong>
-                {" "}— Anyone who signs up through this link is automatically
-                tracked as your referral.
-              </p>
-            </Card>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {[
-                {
-                  label: "Total Referrals",
-                  value: "0",
-                  icon: <Users size={20} />,
-                  color: "text-blue-500",
-                },
-                {
-                  label: "Successful",
-                  value: "0",
-                  icon: <Award size={20} />,
-                  color: "text-green-500",
-                },
-                {
-                  label: "Total Earned",
-                  value: "$0",
-                  icon: <DollarSign size={20} />,
-                  color: "text-[#7C3AED]",
-                },
-                {
-                  label: "Pending",
-                  value: "$0",
-                  icon: <TrendingUp size={20} />,
-                  color: "text-amber-500",
-                },
-              ].map((stat) => (
-                <Card key={stat.label} className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-[#94A3B8] mb-1">{stat.label}</p>
-                      <p className="text-2xl font-bold text-[#0F172A]">
-                        {stat.value}
-                      </p>
+            ) : (
+              <>
+                {/* Referral Link Card */}
+                <Card className="p-8 mb-8 border-2 border-[#7C3AED]/20 bg-gradient-to-r from-[#7C3AED]/5 to-transparent">
+                  <h3 className="font-display text-xl font-bold text-[#0F172A] mb-4">
+                    Your Referral Link
+                  </h3>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1 bg-white rounded-lg px-4 py-3 border border-[#E2E8F0] font-mono text-sm text-[#475569] truncate">
+                      {shareUrl}
                     </div>
-                    <div className={`${stat.color} opacity-30`}>{stat.icon}</div>
+                    <Button
+                      onClick={copyCode}
+                      variant="outline"
+                      className="px-5 shrink-0"
+                    >
+                      <Copy size={16} className="mr-2" />
+                      {copied ? "Copied!" : "Copy"}
+                    </Button>
+                    <Button onClick={shareLink} className="px-5 shrink-0 bg-[#7C3AED] hover:bg-[#6D28D9] text-white">
+                      <Share2 size={16} className="mr-2" />
+                      Share
+                    </Button>
                   </div>
+                  <p className="text-xs text-[#94A3B8] mt-3">
+                    Your code: <strong className="text-[#7C3AED]">{referralCode}</strong>
+                    {" "}— Anyone who signs up through this link is automatically
+                    tracked as your referral.
+                  </p>
                 </Card>
-              ))}
-            </div>
 
-            {/* Empty state */}
-            <Card className="p-12 text-center border-dashed">
-              <Gift size={40} className="mx-auto text-[#94A3B8] mb-4" />
-              <h3 className="font-display text-lg font-semibold text-[#0F172A] mb-2">
-                No referrals yet
-              </h3>
-              <p className="text-sm text-[#94A3B8] max-w-md mx-auto mb-6">
-                Share your referral link with friends, family, or on social media.
-                You'll see your referral activity here once someone signs up.
-              </p>
-              <Button onClick={shareLink} className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white">
-                <Share2 size={16} className="mr-2" />
-                Share Your Link
-              </Button>
-            </Card>
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                  {[
+                    {
+                      label: "Total Referrals",
+                      value: String(dashboard?.lifetimeReferrals ?? 0),
+                      icon: <Users size={20} />,
+                      color: "text-blue-500",
+                    },
+                    {
+                      label: "Successful",
+                      value: String(dashboard?.successfulCount ?? 0),
+                      icon: <Award size={20} />,
+                      color: "text-green-500",
+                    },
+                    {
+                      label: "Total Earned",
+                      value: formatCents(dashboard?.lifetimeEarningsCents ?? 0),
+                      icon: <DollarSign size={20} />,
+                      color: "text-[#7C3AED]",
+                    },
+                    {
+                      label: "Available Balance",
+                      value: formatCents(dashboard?.pendingBalanceCents ?? 0),
+                      icon: <TrendingUp size={20} />,
+                      color: "text-amber-500",
+                    },
+                  ].map((stat) => (
+                    <Card key={stat.label} className="p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-[#94A3B8] mb-1">{stat.label}</p>
+                          <p className="text-2xl font-bold text-[#0F172A]">
+                            {stat.value}
+                          </p>
+                        </div>
+                        <div className={`${stat.color} opacity-30`}>{stat.icon}</div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Payout Button */}
+                {(dashboard?.pendingBalanceCents ?? 0) >= 5000 && (
+                  <div className="mb-8">
+                    <Button
+                      onClick={handlePayout}
+                      disabled={payoutMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700 text-white px-6 py-3"
+                    >
+                      {payoutMutation.isPending ? (
+                        <Loader2 size={16} className="mr-2 animate-spin" />
+                      ) : (
+                        <Banknote size={16} className="mr-2" />
+                      )}
+                      Cash Out {formatCents(dashboard?.pendingBalanceCents ?? 0)}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Referral History */}
+                {dashboard?.recentReferrals && dashboard.recentReferrals.length > 0 ? (
+                  <Card className="overflow-hidden">
+                    <div className="p-6 border-b border-[#E2E8F0]">
+                      <h3 className="font-display text-lg font-semibold text-[#0F172A]">
+                        Referral History
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                            <th className="text-left px-6 py-3 font-medium text-[#64748B]">Email</th>
+                            <th className="text-left px-6 py-3 font-medium text-[#64748B]">Status</th>
+                            <th className="text-left px-6 py-3 font-medium text-[#64748B]">Commission</th>
+                            <th className="text-left px-6 py-3 font-medium text-[#64748B]">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dashboard.recentReferrals.map((ref) => (
+                            <tr key={ref.id} className="border-b border-[#E2E8F0] last:border-0">
+                              <td className="px-6 py-3 text-[#334155]">
+                                {ref.referredEmail || "—"}
+                              </td>
+                              <td className="px-6 py-3">
+                                <StatusBadge status={ref.status} />
+                              </td>
+                              <td className="px-6 py-3 text-[#334155] font-medium">
+                                {ref.commissionCents > 0 ? formatCents(ref.commissionCents) : "—"}
+                              </td>
+                              <td className="px-6 py-3 text-[#94A3B8]">
+                                {new Date(ref.createdAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className="p-12 text-center border-dashed">
+                    <Gift size={40} className="mx-auto text-[#94A3B8] mb-4" />
+                    <h3 className="font-display text-lg font-semibold text-[#0F172A] mb-2">
+                      No referrals yet
+                    </h3>
+                    <p className="text-sm text-[#94A3B8] max-w-md mx-auto mb-6">
+                      Share your referral link with friends, family, or on social media.
+                      You'll see your referral activity here once someone signs up.
+                    </p>
+                    <Button onClick={shareLink} className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white">
+                      <Share2 size={16} className="mr-2" />
+                      Share Your Link
+                    </Button>
+                  </Card>
+                )}
+              </>
+            )}
           </div>
         </section>
       )}
@@ -403,7 +520,7 @@ export default function ReferralProgram() {
               },
               {
                 q: "When do I get paid?",
-                a: "Commissions are credited once the referred user's appeal filing is confirmed. You can cash out anytime your balance reaches $50.",
+                a: "Commissions are credited once the referred user's appeal filing payment is confirmed. You can cash out anytime your balance reaches $50.",
               },
               {
                 q: "Is there a limit on how much I can earn?",
@@ -415,7 +532,7 @@ export default function ReferralProgram() {
               },
               {
                 q: "How are referrals tracked?",
-                a: "When someone clicks your unique link, a cookie is set for 30 days. If they sign up and file within that window, you get credit.",
+                a: "When someone clicks your unique link, the referral code is captured. If they submit a property and pay for filing, you get credit automatically.",
               },
               {
                 q: "Can I refer businesses or investors?",

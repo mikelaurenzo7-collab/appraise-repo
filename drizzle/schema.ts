@@ -690,3 +690,87 @@ export const paralegalsQueue = mysqlTable("paralegals_queue", {
 
 export type ParalegalsQueueItem = typeof paralegalsQueue.$inferSelect;
 export type InsertParalegalsQueueItem = typeof paralegalsQueue.$inferInsert;
+
+/**
+ * Referral codes — one per user, deterministic from user ID.
+ * Stores the referral code, lifetime stats, and current tier.
+ */
+export const referralCodes = mysqlTable("referral_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  code: varchar("code", { length: 20 }).notNull().unique(), // e.g. APPR-0042
+  tier: mysqlEnum("tier", ["bronze", "silver", "gold", "platinum"]).default("bronze").notNull(),
+  lifetimeReferrals: int("lifetimeReferrals").default(0).notNull(),
+  lifetimeEarningsCents: int("lifetimeEarningsCents").default(0).notNull(),
+  pendingBalanceCents: int("pendingBalanceCents").default(0).notNull(),
+  paidOutCents: int("paidOutCents").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReferralCode = typeof referralCodes.$inferSelect;
+export type InsertReferralCode = typeof referralCodes.$inferInsert;
+
+/**
+ * Referral tracking — one row per referred user/submission.
+ * Links the referrer to the referred user and the submission that
+ * triggered the referral. Commission is credited when the referred
+ * user's payment succeeds (via Stripe webhook).
+ */
+export const referralTracking = mysqlTable("referral_tracking", {
+  id: int("id").autoincrement().primaryKey(),
+  referrerUserId: int("referrerUserId").notNull(),
+  referredUserId: int("referredUserId"),
+  referredEmail: varchar("referredEmail", { length: 320 }),
+  submissionId: int("submissionId"),
+  referralCode: varchar("referralCode", { length: 20 }).notNull(),
+
+  // Status lifecycle
+  status: mysqlEnum("status", [
+    "clicked",       // link was visited
+    "signed_up",     // referred user created account
+    "submitted",     // referred user submitted a property
+    "paid",          // referred user paid for filing
+    "credited",      // commission credited to referrer
+    "reversed",      // commission reversed (refund)
+  ]).default("clicked").notNull(),
+
+  // Commission
+  commissionCents: int("commissionCents").default(0).notNull(),
+  commissionTier: mysqlEnum("commissionTier", ["bronze", "silver", "gold", "platinum"]),
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+
+  // Attribution
+  clickedAt: timestamp("clickedAt"),
+  signedUpAt: timestamp("signedUpAt"),
+  paidAt: timestamp("paidAt"),
+  creditedAt: timestamp("creditedAt"),
+  reversedAt: timestamp("reversedAt"),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReferralTrackingEntry = typeof referralTracking.$inferSelect;
+export type InsertReferralTrackingEntry = typeof referralTracking.$inferInsert;
+
+/**
+ * Referral payouts — tracks cash-out requests from referrers.
+ */
+export const referralPayouts = mysqlTable("referral_payouts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  amountCents: int("amountCents").notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  method: mysqlEnum("method", ["stripe_transfer", "manual"]).default("stripe_transfer").notNull(),
+  stripeTransferId: varchar("stripeTransferId", { length: 255 }),
+  notes: text("notes"),
+  requestedAt: timestamp("requestedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReferralPayout = typeof referralPayouts.$inferSelect;
+export type InsertReferralPayout = typeof referralPayouts.$inferInsert;

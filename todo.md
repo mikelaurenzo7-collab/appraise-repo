@@ -381,3 +381,16 @@
 - [x] Audit every page for visual polish, UX, and edge cases
 - [x] Audit all API endpoints for error handling and edge cases
 - [x] Identify and fix any remaining gaps to reach the most perfect version
+
+## OG Share Image (NEW)
+- [x] Generate branded 1200x630 OG image for social previews
+- [x] Upload to CDN and wire into index.html meta tags
+
+## Referral Tracking Database Wiring (NEW)
+- [x] Create referral_codes, referral_tracking, referral_payouts schema tables
+- [x] Run db:push migration (0010_old_boomer.sql)
+- [x] Build referral tRPC router (dashboard, validateCode, trackClick, requestPayout)
+- [x] Wire Stripe webhook to credit referrer on checkout.session.completed
+- [x] Update ReferralProgram page to use real tRPC data (live stats, history, payout)
+- [x] Capture ref= query param in GetStarted and persist via referralCode in submitAddress
+- [x] Write tests for referral tracking system (12 tests passing: dashboard, validateCode, trackClick, requestPayout, integration)
