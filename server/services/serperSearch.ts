@@ -22,6 +22,7 @@
 import axios from "axios";
 import { ENV } from "../_core/env";
 import { invokeLLM } from "../_core/llm";
+import { getStateRules } from "./stateAssessmentRules";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,16 +99,27 @@ function buildQuery(
   const countyStr = county ? `${county} County` : city;
   const year = new Date().getFullYear();
   const prevYear = year - 1;
+  
+  // Get state-specific rules for enhanced query context
+  const stateRules = getStateRules(state);
+  const assessmentLevel = stateRules?.assessmentLevel ? Math.round(stateRules.assessmentLevel * 100) : 100;
+  const primaryMethod = stateRules?.primaryValuationMethod || "sca";
 
   switch (scenario) {
     case "assessorOvervaluation":
-      return `"${countyStr}" "${state}" property tax over-assessed overvalued appeal reduction ${year} OR ${prevYear} site:zillow.com OR site:realtor.com OR site:assessor.gov OR site:propertytax.com`;
+      // State-specific: emphasize assessment level context
+      return `"${countyStr}" "${state}" property tax over-assessed overvalued appeal reduction ${year} OR ${prevYear} assessment level ${assessmentLevel}% site:zillow.com OR site:realtor.com OR site:assessor.gov OR site:propertytax.com`;
 
     case "comparableSales":
-      return `"${city}" "${state}" ${propertyType} sold ${prevYear} OR ${year} comparable sales price per sqft site:zillow.com OR site:redfin.com OR site:realtor.com`;
+      // State-specific: use primary valuation method context
+      const compQuery = primaryMethod === "income" 
+        ? `"${city}" "${state}" ${propertyType} sold ${prevYear} OR ${year} comparable sales rental income cap rate site:zillow.com OR site:redfin.com OR site:realtor.com`
+        : `"${city}" "${state}" ${propertyType} sold ${prevYear} OR ${year} comparable sales price per sqft site:zillow.com OR site:redfin.com OR site:realtor.com`;
+      return compQuery;
 
     case "marketTrends":
-      return `"${countyStr}" "${state}" real estate market ${year} home values declining flat median price trend site:zillow.com OR site:redfin.com OR site:corelogic.com OR site:housingwire.com`;
+      // State-specific: use assessment level to frame market weakness
+      return `"${countyStr}" "${state}" real estate market ${year} home values declining flat median price trend assessment level ${assessmentLevel}% site:zillow.com OR site:redfin.com OR site:corelogic.com OR site:housingwire.com`;
 
     case "zoningLandUse":
       return `"${city}" "${state}" zoning restrictions land use ${propertyType} limitations easements site:${city.toLowerCase().replace(/\s+/g, "")}${state.toLowerCase()}.gov OR site:municode.com OR site:planning.gov`;
@@ -116,7 +128,9 @@ function buildQuery(
       return `"${city}" "${state}" foreclosure vacancy rate distressed properties crime ${year} OR ${prevYear} neighborhood decline site:attomdata.com OR site:realtytrac.com OR site:neighborhoodscout.com`;
 
     case "taxAppealOutcomes":
-      return `"${countyStr}" "${state}" property tax appeal won reduction successful ${year} OR ${prevYear} assessment lowered site:${state.toLowerCase()}courts.gov OR site:propertytax.com OR site:reddit.com/r/personalfinance`;
+      // State-specific: use appeal body name from rules
+      const appealBody = stateRules?.primaryAppealBody || "Board of Equalization";
+      return `"${countyStr}" "${state}" property tax appeal won reduction successful ${year} OR ${prevYear} assessment lowered "${appealBody}" site:${state.toLowerCase()}courts.gov OR site:propertytax.com OR site:reddit.com/r/personalfinance`;
   }
 }
 

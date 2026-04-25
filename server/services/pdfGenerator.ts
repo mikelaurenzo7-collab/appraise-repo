@@ -8,6 +8,28 @@ import PDFDocument from "pdfkit";
 import { nanoid } from "nanoid";
 import { storagePut } from "../storage";
 
+export interface AdjustmentGridEntry {
+  compAddress: string;
+  salePrice: number;
+  adjustments: Record<string, number>;
+  netAdjustmentPct: number;
+  adjustedValue: number;
+  pricePerUnit?: number;
+  pricePerSF?: number;
+}
+
+export interface IncomeApproachSummary {
+  marketRentPerUnit: number;
+  totalUnits: number;
+  grossPotentialIncome: number;
+  vacancyRate: number;
+  effectiveGrossIncome: number;
+  operatingExpenses: number;
+  netOperatingIncome: number;
+  capRate: number;
+  incomeValue: number;
+}
+
 export interface AppraisalReportData {
   submissionId: number;
   address: string;
@@ -19,6 +41,7 @@ export interface AppraisalReportData {
   ownerName?: string;
   ownerEmail?: string;
   assessedValue?: number | null;
+  assessmentLevel?: number | null;
   marketValueEstimate?: number | null;
   assessmentGap?: number | null;
   potentialSavings?: number | null;
@@ -39,6 +62,8 @@ export interface AppraisalReportData {
     sqft?: number;
     similarity?: number;
   }>;
+  adjustmentGrid?: AdjustmentGridEntry[];
+  incomeApproach?: IncomeApproachSummary;
   squareFeet?: number | null;
   yearBuilt?: number | null;
   bedrooms?: number | null;
@@ -50,6 +75,10 @@ export interface AppraisalReportData {
     category: "exterior" | "interior" | "roof" | "foundation" | "other";
     caption?: string;
   }>;
+  streetViewUrl?: string;
+  satelliteImageUrl?: string;
+  highestAndBestUse?: string;
+  marketingTimeEstimate?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -199,6 +228,51 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         width: contentWidth, lineGap: 3,
       });
       curY = doc.y + 12;
+    }
+
+    // ─── INCOME CAPITALIZATION APPROACH (MULTIFAMILY) ──────────────────
+    if (data.incomeApproach) {
+      curY = ensureSpace(doc, curY, 120, contentWidth);
+      curY = renderSectionHeader(doc, "INCOME CAPITALIZATION APPROACH", curY, contentWidth);
+
+      const incomeData: [string, string][] = [
+        ["Market Rent per Unit", fmt(data.incomeApproach.marketRentPerUnit) + "/month"],
+        ["Total Units", fmtNum(data.incomeApproach.totalUnits)],
+        ["Gross Potential Income", fmt(data.incomeApproach.grossPotentialIncome) + "/year"],
+        ["Vacancy & Collection Loss", fmt(data.incomeApproach.vacancyRate * 100) + "%"],
+        ["Effective Gross Income", fmt(data.incomeApproach.effectiveGrossIncome)],
+        ["Operating Expenses", fmt(data.incomeApproach.operatingExpenses)],
+        ["Net Operating Income", fmt(data.incomeApproach.netOperatingIncome)],
+        ["Capitalization Rate", fmtNum(data.incomeApproach.capRate * 100) + "%"],
+        ["INCOME APPROACH VALUE", fmt(data.incomeApproach.incomeValue)],
+      ];
+      curY = renderTable(doc, incomeData, curY, contentWidth);
+    }
+
+    // ─── ADJUSTMENT GRID ────────────────────────────────────────────────
+    if (data.adjustmentGrid && data.adjustmentGrid.length > 0) {
+      curY = ensureSpace(doc, curY, 120, contentWidth);
+      curY = renderSectionHeader(doc, "QUANTITATIVE ADJUSTMENT GRID", curY, contentWidth);
+
+      for (const entry of data.adjustmentGrid.slice(0, 5)) {
+        curY = ensureSpace(doc, curY, 50, contentWidth);
+        doc.fontSize(9).fillColor(NAVY).font("Helvetica-Bold")
+          .text(entry.compAddress, LEFT_MARGIN, curY, { width: contentWidth });
+        curY = doc.y + 4;
+
+        const adjustLines = Object.entries(entry.adjustments)
+          .map(([key, val]) => `${key}: ${val > 0 ? "+" : ""}${val}%`)
+          .join("  ·  ");
+
+        doc.fontSize(8).fillColor(BODY_TEXT).font("Helvetica")
+          .text(`Adjustments: ${adjustLines}`, LEFT_MARGIN + 10, curY, { width: contentWidth - 10 });
+        curY = doc.y + 3;
+
+        const resultLine = `Net Adjustment: ${entry.netAdjustmentPct > 0 ? "+" : ""}${entry.netAdjustmentPct}%  →  Adjusted Value: ${fmt(entry.adjustedValue)}`;
+        doc.fontSize(9).fillColor(GOLD).font("Helvetica-Bold")
+          .text(resultLine, LEFT_MARGIN + 10, curY, { width: contentWidth - 10 });
+        curY = doc.y + 6;
+      }
     }
 
     // ─── COMPARABLE SALES ───────────────────────────────────────────────

@@ -522,3 +522,18 @@
 - [ ] Store dynamically discovered county info in DB (counties table or new serper_county_cache table)
 - [ ] Test with unseeded county (e.g., DuPage County IL, Tarrant County TX)
 - [ ] Verify LLM extracts correct deadline dates and portal URLs
+
+## Phase 16: Nationwide Expert Engine + Launch Prep
+
+- [ ] Rewrite appraisalAnalyzer.ts — 10 improvements + Cook County 10% rule + income approach + adjustment grid + price/unit + HBU + marketing time
+- [ ] Build stateAssessmentRules.ts — all 50 states: assessment level, appeal chain, primary valuation method, key strategies, Serper query templates
+- [ ] Build countyOverrides.ts — top 200 high-volume counties with specific rules, deadlines, class codes
+- [ ] Integrate stateAssessmentRules into analyzeProperty() — dynamic implied market value, state-specific LLM prompt injection
+- [ ] Enhance serperSearch.ts — state-specific query templates per state strategy profile
+- [ ] Embed Street View + satellite imagery into PDF report generator
+- [ ] Add income approach section to PDF report (multifamily)
+- [ ] Add adjustment grid table to PDF report
+- [ ] Add state-specific appeal instructions to PDF report
+- [ ] Final TypeScript audit — 0 errors
+- [ ] Run full test suite — all passing
+- [ ] Save launch checkpoint
