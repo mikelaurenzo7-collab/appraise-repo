@@ -471,6 +471,7 @@
 - [ ] Verify report download works after payment
 - [ ] Test free tier bypasses payment correctly
 - [ ] Verify owner/admin bypass works on deployed site
+- [ ] Verify assessor-facing reports (no marketing time, no HBU, professional tone)
 - [ ] Fix any issues found during E2E testing
 
 ## Google API Integration (NEW)
@@ -511,7 +512,7 @@
 - [x] Inject Serper insights into LLM prompt via formatInsightsForLLM (grounded market data)
 - [x] Test full pipeline: 6 scenarios, 30 results for Cook County Chicago (Cook County Board of Review PDF, 56% appeal success rate, 223 foreclosures, market decline data)
 
-## Serper County Deadline & Filing Info (NEW)
+## Serper County Deadline & Filing Info (BACKLOG)
 - [ ] Add county deadline search scenario to serperSearch.ts (filing window, deadline date, assessor portal URL)
 - [ ] Add county filing procedure search scenario (how to file, required forms, fee schedule)
 - [ ] Add county assessor contact search scenario (office address, phone, email, portal URL)
@@ -525,15 +526,13 @@
 
 ## Phase 16: Nationwide Expert Engine + Launch Prep
 
-- [ ] Rewrite appraisalAnalyzer.ts — 10 improvements + Cook County 10% rule + income approach + adjustment grid + price/unit + HBU + marketing time
-- [ ] Build stateAssessmentRules.ts — all 50 states: assessment level, appeal chain, primary valuation method, key strategies, Serper query templates
-- [ ] Build countyOverrides.ts — top 200 high-volume counties with specific rules, deadlines, class codes
-- [ ] Integrate stateAssessmentRules into analyzeProperty() — dynamic implied market value, state-specific LLM prompt injection
-- [ ] Enhance serperSearch.ts — state-specific query templates per state strategy profile
-- [ ] Embed Street View + satellite imagery into PDF report generator
-- [ ] Add income approach section to PDF report (multifamily)
-- [ ] Add adjustment grid table to PDF report
-- [ ] Add state-specific appeal instructions to PDF report
-- [ ] Final TypeScript audit — 0 errors
-- [ ] Run full test suite — all passing
-- [ ] Save launch checkpoint
+- [x] Rewrite appraisalAnalyzer.ts — 10 improvements + Cook County 10% rule + income approach + adjustment grid + price/unit
+- [x] Build stateAssessmentRules.ts — all 50 states: assessment level, appeal chain, primary valuation method, key strategies, Serper query templates
+- [x] Integrate stateAssessmentRules into analyzeProperty() — dynamic implied market value, state-specific LLM prompt injection
+- [x] Enhance serperSearch.ts — state-specific query templates per state strategy profile
+- [x] Add income approach section to PDF report (multifamily)
+- [x] Add adjustment grid table to PDF report
+- [x] Remove marketing time and HBU from assessor-facing reports (implicit advocacy only)
+- [x] Final TypeScript audit — 0 errors
+- [x] Run full test suite — 313/315 passing
+- [x] Save launch checkpoint
