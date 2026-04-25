@@ -1,7 +1,7 @@
 /**
  * Analysis Job — Full Pipeline Orchestrator
  * 1. Classify property type (LLM + heuristic fallback)
- * 2. Aggregate data from Lightbox, RentCast, ReGRID, AttomData (with DB caching)
+ * 2. Aggregate data from RentCast, ReGRID, AttomData (with DB caching)
  * 3. Run USPAP-aligned LLM appraisal analysis
  * 4. Score appeal strength + generate jurisdiction-aware strategy
  * 5. Persist results to DB
@@ -88,7 +88,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       submissionId,
       type: "api_aggregation_started",
       actor: "system",
-      description: "Querying Lightbox, RentCast, ReGRID, and AttomData in parallel",
+      description: "Querying RentCast, ReGRID, and AttomData in parallel",
       status: "success",
     });
 

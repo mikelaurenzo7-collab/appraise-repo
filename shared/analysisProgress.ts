@@ -35,7 +35,7 @@ export const PIPELINE_STAGES: PipelineStageDefinition[] = [
   {
     key: "aggregate",
     label: "Pulling assessor + market data",
-    description: "Lightbox, RentCast, ReGRID, and ATTOM in parallel.",
+    description: "RentCast, ReGRID, and ATTOM in parallel.",
     startedBy: ["api_aggregation_started"],
     completedBy: ["api_aggregation_complete"],
   },

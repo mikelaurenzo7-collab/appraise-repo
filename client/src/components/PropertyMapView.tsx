@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { MapView } from "./Map";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,55 +33,66 @@ export default function PropertyMapView({
   comparableSales = [],
 }: PropertyMapViewProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
-  const [mainMarker, setMainMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const [comparableMarkers, setComparableMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
-  const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 37.7749, lng: -122.4194 });
+  const mainMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const compMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const geocodedRef = useRef(false);
 
-  // Geocode the main property address
-  useEffect(() => {
-    if (!mapRef.current || !address) return;
+  // Default center — will be overridden by geocoding
+  const [mapCenter] = useState<google.maps.LatLngLiteral>({ lat: 41.75, lng: -88.15 });
 
-    const geocoder = new google.maps.Geocoder();
-    const fullAddress = `${address}, ${city}, ${state} ${zipCode}`;
+  const fullAddress = [address, city, state, zipCode].filter(Boolean).join(", ");
 
-    geocoder.geocode({ address: fullAddress }, (results, status) => {
-      if (status === "OK" && results?.[0]) {
-        const location = results[0].geometry.location;
-        const lat = location.lat();
-        const lng = location.lng();
+  // Geocode and center the map when it's ready
+  const handleMapReady = useCallback(
+    (map: google.maps.Map) => {
+      mapRef.current = map;
 
-        // Update map center
-        mapRef.current?.setCenter(location);
-        mapRef.current?.setZoom(15);
-        setMapCenter({ lat, lng });
+      if (!address || geocodedRef.current) return;
+      geocodedRef.current = true;
 
-        // Add main property marker
-        if (mainMarker) mainMarker.map = null; // Remove old marker
-        const marker = new google.maps.marker.AdvancedMarkerElement({
-          map: mapRef.current,
-          position: location,
-          title: address,
-          content: createMarkerContent("Subject Property", marketValue, true),
-        });
-        setMainMarker(marker);
-      }
-    });
-  }, [address, city, state, zipCode, mapRef.current]);
-
-  // Geocode comparable properties
-  useEffect(() => {
-    if (!mapRef.current || !comparableSales?.length) return;
-
-    const geocoder = new google.maps.Geocoder();
-    const newMarkers: google.maps.marker.AdvancedMarkerElement[] = [];
-
-    comparableSales.forEach((comp, index) => {
-      geocoder.geocode({ address: comp.address }, (results, status) => {
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: fullAddress }, (results, status) => {
         if (status === "OK" && results?.[0]) {
           const location = results[0].geometry.location;
-          const marker = new google.maps.marker.AdvancedMarkerElement({
-            map: mapRef.current,
+
+          // Center and zoom the map
+          map.setCenter(location);
+          map.setZoom(15);
+
+          // Add main property marker
+          if (mainMarkerRef.current) mainMarkerRef.current.map = null;
+          mainMarkerRef.current = new google.maps.marker.AdvancedMarkerElement({
+            map,
             position: location,
+            title: address,
+            content: createMarkerContent("Subject Property", marketValue, true),
+          });
+
+          // Geocode comparables after main marker is placed
+          if (comparableSales.length > 0) {
+            geocodeComparables(map, geocoder, comparableSales);
+          }
+        }
+      });
+    },
+    [address, fullAddress, marketValue, comparableSales]
+  );
+
+  const geocodeComparables = (
+    map: google.maps.Map,
+    geocoder: google.maps.Geocoder,
+    comps: ComparableProperty[]
+  ) => {
+    // Clean up old markers
+    compMarkersRef.current.forEach((m) => (m.map = null));
+    compMarkersRef.current = [];
+
+    comps.forEach((comp, index) => {
+      geocoder.geocode({ address: comp.address }, (results, status) => {
+        if (status === "OK" && results?.[0]) {
+          const marker = new google.maps.marker.AdvancedMarkerElement({
+            map,
+            position: results[0].geometry.location,
             title: comp.address,
             content: createMarkerContent(
               `Comp ${index + 1}`,
@@ -90,18 +101,19 @@ export default function PropertyMapView({
               comp.similarity
             ),
           });
-          newMarkers.push(marker);
+          compMarkersRef.current.push(marker);
         }
       });
     });
+  };
 
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      // Cleanup old markers
-      comparableMarkers.forEach((marker) => {
-        marker.map = null;
-      });
+      if (mainMarkerRef.current) mainMarkerRef.current.map = null;
+      compMarkersRef.current.forEach((m) => (m.map = null));
     };
-  }, [comparableSales, mapRef.current]);
+  }, []);
 
   const createMarkerContent = (
     label: string,
@@ -118,9 +130,6 @@ export default function PropertyMapView({
         ? "bg-green-600"
         : "bg-blue-600";
 
-    // Build children with textContent — never innerHTML with interpolated
-    // values. If `label` ever comes from user input (addresses, property
-    // nicknames, etc.), innerHTML would open an XSS hole.
     const badge = document.createElement("div");
     badge.className = `${bgColor} text-white px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap`;
     badge.textContent = label;
@@ -152,10 +161,8 @@ export default function PropertyMapView({
           <Card className="overflow-hidden h-96 border-purple-200">
             <MapView
               initialCenter={mapCenter}
-              initialZoom={15}
-              onMapReady={(map) => {
-                mapRef.current = map;
-              }}
+              initialZoom={12}
+              onMapReady={handleMapReady}
               className="w-full h-full"
             />
           </Card>

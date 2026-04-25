@@ -1,7 +1,10 @@
 /**
  * Property Data Aggregator
- * Queries all 4 property data APIs in parallel, merges results intelligently,
+ * Queries RentCast, ReGRID, and ATTOM in parallel, merges results intelligently,
  * and uses DB-backed caching to reduce redundant API calls.
+ *
+ * Lightbox was removed — its API returned persistent 401/500 errors and
+ * RentCast already provides richer data (tax assessments, sale history, comps).
  */
 
 import axios from "axios";
@@ -24,6 +27,7 @@ export interface PropertyData {
   zoning?: string;
   lastSalePrice?: number;
   lastSaleDate?: string;
+  propertyTax?: number;
   comparableSales?: ComparableSale[];
   rentalComps?: RentalComp[];
   source: string;
@@ -35,7 +39,7 @@ export interface ComparableSale {
   saleDate: string;
   squareFeet: number;
   similarity: number;
-  source: "mls" | "lightbox" | "rentcast" | "attom";
+  source: "mls" | "rentcast" | "attom";
 }
 
 export interface RentalComp {
@@ -70,41 +74,9 @@ async function withCache<T>(
   return data;
 }
 
-// ─── LIGHTBOX ────────────────────────────────────────────────────────────────
-
-async function queryLightbox(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
-  return withCache("lightbox", address, city, state, async () => {
-    try {
-      if (!process.env.LIGHTBOX_API_KEY) { console.warn("[Lightbox] API key not configured"); return {}; }
-      const response = await axios.get("https://api.lightboxre.com/v1/properties/search", {
-        params: { address, city, state },
-        headers: { Authorization: `Bearer ${process.env.LIGHTBOX_API_KEY}` },
-        timeout: 8000,
-      });
-      const property = response.data?.data?.[0];
-      if (!property) return {};
-      return {
-        assessedValue: property.assessed_value,
-        squareFeet: property.building_sqft,
-        lotSize: property.lot_sqft,
-        yearBuilt: property.year_built,
-        bedrooms: property.bedrooms,
-        bathrooms: property.bathrooms,
-        county: property.county_name,
-        parcelNumber: property.parcel_number,
-        zoning: property.zoning,
-        lastSalePrice: property.last_sale_price,
-        lastSaleDate: property.last_sale_date,
-        source: "lightbox",
-      };
-    } catch (error) {
-      console.error("[Lightbox] Error:", (error as any)?.response?.status ?? error);
-      return {};
-    }
-  });
-}
-
 // ─── RENTCAST ────────────────────────────────────────────────────────────────
+// RentCast returns an ARRAY of properties. We take the first match.
+// It also includes taxAssessments, propertyTaxes, history, and owner data.
 
 async function queryRentCast(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("rentcast", address, city, state, async () => {
@@ -115,22 +87,55 @@ async function queryRentCast(address: string, city: string, state: string): Prom
         headers: { "X-Api-Key": process.env.RENTCAST_API_KEY },
         timeout: 8000,
       });
-      const data = response.data;
+
+      // RentCast returns an array — take the first match
+      const raw = response.data;
+      const data = Array.isArray(raw) ? raw[0] : raw;
       if (!data) return {};
+
+      console.log(`[RentCast] Got data for ${data.formattedAddress || address}`);
+
+      // Extract the latest tax assessment (highest year)
+      let assessedValue: number | undefined;
+      let propertyTax: number | undefined;
+      if (data.taxAssessments && typeof data.taxAssessments === "object") {
+        const years = Object.keys(data.taxAssessments).sort().reverse();
+        if (years.length > 0) {
+          const latest = data.taxAssessments[years[0]];
+          assessedValue = latest?.value;
+        }
+      }
+      if (data.propertyTaxes && typeof data.propertyTaxes === "object") {
+        const years = Object.keys(data.propertyTaxes).sort().reverse();
+        if (years.length > 0) {
+          propertyTax = data.propertyTaxes[years[0]]?.total;
+        }
+      }
+
+      // Extract comparable sales from history if available
       const comps: ComparableSale[] = (data.comparables || []).slice(0, 5).map((c: any) => ({
-        address: c.address,
+        address: c.formattedAddress || c.address,
         salePrice: c.price || c.lastSalePrice,
         saleDate: c.lastSaleDate,
         squareFeet: c.squareFootage,
         similarity: c.correlation ? Math.round(c.correlation * 100) : 75,
         source: "rentcast" as const,
       }));
+
       return {
+        assessedValue,
+        propertyTax,
         marketValue: data.price || data.priceRangeLow,
         squareFeet: data.squareFootage,
+        lotSize: data.lotSize,
         bedrooms: data.bedrooms,
         bathrooms: data.bathrooms,
         yearBuilt: data.yearBuilt,
+        county: data.county,
+        parcelNumber: data.assessorID,
+        zipCode: data.zipCode,
+        lastSalePrice: data.lastSalePrice,
+        lastSaleDate: data.lastSaleDate,
         comparableSales: comps,
         source: "rentcast",
       };
@@ -154,6 +159,7 @@ async function queryReGRID(address: string, city: string, state: string): Promis
       });
       const parcel = response.data?.results?.[0]?.properties?.fields;
       if (!parcel) return {};
+      console.log(`[ReGRID] Got parcel data for ${address}`);
       return {
         assessedValue: parcel.taxtotal ? Math.round(parcel.taxtotal / 0.012) : undefined,
         squareFeet: parcel.sqft,
@@ -188,6 +194,7 @@ async function queryAttomData(address: string, city: string, state: string): Pro
       const building = property.building?.size;
       const rooms = property.building?.rooms;
       const addr = property.address;
+      console.log(`[AttomData] Got data for ${address}`);
       return {
         assessedValue: assessment?.assessed?.assdttlvalue || assessment?.market?.mktttlvalue,
         yearBuilt: property.summary?.yearbuilt,
@@ -216,9 +223,8 @@ export async function aggregatePropertyData(address: string, city: string, state
       setTimeout(() => reject(new Error("API aggregation timeout after 30s")), 30000)
     );
     
-    const [lightboxData, rentcastData, regridData, attomData] = await Promise.race([
+    const [rentcastData, regridData, attomData] = await Promise.race([
       Promise.all([
-        queryLightbox(address, city, state),
         queryRentCast(address, city, state),
         queryReGRID(address, city, state),
         queryAttomData(address, city, state),
@@ -226,31 +232,42 @@ export async function aggregatePropertyData(address: string, city: string, state
       timeoutPromise,
     ]);
 
+    // RentCast is now the primary source — it has the richest data
     const merged: PropertyData = {
       address,
       city,
       state,
       source: "aggregated",
-      assessedValue: lightboxData.assessedValue || attomData.assessedValue || regridData.assessedValue,
-      marketValue: rentcastData.marketValue || lightboxData.lastSalePrice,
-      squareFeet: lightboxData.squareFeet || attomData.squareFeet || rentcastData.squareFeet || regridData.squareFeet,
-      lotSize: lightboxData.lotSize || regridData.lotSize,
-      yearBuilt: lightboxData.yearBuilt || attomData.yearBuilt || rentcastData.yearBuilt || regridData.yearBuilt,
-      bedrooms: lightboxData.bedrooms || attomData.bedrooms || rentcastData.bedrooms,
-      bathrooms: lightboxData.bathrooms || attomData.bathrooms || rentcastData.bathrooms,
-      county: lightboxData.county || attomData.county || regridData.county,
-      parcelNumber: lightboxData.parcelNumber || attomData.parcelNumber || regridData.parcelNumber,
-      zoning: lightboxData.zoning || regridData.zoning,
-      lastSalePrice: lightboxData.lastSalePrice || attomData.lastSalePrice,
-      lastSaleDate: lightboxData.lastSaleDate || attomData.lastSaleDate,
-      comparableSales: rentcastData.comparableSales || lightboxData.comparableSales || [],
+      // Tax assessment: RentCast has real assessor data, ATTOM as backup, ReGRID as fallback
+      assessedValue: rentcastData.assessedValue || attomData.assessedValue || regridData.assessedValue,
+      propertyTax: rentcastData.propertyTax,
+      // Market value: RentCast AVM, then last sale as proxy
+      marketValue: rentcastData.marketValue || rentcastData.lastSalePrice || attomData.lastSalePrice,
+      // Physical attributes: cross-reference all sources
+      squareFeet: rentcastData.squareFeet || attomData.squareFeet || regridData.squareFeet,
+      lotSize: rentcastData.lotSize || regridData.lotSize,
+      yearBuilt: rentcastData.yearBuilt || attomData.yearBuilt || regridData.yearBuilt,
+      bedrooms: rentcastData.bedrooms || attomData.bedrooms,
+      bathrooms: rentcastData.bathrooms || attomData.bathrooms,
+      // Location & parcel
+      county: rentcastData.county || attomData.county || regridData.county,
+      zipCode: rentcastData.zipCode,
+      parcelNumber: rentcastData.parcelNumber || attomData.parcelNumber || regridData.parcelNumber,
+      zoning: regridData.zoning,
+      // Sale history
+      lastSalePrice: rentcastData.lastSalePrice || attomData.lastSalePrice,
+      lastSaleDate: rentcastData.lastSaleDate || attomData.lastSaleDate,
+      // Comps
+      comparableSales: rentcastData.comparableSales || [],
       rentalComps: rentcastData.rentalComps || [],
     };
 
+    const hasData = merged.assessedValue || merged.marketValue || merged.squareFeet;
+    console.log(`[Aggregator] Merged data — assessed: $${merged.assessedValue || "N/A"}, market: $${merged.marketValue || "N/A"}, sqft: ${merged.squareFeet || "N/A"}, tax: $${merged.propertyTax || "N/A"}, comps: ${merged.comparableSales?.length || 0}${hasData ? "" : " ⚠️ NO DATA FROM ANY API"}`);
+
     return merged;
-    } catch (error) {
+  } catch (error) {
     console.error("[Aggregator] Error:", error);
-    // Return partial data instead of empty object on error
     return { 
       address, 
       city, 

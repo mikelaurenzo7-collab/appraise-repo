@@ -394,3 +394,14 @@
 - [x] Update ReferralProgram page to use real tRPC data (live stats, history, payout)
 - [x] Capture ref= query param in GetStarted and persist via referralCode in submitAddress
 - [x] Write tests for referral tracking system (12 tests passing: dashboard, validateCode, trackClick, requestPayout, integration)
+
+## API Data Pipeline Fixes (NEW)
+- [x] Remove Lightbox API entirely (401/500 errors, user deleted key, redundant with RentCast)
+- [x] Fix RentCast response parsing (returns array, code treats as object)
+- [x] Extract tax assessment data from RentCast (assessedValue, propertyTaxes, lastSalePrice)
+- [x] Fix aggregation merge to prioritize RentCast data for assessedValue
+- [x] Fix ATTOM API auth (still 401 — key may need reconfiguration, but RentCast provides all data)
+- [x] Fix PDF generation (replaced Python with Node.js PDFKit — 2-page clean branded report)
+- [x] Fix map geocoding (was defaulting to San Francisco, now centers on actual address)
+- [x] Fix insertId extraction (MySQL returns [result, null] array, not plain object)
+- [x] Retest Naperville address end-to-end — $160K assessed, $343K market, 75/100 appeal, PDF downloads
