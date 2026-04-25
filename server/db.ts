@@ -85,8 +85,14 @@ export async function createPropertySubmission(submission: InsertPropertySubmiss
   if (!db) { console.warn("[Database] Cannot create submission: database not available"); return undefined; }
   try {
     const result = await db.insert(propertySubmissions).values(submission);
-    const insertedId = (result as any).insertId;
+    const insertedId = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
+    console.log("[Database] Insert result:", JSON.stringify({ insertedId, resultKeys: Object.keys((result as any)?.[0] || result || {}) }));
+    if (!insertedId) {
+      console.warn("[Database] insertId is falsy, raw result:", JSON.stringify(result));
+      return undefined;
+    }
     const record = await db.select().from(propertySubmissions).where(eq(propertySubmissions.id, insertedId)).limit(1);
+    console.log("[Database] Fetched record id:", record[0]?.id);
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
     console.error("[Database] Failed to create property submission:", error);
@@ -180,7 +186,7 @@ export async function createPropertyAnalysis(analysis: InsertPropertyAnalysis) {
   if (!db) return undefined;
   try {
     const result = await db.insert(propertyAnalysis).values(analysis);
-    const insertedId = (result as any).insertId;
+    const insertedId = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     const record = await db.select().from(propertyAnalysis).where(eq(propertyAnalysis.id, insertedId)).limit(1);
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
@@ -208,7 +214,7 @@ export async function createAppealOutcome(outcome: InsertAppealOutcome) {
   if (!db) return undefined;
   try {
     const result = await db.insert(appealOutcomes).values(outcome);
-    const insertedId = (result as any).insertId;
+    const insertedId = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     const record = await db.select().from(appealOutcomes).where(eq(appealOutcomes.id, insertedId)).limit(1);
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
@@ -436,7 +442,7 @@ export async function createReportJob(data: InsertReportJob): Promise<ReportJob 
   if (!db) return null;
   try {
     const result = await db.insert(reportJobs).values(data);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return id ? await getReportJobById(id) : null;
   } catch (error) {
     console.error("[ReportJob] Failed to create:", error);
@@ -605,7 +611,7 @@ export async function createCounty(county: InsertCounty): Promise<County | null>
   if (!db) return null;
   try {
     const result = await db.insert(counties).values(county);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await getCountyById(id);
   } catch (error) {
     console.error("[County] Failed to create county:", error);
@@ -620,7 +626,7 @@ export async function createFilingTier(tier: InsertFilingTier): Promise<FilingTi
   if (!db) return null;
   try {
     const result = await db.insert(filingTiers).values(tier);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(filingTiers)
       .where(eq(filingTiers.id, id))
       .limit(1)
@@ -652,7 +658,7 @@ export async function createPOAFiling(filing: InsertPOAFiling): Promise<POAFilin
   if (!db) return null;
   try {
     const result = await db.insert(poaFilings).values(filing);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(poaFilings)
       .where(eq(poaFilings.id, id))
       .limit(1)
@@ -697,7 +703,7 @@ export async function createProSeFiling(filing: InsertProSeFiling): Promise<ProS
   if (!db) return null;
   try {
     const result = await db.insert(proSeFilings).values(filing);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(proSeFilings)
       .where(eq(proSeFilings.id, id))
       .limit(1)
@@ -729,7 +735,7 @@ export async function addToParalegalsQueue(item: InsertParalegalsQueueItem): Pro
   if (!db) return null;
   try {
     const result = await db.insert(paralegalsQueue).values(item);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(paralegalsQueue)
       .where(eq(paralegalsQueue.id, id))
       .limit(1)
@@ -1067,7 +1073,7 @@ export async function upsertRecipe(recipe: InsertFilingRecipe): Promise<FilingRe
       .set({ active: false })
       .where(eq(filingRecipes.countyId, recipe.countyId));
     const result = await db.insert(filingRecipes).values({ ...recipe, active: true });
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(filingRecipes).where(eq(filingRecipes.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
     console.error("[FilingRecipes] Failed to upsert recipe:", error);
@@ -1084,7 +1090,7 @@ export async function createScrivenerAuthorization(
   if (!db) return null;
   try {
     const result = await db.insert(scrivenerAuthorizations).values(auth);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(scrivenerAuthorizations)
       .where(eq(scrivenerAuthorizations.id, id))
       .limit(1)
@@ -1116,7 +1122,7 @@ export async function createFilingJob(job: InsertFilingJob): Promise<FilingJob |
   if (!db) return null;
   try {
     const result = await db.insert(filingJobs).values(job);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(filingJobs).where(eq(filingJobs.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
     console.error("[FilingJob] Failed to create:", error);
@@ -1223,7 +1229,7 @@ export async function createRefundRequest(req: InsertRefundRequest): Promise<Ref
   if (!db) return null;
   try {
     const result = await db.insert(refundRequests).values(req);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(refundRequests).where(eq(refundRequests.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
     console.error("[RefundRequest] Failed to create:", error);
@@ -1412,7 +1418,7 @@ export async function addWaitlistEntry(
   if (!db) return null;
   try {
     const result = await db.insert(countyWaitlist).values(entry);
-    const id = (result as any).insertId;
+    const id = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     return await db.select().from(countyWaitlist)
       .where(eq(countyWaitlist.id, id))
       .limit(1)
@@ -1601,7 +1607,7 @@ export async function createReferralTracking(entry: InsertReferralTrackingEntry)
   if (!db) return undefined;
   try {
     const result = await db.insert(referralTracking).values(entry);
-    const insertedId = (result as any).insertId;
+    const insertedId = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     const row = await db.select().from(referralTracking).where(eq(referralTracking.id, insertedId)).limit(1);
     return row[0];
   } catch (error) {
@@ -1776,7 +1782,7 @@ export async function createReferralPayout(userId: number, amountCents: number):
       status: "pending",
       method: "stripe_transfer",
     });
-    const insertedId = (result as any).insertId;
+    const insertedId = (Array.isArray(result) ? (result as any)[0] : result as any).insertId;
     const row = await db.select().from(referralPayouts).where(eq(referralPayouts.id, insertedId)).limit(1);
 
     // Deduct from pending balance

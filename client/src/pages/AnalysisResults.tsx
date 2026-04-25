@@ -408,7 +408,7 @@ export default function AnalysisResults() {
               zipCode={submission.zipCode || undefined}
               marketValue={submission.marketValue || undefined}
               assessedValue={submission.assessedValue || undefined}
-              comparableSales={analysis.comparableSales ? JSON.parse(analysis.comparableSales) : []}
+              comparableSales={analysis.comparableSales ? (() => { try { return JSON.parse(analysis.comparableSales); } catch { return []; } })() : []}
             />
           </div>
         </section>
