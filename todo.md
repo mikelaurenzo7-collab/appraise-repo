@@ -405,3 +405,51 @@
 - [x] Fix map geocoding (was defaulting to San Francisco, now centers on actual address)
 - [x] Fix insertId extraction (MySQL returns [result, null] array, not plain object)
 - [x] Retest Naperville address end-to-end — $160K assessed, $343K market, 75/100 appeal, PDF downloads
+
+## Expert Appraiser Audit (COMPLETED)
+- [x] Audit AI valuation model logic (how market value is estimated)
+- [x] Audit appeal strength scoring algorithm (how 0-100 score is calculated)
+- [x] Audit comparable sales selection methodology
+- [x] Audit photo analysis / condition adjustment logic (cost-to-cure)
+- [x] Audit report generation for advocacy strength and completeness
+- [x] Implement improvements: always advocate for user where data supports it
+- [x] Ensure photo evidence of damage/condition is weighted properly in valuation
+- [x] Add property-type-specific evaluation strategies (residential vs commercial vs land)
+
+## Redfin Comparable Sales Integration (NEW)
+- [x] Add Redfin API integration to propertyDataAggregator (auto-complete + search-sold)
+- [x] Parse Redfin sold properties into ComparableSale format with photos
+- [x] Merge Redfin comps with RentCast comps (deduplicate, prioritize Redfin for recency)
+- [x] Store Redfin API key as environment secret
+- [x] Test Redfin integration with Naperville address
+
+## Expert Appraiser Audit & Rewrite (COMPLETED)
+- [x] Rewrite appraisalAnalyzer.ts LLM prompts to be strongly user-advocating
+- [x] Enhance appealStrengthScoring.ts to weight photo evidence, condition, and distress data
+- [x] Improve comparable sales selection to favor user (lower-priced, similar condition)
+- [x] Strengthen photo analysis weighting in valuation adjustments
+- [x] Add property-type-specific evaluation strategies
+- [x] Add foreclosure/distressed sales as market weakness evidence
+- [x] Ensure cost-to-cure flows into final valuation reduction
+
+## Admin Referral Management Tab (COMPLETED)
+- [x] Build admin referral management tab in AdminDashboard (leaderboard, tracking, payouts sub-tabs)
+- [x] Show all referral activity, pending payouts, approve/deny buttons
+- [x] Add referral stats overview (total referrals, total commissions, pending payouts)
+- [x] Admin can update payout status (process, complete, reject with notes)
+- [x] Admin can override referral tier (bronze, silver, gold, platinum)
+- [x] 12 vitest tests covering all admin referral procedures
+
+## Pipeline Hardening & Redfin Integration (COMPLETED)
+- [x] Remove all Lightbox references from codebase (fully purged)
+- [x] Ensure ATTOM gracefully skips when key is missing (no crashes, clean warning)
+- [x] Restructure aggregator: each API is PRIMARY for its domain, not backup/fallback
+- [x] RentCast = primary for tax assessments, property characteristics, AVM, sale history
+- [x] ReGRID = primary for parcel boundaries, zoning, GIS lot size, parcel number
+- [x] Redfin = primary for recent comparable sold properties with photos, DOM, price data
+- [x] ATTOM = future (foreclosure, climate risk, crime, school data for appeal arguments)
+- [x] Add Redfin API integration (auto-complete + search-sold endpoints)
+- [x] Parse Redfin sold properties into ComparableSale format with photos
+- [x] Merge Redfin comps with RentCast comps (deduplicate, prioritize Redfin for recency)
+- [x] Store Redfin API key as environment secret
+- [x] Test full pipeline with only RentCast + ReGRID + Redfin active

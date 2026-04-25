@@ -1800,3 +1800,148 @@ export async function createReferralPayout(userId: number, amountCents: number):
     return undefined;
   }
 }
+
+// ─── ADMIN REFERRAL MANAGEMENT ──────────────────────────────────────────────
+
+/** List all referral codes with user info for admin leaderboard */
+export async function listAllReferralCodes(limit: number = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        id: referralCodes.id,
+        userId: referralCodes.userId,
+        code: referralCodes.code,
+        tier: referralCodes.tier,
+        lifetimeReferrals: referralCodes.lifetimeReferrals,
+        lifetimeEarningsCents: referralCodes.lifetimeEarningsCents,
+        pendingBalanceCents: referralCodes.pendingBalanceCents,
+        paidOutCents: referralCodes.paidOutCents,
+        createdAt: referralCodes.createdAt,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(referralCodes)
+      .leftJoin(users, eq(referralCodes.userId, users.id))
+      .orderBy(desc(referralCodes.lifetimeEarningsCents))
+      .limit(limit);
+    return rows;
+  } catch (error) {
+    console.error("[Admin Referral] Failed to list codes:", error);
+    return [];
+  }
+}
+
+/** List all referral tracking entries for admin view */
+export async function listAllReferralTracking(limit: number = 200) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        id: referralTracking.id,
+        referrerUserId: referralTracking.referrerUserId,
+        referredEmail: referralTracking.referredEmail,
+        referralCode: referralTracking.referralCode,
+        submissionId: referralTracking.submissionId,
+        status: referralTracking.status,
+        commissionCents: referralTracking.commissionCents,
+        commissionTier: referralTracking.commissionTier,
+        clickedAt: referralTracking.clickedAt,
+        paidAt: referralTracking.paidAt,
+        creditedAt: referralTracking.creditedAt,
+        reversedAt: referralTracking.reversedAt,
+        createdAt: referralTracking.createdAt,
+      })
+      .from(referralTracking)
+      .orderBy(desc(referralTracking.createdAt))
+      .limit(limit);
+    return rows;
+  } catch (error) {
+    console.error("[Admin Referral] Failed to list tracking:", error);
+    return [];
+  }
+}
+
+/** List all referral payouts for admin management */
+export async function listAllReferralPayouts(limit: number = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        id: referralPayouts.id,
+        userId: referralPayouts.userId,
+        amountCents: referralPayouts.amountCents,
+        status: referralPayouts.status,
+        method: referralPayouts.method,
+        stripeTransferId: referralPayouts.stripeTransferId,
+        notes: referralPayouts.notes,
+        requestedAt: referralPayouts.requestedAt,
+        processedAt: referralPayouts.processedAt,
+        completedAt: referralPayouts.completedAt,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(referralPayouts)
+      .leftJoin(users, eq(referralPayouts.userId, users.id))
+      .orderBy(desc(referralPayouts.requestedAt))
+      .limit(limit);
+    return rows;
+  } catch (error) {
+    console.error("[Admin Referral] Failed to list payouts:", error);
+    return [];
+  }
+}
+
+/** Update a referral payout status (admin action) */
+export async function updateReferralPayout(
+  payoutId: number,
+  updates: { status?: string; notes?: string; processedAt?: Date; completedAt?: Date; stripeTransferId?: string }
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    await db.update(referralPayouts).set(updates as any).where(eq(referralPayouts.id, payoutId));
+    return true;
+  } catch (error) {
+    console.error("[Admin Referral] Failed to update payout:", error);
+    return false;
+  }
+}
+
+/** Get aggregate referral stats for admin dashboard */
+export async function getReferralAdminStats() {
+  const db = await getDb();
+  if (!db) return { totalCodes: 0, totalReferrals: 0, totalEarningsCents: 0, totalPendingCents: 0, totalPaidCents: 0, pendingPayouts: 0 };
+  try {
+    const codes = await db.select().from(referralCodes);
+    const pendingPayoutRows = await db.select().from(referralPayouts).where(eq(referralPayouts.status, "pending"));
+
+    const totalCodes = codes.length;
+    const totalReferrals = codes.reduce((s, c) => s + c.lifetimeReferrals, 0);
+    const totalEarningsCents = codes.reduce((s, c) => s + c.lifetimeEarningsCents, 0);
+    const totalPendingCents = codes.reduce((s, c) => s + c.pendingBalanceCents, 0);
+    const totalPaidCents = codes.reduce((s, c) => s + c.paidOutCents, 0);
+    const pendingPayouts = pendingPayoutRows.length;
+
+    return { totalCodes, totalReferrals, totalEarningsCents, totalPendingCents, totalPaidCents, pendingPayouts };
+  } catch (error) {
+    console.error("[Admin Referral] Failed to get stats:", error);
+    return { totalCodes: 0, totalReferrals: 0, totalEarningsCents: 0, totalPendingCents: 0, totalPaidCents: 0, pendingPayouts: 0 };
+  }
+}
+
+/** Update a referral code tier (admin override) */
+export async function updateReferralCodeTier(codeId: number, tier: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    await db.update(referralCodes).set({ tier: tier as any }).where(eq(referralCodes.id, codeId));
+    return true;
+  } catch (error) {
+    console.error("[Admin Referral] Failed to update tier:", error);
+    return false;
+  }
+}

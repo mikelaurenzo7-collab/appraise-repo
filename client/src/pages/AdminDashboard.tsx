@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import {
   BarChart3, TrendingDown, FileText, Clock, CheckCircle2, AlertTriangle,
   Loader2, RefreshCw, Eye, Building2, MapPin, DollarSign, Users, Activity,
-  Trophy, XCircle, Scale, Zap, ChevronRight, RotateCcw,
+  Trophy, XCircle, Scale, Zap, ChevronRight, RotateCcw, Gift, ArrowUpRight,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -54,7 +54,7 @@ function formatTimeAgo(d: Date | string | null | undefined) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-type TabKey = "submissions" | "outcomes" | "activity" | "filings" | "waitlist";
+type TabKey = "submissions" | "outcomes" | "activity" | "filings" | "waitlist" | "referrals";
 
 export default function AdminDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-[#E2E8F0]">
-          {(["submissions", "filings", "waitlist", "outcomes", "activity"] as TabKey[]).map((t) => (
+          {(["submissions", "filings", "waitlist", "outcomes", "referrals", "activity"] as TabKey[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -188,6 +188,7 @@ export default function AdminDashboard() {
               {t === "filings" && <span className="flex items-center gap-1.5"><Activity size={14} />{t}</span>}
               {t === "waitlist" && <span className="flex items-center gap-1.5"><FileText size={14} />{t}</span>}
               {t === "outcomes" && <span className="flex items-center gap-1.5"><Trophy size={14} />{t}</span>}
+              {t === "referrals" && <span className="flex items-center gap-1.5"><Gift size={14} />{t}</span>}
               {t === "activity" && <span className="flex items-center gap-1.5"><Activity size={14} />{t}</span>}
             </button>
           ))}
@@ -376,6 +377,9 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* ── REFERRALS TAB ───────────────────────────────────────── */}
+        {tab === "referrals" && <ReferralManagementTab />}
 
         {/* ── ACTIVITY TAB ────────────────────────────────────────── */}
         {tab === "activity" && (
@@ -728,6 +732,344 @@ function FilingJobsTable() {
         </table>
       </div>
       </div>
+    </div>
+  );
+}
+
+function ReferralManagementTab() {
+  const [subTab, setSubTab] = useState<"leaderboard" | "tracking" | "payouts">("leaderboard");
+  const statsQuery = trpc.admin.getReferralStats.useQuery(undefined, { refetchInterval: 60_000 });
+  const codesQuery = trpc.admin.listReferralCodes.useQuery(undefined, {
+    enabled: subTab === "leaderboard",
+  });
+  const trackingQuery = trpc.admin.listReferralTracking.useQuery(undefined, {
+    enabled: subTab === "tracking",
+  });
+  const payoutsQuery = trpc.admin.listReferralPayouts.useQuery(undefined, {
+    enabled: subTab === "payouts",
+  });
+  const utils = trpc.useUtils();
+
+  const updatePayout = trpc.admin.updatePayoutStatus.useMutation({
+    onSuccess: () => {
+      utils.admin.listReferralPayouts.invalidate();
+      utils.admin.getReferralStats.invalidate();
+      toast.success("Payout updated");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateTier = trpc.admin.updateReferralTier.useMutation({
+    onSuccess: () => {
+      utils.admin.listReferralCodes.invalidate();
+      toast.success("Tier updated");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const stats = statsQuery.data;
+
+  const tierColors: Record<string, string> = {
+    bronze: "bg-amber-100 text-amber-800",
+    silver: "bg-gray-100 text-gray-700",
+    gold: "bg-yellow-100 text-yellow-800",
+    platinum: "bg-purple-100 text-purple-800",
+  };
+
+  const statusColors: Record<string, string> = {
+    clicked: "bg-gray-100 text-gray-600",
+    signed_up: "bg-blue-100 text-blue-700",
+    submitted: "bg-indigo-100 text-indigo-700",
+    paid: "bg-emerald-100 text-emerald-700",
+    credited: "bg-green-100 text-green-800 font-bold",
+    reversed: "bg-red-100 text-red-700",
+  };
+
+  const payoutStatusColors: Record<string, string> = {
+    pending: "bg-yellow-100 text-yellow-800",
+    processing: "bg-blue-100 text-blue-700",
+    completed: "bg-green-100 text-green-800",
+    failed: "bg-red-100 text-red-700",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: "Active Referrers", value: stats?.totalCodes ?? "—", icon: <Users size={14} /> },
+          { label: "Total Referrals", value: stats?.totalReferrals ?? "—", icon: <Gift size={14} /> },
+          { label: "Total Earned", value: stats?.totalEarningsCents ? `$${(stats.totalEarningsCents / 100).toLocaleString()}` : "—", icon: <DollarSign size={14} /> },
+          { label: "Pending Balance", value: stats?.totalPendingCents ? `$${(stats.totalPendingCents / 100).toLocaleString()}` : "$0", icon: <Clock size={14} /> },
+          { label: "Paid Out", value: stats?.totalPaidCents ? `$${(stats.totalPaidCents / 100).toLocaleString()}` : "$0", icon: <CheckCircle2 size={14} /> },
+          { label: "Pending Payouts", value: stats?.pendingPayouts ?? 0, icon: <AlertTriangle size={14} />, warn: (stats?.pendingPayouts ?? 0) > 0 },
+        ].map((s: any) => (
+          <div key={s.label} className={`rounded-lg border px-4 py-3 ${s.warn ? "border-yellow-300 bg-yellow-50" : "border-[#E2E8F0] bg-white"}`}>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.15em] text-[#94A3B8] mb-1">{s.icon}{s.label}</div>
+            <div className={`font-data text-xl font-bold ${s.warn ? "text-yellow-700" : "text-[#0F172A]"}`}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-2">
+        {(["leaderboard", "tracking", "payouts"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setSubTab(t)}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold capitalize transition-colors ${
+              subTab === t ? "bg-[#7C3AED] text-white" : "bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* ── LEADERBOARD ──────────────────────────────────────────── */}
+      {subTab === "leaderboard" && (
+        <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#E2E8F0]">
+            <h2 className="font-display text-lg font-semibold text-[#0F172A]">
+              Referrer Leaderboard
+              <span className="ml-2 text-sm font-normal text-[#64748B]">({codesQuery.data?.length ?? 0})</span>
+            </h2>
+          </div>
+          {codesQuery.isLoading ? (
+            <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-[#7C3AED]" size={32} /></div>
+          ) : !codesQuery.data?.length ? (
+            <div className="text-center py-16">
+              <Gift size={40} className="text-[#E2E8F0] mx-auto mb-3" />
+              <p className="text-[#64748B]">No referral codes created yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[#F8FAFC] text-xs uppercase tracking-widest text-[#64748B]">
+                  <tr>
+                    <th className="text-left px-4 py-3">#</th>
+                    <th className="text-left px-4 py-3">Referrer</th>
+                    <th className="text-left px-4 py-3">Code</th>
+                    <th className="text-left px-4 py-3">Tier</th>
+                    <th className="text-right px-4 py-3">Referrals</th>
+                    <th className="text-right px-4 py-3">Earned</th>
+                    <th className="text-right px-4 py-3">Pending</th>
+                    <th className="text-right px-4 py-3">Paid</th>
+                    <th className="text-right px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F1F5F9]">
+                  {codesQuery.data.map((row, idx) => (
+                    <tr key={row.id} className="hover:bg-[#FAFAFA]">
+                      <td className="px-4 py-3 text-xs text-[#94A3B8] font-mono">{idx + 1}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-[#0F172A] text-sm">{row.userName || "—"}</div>
+                        <div className="text-xs text-[#64748B]">{row.userEmail || "—"}</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-[#7C3AED] font-semibold">{row.code}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={row.tier}
+                          onChange={(e) => updateTier.mutate({ codeId: row.id, tier: e.target.value as any })}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold border-0 cursor-pointer ${tierColors[row.tier] || "bg-gray-100 text-gray-600"}`}
+                        >
+                          {["bronze", "silver", "gold", "platinum"].map((t) => (
+                            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-right font-data font-semibold">{row.lifetimeReferrals}</td>
+                      <td className="px-4 py-3 text-right font-data text-emerald-600 font-semibold">${(row.lifetimeEarningsCents / 100).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-data text-yellow-600">${(row.pendingBalanceCents / 100).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-data text-[#64748B]">${(row.paidOutCents / 100).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-[10px] text-[#94A3B8]">{formatDate(row.createdAt)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TRACKING ─────────────────────────────────────────────── */}
+      {subTab === "tracking" && (
+        <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#E2E8F0]">
+            <h2 className="font-display text-lg font-semibold text-[#0F172A]">
+              Referral Events
+              <span className="ml-2 text-sm font-normal text-[#64748B]">({trackingQuery.data?.length ?? 0})</span>
+            </h2>
+          </div>
+          {trackingQuery.isLoading ? (
+            <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-[#7C3AED]" size={32} /></div>
+          ) : !trackingQuery.data?.length ? (
+            <div className="text-center py-16">
+              <ArrowUpRight size={40} className="text-[#E2E8F0] mx-auto mb-3" />
+              <p className="text-[#64748B]">No referral events tracked yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[#F8FAFC] text-xs uppercase tracking-widest text-[#64748B]">
+                  <tr>
+                    <th className="text-left px-4 py-3">ID</th>
+                    <th className="text-left px-4 py-3">Code</th>
+                    <th className="text-left px-4 py-3">Referred Email</th>
+                    <th className="text-left px-4 py-3">Submission</th>
+                    <th className="text-left px-4 py-3">Status</th>
+                    <th className="text-right px-4 py-3">Commission</th>
+                    <th className="text-left px-4 py-3">Tier</th>
+                    <th className="text-right px-4 py-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F1F5F9]">
+                  {trackingQuery.data.map((row) => (
+                    <tr key={row.id} className="hover:bg-[#FAFAFA]">
+                      <td className="px-4 py-3 font-mono text-xs text-[#94A3B8]">#{row.id}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-[#7C3AED] font-semibold">{row.referralCode}</td>
+                      <td className="px-4 py-3 text-xs">{row.referredEmail || "—"}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {row.submissionId ? (
+                          <Link href={`/analysis?id=${row.submissionId}`} className="text-[#7C3AED] hover:underline">
+                            Sub #{row.submissionId}
+                          </Link>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[row.status] || "bg-gray-100 text-gray-600"}`}>
+                          {row.status.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-data text-xs">
+                        {row.commissionCents > 0 ? `$${(row.commissionCents / 100).toLocaleString()}` : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.commissionTier ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${tierColors[row.commissionTier] || "bg-gray-100 text-gray-600"}`}>
+                            {row.commissionTier}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-[#64748B]">{formatDate(row.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PAYOUTS ──────────────────────────────────────────────── */}
+      {subTab === "payouts" && (
+        <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#E2E8F0]">
+            <h2 className="font-display text-lg font-semibold text-[#0F172A]">
+              Payout Requests
+              <span className="ml-2 text-sm font-normal text-[#64748B]">({payoutsQuery.data?.length ?? 0})</span>
+            </h2>
+          </div>
+          {payoutsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-[#7C3AED]" size={32} /></div>
+          ) : !payoutsQuery.data?.length ? (
+            <div className="text-center py-16">
+              <DollarSign size={40} className="text-[#E2E8F0] mx-auto mb-3" />
+              <p className="text-[#64748B]">No payout requests yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[#F8FAFC] text-xs uppercase tracking-widest text-[#64748B]">
+                  <tr>
+                    <th className="text-left px-4 py-3">ID</th>
+                    <th className="text-left px-4 py-3">Referrer</th>
+                    <th className="text-right px-4 py-3">Amount</th>
+                    <th className="text-left px-4 py-3">Method</th>
+                    <th className="text-left px-4 py-3">Status</th>
+                    <th className="text-left px-4 py-3">Notes</th>
+                    <th className="text-left px-4 py-3">Requested</th>
+                    <th className="text-right px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F1F5F9]">
+                  {payoutsQuery.data.map((row) => (
+                    <tr key={row.id} className="hover:bg-[#FAFAFA]">
+                      <td className="px-4 py-3 font-mono text-xs text-[#94A3B8]">#{row.id}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-[#0F172A] text-sm">{row.userName || "—"}</div>
+                        <div className="text-xs text-[#64748B]">{row.userEmail || "—"}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-data font-semibold text-[#0F172A]">
+                        ${(row.amountCents / 100).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-xs capitalize">{row.method?.replace("_", " ") || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${payoutStatusColors[row.status] || "bg-gray-100 text-gray-600"}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#64748B] max-w-[200px] truncate">{row.notes || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-[#64748B]">{formatDate(row.requestedAt)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {row.status === "pending" && (
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              onClick={() => updatePayout.mutate({ payoutId: row.id, status: "processing" })}
+                              disabled={updatePayout.isPending}
+                              className="text-xs text-blue-600 hover:underline font-medium"
+                            >
+                              Process
+                            </button>
+                            <button
+                              onClick={() => {
+                                const notes = prompt("Reason for rejection (optional):");
+                                updatePayout.mutate({ payoutId: row.id, status: "failed", notes: notes || undefined });
+                              }}
+                              disabled={updatePayout.isPending}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                        {row.status === "processing" && (
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              onClick={() => updatePayout.mutate({ payoutId: row.id, status: "completed" })}
+                              disabled={updatePayout.isPending}
+                              className="text-xs text-green-600 hover:underline font-medium"
+                            >
+                              Complete
+                            </button>
+                            <button
+                              onClick={() => {
+                                const notes = prompt("Failure reason:");
+                                updatePayout.mutate({ payoutId: row.id, status: "failed", notes: notes || undefined });
+                              }}
+                              disabled={updatePayout.isPending}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Failed
+                            </button>
+                          </div>
+                        )}
+                        {(row.status === "completed" || row.status === "failed") && (
+                          <span className="text-[10px] text-[#94A3B8]">
+                            {row.completedAt ? formatDate(row.completedAt) : row.processedAt ? formatDate(row.processedAt) : "—"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

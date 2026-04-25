@@ -182,7 +182,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     if (!existingAnalysis) {
       await createPropertyAnalysis({
         submissionId,
-        lightboxData: JSON.stringify(propertyData),
+        lightboxData: JSON.stringify(propertyData), // Legacy column name — stores aggregated property data
         rentcastData: JSON.stringify(propertyData.rentalComps || []),
         regrindData: JSON.stringify(propertyData),
         attomData: JSON.stringify(propertyData),

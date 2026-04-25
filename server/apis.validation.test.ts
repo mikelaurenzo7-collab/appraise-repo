@@ -5,6 +5,12 @@ import { describe, it, expect } from "vitest";
  * These are deployment-readiness checks: if the env var isn't set (e.g. local
  * dev or CI without secrets), we skip rather than fail so the test suite
  * stays green. Format assertions still run when the var is present.
+ *
+ * API roles:
+ *   RentCast  → Tax assessments, property characteristics, AVM, sale history
+ *   ReGRID   → Parcel boundaries, zoning, GIS-measured lot size, parcel number
+ *   Redfin   → Recent comparable sold properties with photos, DOM, price data
+ *   ATTOM    → (Future) Foreclosure, climate risk, crime, school data
  */
 
 function itIfSet(name: string, envVar: string | undefined, fn: () => void) {
@@ -16,15 +22,6 @@ function itIfSet(name: string, envVar: string | undefined, fn: () => void) {
 }
 
 describe("API Keys Configuration", () => {
-  itIfSet(
-    "has Lightbox API credentials configured",
-    process.env.LIGHTBOX_API_KEY && process.env.LIGHTBOX_API_SECRET,
-    () => {
-      expect(process.env.LIGHTBOX_API_KEY?.length).toBeGreaterThan(40);
-      expect(process.env.LIGHTBOX_API_SECRET?.length).toBeGreaterThan(40);
-    }
-  );
-
   itIfSet("has RentCast API key configured", process.env.RENTCAST_API_KEY, () => {
     expect(process.env.RENTCAST_API_KEY).toHaveLength(32);
   });
@@ -35,26 +32,28 @@ describe("API Keys Configuration", () => {
     expect(process.env.REGRID_API_KEY?.split(".")).toHaveLength(3);
   });
 
+  itIfSet("has Redfin RapidAPI key configured", process.env.REDFIN_RAPIDAPI_KEY, () => {
+    expect(process.env.REDFIN_RAPIDAPI_KEY?.length).toBeGreaterThan(20);
+  });
+
   itIfSet(
-    "has AttomData API key configured (ATTOM_API_KEY)",
-    process.env.ATTOM_API_KEY || process.env.ATTTOM_API_KEY,
+    "has AttomData API key configured (future — foreclosure/climate/crime/school data)",
+    process.env.ATTOM_API_KEY,
     () => {
-      const attomKey = process.env.ATTOM_API_KEY || process.env.ATTTOM_API_KEY;
-      expect(attomKey?.length).toBeGreaterThan(20);
+      expect(process.env.ATTOM_API_KEY?.length).toBeGreaterThan(20);
     }
   );
 
   it("reports which property data APIs are available", () => {
     const apis = {
-      lightbox: Boolean(process.env.LIGHTBOX_API_KEY && process.env.LIGHTBOX_API_SECRET),
       rentcast: Boolean(process.env.RENTCAST_API_KEY),
       regrid: Boolean(process.env.REGRID_API_KEY),
-      attom: Boolean(process.env.ATTOM_API_KEY || process.env.ATTTOM_API_KEY),
+      redfin: Boolean(process.env.REDFIN_RAPIDAPI_KEY),
+      attom: Boolean(process.env.ATTOM_API_KEY),
     };
 
     // Informational only — log rather than fail. Deployment environments should
-    // verify all four via separate infra checks.
-    // eslint-disable-next-line no-console
+    // verify all active APIs via separate infra checks.
     console.log("[apis.validation] Configured APIs:", apis);
     expect(typeof apis).toBe("object");
   });

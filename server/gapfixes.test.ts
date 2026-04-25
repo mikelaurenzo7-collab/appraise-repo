@@ -21,10 +21,27 @@ vi.mock("./propertyClassifier", () => ({
 
 vi.mock("./propertyDataAggregator", () => ({
   aggregatePropertyData: vi.fn().mockResolvedValue({
-    lightbox: { assessedValue: 300000, yearBuilt: 2005, sqft: 2000, lotSize: 8000 },
-    rentcast: { estimatedValue: 350000, rentEstimate: 2200, comparables: [] },
-    regrid: { parcelId: "123", zoning: "R-1", taxAmount: 5000, assessedValue: 300000 },
-    attom: { marketValue: 360000, lastSalePrice: 280000, lastSaleDate: "2020-01-15" },
+    address: "123 Test St",
+    city: "Naperville",
+    state: "IL",
+    source: "aggregated",
+    assessedValue: 300000,
+    marketValue: 350000,
+    squareFeet: 2000,
+    lotSize: 8000,
+    yearBuilt: 2005,
+    bedrooms: 4,
+    bathrooms: 2.5,
+    county: "DuPage",
+    parcelNumber: "123",
+    zoning: "R-1",
+    propertyTax: 5000,
+    lastSalePrice: 280000,
+    lastSaleDate: "2020-01-15",
+    comparableSales: [
+      { address: "456 Comp St", salePrice: 320000, saleDate: "2026-03-15", squareFeet: 1900, similarity: 85, source: "redfin" },
+    ],
+    rentalComps: [],
   }),
 }));
 

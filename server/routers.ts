@@ -86,6 +86,12 @@ import {
   creditReferral,
   getReferralDashboard,
   createReferralPayout,
+  listAllReferralCodes,
+  listAllReferralTracking,
+  listAllReferralPayouts,
+  updateReferralPayout,
+  getReferralAdminStats,
+  updateReferralCodeTier,
 } from "./db";
 import { hashAuthorizationText } from "./services/filingRecipeEngine";
 import { queueFilingJob } from "./services/filingJobQueue";
@@ -1645,6 +1651,72 @@ export const appRouter = router({
           status: "warning",
         });
         return { success: true, jobId: job.id };
+      }),
+
+    // ─── REFERRAL MANAGEMENT ─────────────────────────────────────────────
+    getReferralStats: adminProcedure.query(async () => {
+      return getReferralAdminStats();
+    }),
+
+    listReferralCodes: adminProcedure
+      .input(z.object({ limit: z.number().min(1).max(500).default(100) }).optional())
+      .query(async ({ input }) => {
+        return listAllReferralCodes(input?.limit ?? 100);
+      }),
+
+    listReferralTracking: adminProcedure
+      .input(z.object({ limit: z.number().min(1).max(500).default(200) }).optional())
+      .query(async ({ input }) => {
+        return listAllReferralTracking(input?.limit ?? 200);
+      }),
+
+    listReferralPayouts: adminProcedure
+      .input(z.object({ limit: z.number().min(1).max(500).default(100) }).optional())
+      .query(async ({ input }) => {
+        return listAllReferralPayouts(input?.limit ?? 100);
+      }),
+
+    updatePayoutStatus: adminProcedure
+      .input(z.object({
+        payoutId: z.number(),
+        status: z.enum(["pending", "processing", "completed", "failed"]),
+        notes: z.string().max(2000).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const updates: any = { status: input.status };
+        if (input.notes) updates.notes = input.notes;
+        if (input.status === "processing") updates.processedAt = new Date();
+        if (input.status === "completed") updates.completedAt = new Date();
+        const success = await updateReferralPayout(input.payoutId, updates);
+        if (!success) throw new TRPCError({ code: "NOT_FOUND", message: "Payout not found" });
+        await persistActivityLog({
+          type: "referral_payout_update",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Referral payout #${input.payoutId} updated to ${input.status}`,
+          metadata: JSON.stringify({ payoutId: input.payoutId, status: input.status }),
+          status: "success",
+        });
+        return { success: true };
+      }),
+
+    updateReferralTier: adminProcedure
+      .input(z.object({
+        codeId: z.number(),
+        tier: z.enum(["bronze", "silver", "gold", "platinum"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const success = await updateReferralCodeTier(input.codeId, input.tier);
+        if (!success) throw new TRPCError({ code: "NOT_FOUND", message: "Referral code not found" });
+        await persistActivityLog({
+          type: "referral_tier_update",
+          actor: "admin",
+          actorId: ctx.user.id,
+          description: `Referral code #${input.codeId} tier updated to ${input.tier}`,
+          metadata: JSON.stringify({ codeId: input.codeId, tier: input.tier }),
+          status: "success",
+        });
+        return { success: true };
       }),
 
     // ─── PARALEGALS QUEUE ────────────────────────────────────────────────

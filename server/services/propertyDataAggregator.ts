@@ -1,10 +1,16 @@
 /**
  * Property Data Aggregator
- * Queries RentCast, ReGRID, and ATTOM in parallel, merges results intelligently,
- * and uses DB-backed caching to reduce redundant API calls.
+ * ────────────────────────────────────────────────────────────────────────────
+ * Each API is PRIMARY for its domain — not a fallback:
  *
- * Lightbox was removed — its API returned persistent 401/500 errors and
- * RentCast already provides richer data (tax assessments, sale history, comps).
+ *   RentCast  → Tax assessments, property characteristics, AVM, sale history
+ *   ReGRID   → Parcel boundaries, zoning, GIS-measured lot size, parcel number
+ *   Redfin   → Recent comparable sold properties with photos, DOM, price data
+ *   ATTOM    → (Future) Foreclosure, climate risk, crime, school data
+ *
+ * Lightbox has been fully removed (persistent 401/500 errors, key deleted).
+ * ATTOM gracefully skips when key is absent — ready for re-activation.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 
 import axios from "axios";
@@ -30,6 +36,8 @@ export interface PropertyData {
   propertyTax?: number;
   comparableSales?: ComparableSale[];
   rentalComps?: RentalComp[];
+  /** Redfin region ID for the city — cached for subsequent queries */
+  redfinRegionId?: string;
   source: string;
 }
 
@@ -38,8 +46,16 @@ export interface ComparableSale {
   salePrice: number;
   saleDate: string;
   squareFeet: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  yearBuilt?: number;
+  lotSize?: number;
+  daysOnMarket?: number;
+  latitude?: number;
+  longitude?: number;
+  photoUrl?: string;
   similarity: number;
-  source: "mls" | "rentcast" | "attom";
+  source: "mls" | "rentcast" | "attom" | "redfin";
 }
 
 export interface RentalComp {
@@ -50,6 +66,8 @@ export interface RentalComp {
   squareFeet: number;
   source: "rentcast";
 }
+
+// ─── CACHE HELPERS ──────────────────────────────────────────────────────────
 
 function makeCacheKey(source: string, address: string, city: string, state: string) {
   return `${source}:${address.toLowerCase().replace(/\s+/g, "_")}:${city.toLowerCase()}:${state.toLowerCase()}`;
@@ -74,9 +92,9 @@ async function withCache<T>(
   return data;
 }
 
-// ─── RENTCAST ────────────────────────────────────────────────────────────────
-// RentCast returns an ARRAY of properties. We take the first match.
-// It also includes taxAssessments, propertyTaxes, history, and owner data.
+// ─── RENTCAST ───────────────────────────────────────────────────────────────
+// PRIMARY for: Tax assessments, property characteristics, AVM, sale history
+// Returns an ARRAY of properties. We take the first match.
 
 async function queryRentCast(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("rentcast", address, city, state, async () => {
@@ -118,6 +136,9 @@ async function queryRentCast(address: string, city: string, state: string): Prom
         salePrice: c.price || c.lastSalePrice,
         saleDate: c.lastSaleDate,
         squareFeet: c.squareFootage,
+        bedrooms: c.bedrooms,
+        bathrooms: c.bathrooms,
+        yearBuilt: c.yearBuilt,
         similarity: c.correlation ? Math.round(c.correlation * 100) : 75,
         source: "rentcast" as const,
       }));
@@ -146,7 +167,8 @@ async function queryRentCast(address: string, city: string, state: string): Prom
   });
 }
 
-// ─── REGRID ──────────────────────────────────────────────────────────────────
+// ─── REGRID ─────────────────────────────────────────────────────────────────
+// PRIMARY for: Parcel boundaries, zoning, GIS-measured lot size, parcel number
 
 async function queryReGRID(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("regrid", address, city, state, async () => {
@@ -177,12 +199,217 @@ async function queryReGRID(address: string, city: string, state: string): Promis
   });
 }
 
-// ─── ATTOM ───────────────────────────────────────────────────────────────────
+// ─── REDFIN ─────────────────────────────────────────────────────────────────
+// PRIMARY for: Recent comparable sold properties with photos, DOM, price data
+// Two-step flow: (1) auto-complete to get regionId, (2) search-sold with regionId
+
+const REDFIN_RAPIDAPI_HOST = "redfin-com-data.p.rapidapi.com";
+
+async function getRedfinRegionId(city: string, state: string): Promise<string | null> {
+  const cacheKey = `redfin_region:${city.toLowerCase()}:${state.toLowerCase()}`;
+  try {
+    const cached = await getCachedApiResponse(cacheKey);
+    if (cached && typeof cached === "string") return cached;
+  } catch { /* proceed without cache */ }
+
+  try {
+    const apiKey = process.env.REDFIN_RAPIDAPI_KEY;
+    if (!apiKey) { console.warn("[Redfin] API key not configured"); return null; }
+
+    const response = await axios.get(`https://${REDFIN_RAPIDAPI_HOST}/properties/auto-complete`, {
+      params: { query: `${city} ${state}` },
+      headers: {
+        "x-rapidapi-host": REDFIN_RAPIDAPI_HOST,
+        "x-rapidapi-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      timeout: 8000,
+    });
+
+    const data = response.data?.data;
+    if (!data || !Array.isArray(data)) return null;
+
+    // Find the city-level result (type 2 = city in Redfin's taxonomy)
+    // The id format is like "6_29501" — we need this exact format
+    const cityResult = data.find((r: any) =>
+      r.type === 2 || r.subType === "city" ||
+      (r.name && r.name.toLowerCase().includes(city.toLowerCase()))
+    );
+
+    if (cityResult?.id) {
+      const regionId = String(cityResult.id);
+      console.log(`[Redfin] Region ID for ${city}, ${state}: ${regionId}`);
+      // Cache the region ID for 30 days
+      try { await setCachedApiResponse(cacheKey, "redfin", regionId, 2592000); } catch { /* non-critical */ }
+      return regionId;
+    }
+
+    // Fallback: take the first result that has an id with the 6_ prefix
+    const fallback = data.find((r: any) => String(r.id || "").startsWith("6_"));
+    if (fallback?.id) {
+      const regionId = String(fallback.id);
+      console.log(`[Redfin] Region ID (fallback) for ${city}, ${state}: ${regionId}`);
+      try { await setCachedApiResponse(cacheKey, "redfin", regionId, 2592000); } catch { /* non-critical */ }
+      return regionId;
+    }
+
+    console.warn(`[Redfin] No region ID found for ${city}, ${state}`);
+    return null;
+  } catch (error) {
+    console.error("[Redfin] Auto-complete error:", (error as any)?.response?.status ?? error);
+    return null;
+  }
+}
+
+async function queryRedfin(
+  address: string,
+  city: string,
+  state: string,
+  subjectData?: { bedrooms?: number; bathrooms?: number; squareFeet?: number; yearBuilt?: number }
+): Promise<{ comparableSales: ComparableSale[]; redfinRegionId?: string }> {
+  return withCache("redfin", address, city, state, async () => {
+    try {
+      const apiKey = process.env.REDFIN_RAPIDAPI_KEY;
+      if (!apiKey) { console.warn("[Redfin] API key not configured"); return { comparableSales: [] }; }
+
+      // Step 1: Get the region ID for this city
+      const regionId = await getRedfinRegionId(city, state);
+      if (!regionId) return { comparableSales: [] };
+
+      // Step 2: Search for recently sold properties in this region
+      const response = await axios.get(`https://${REDFIN_RAPIDAPI_HOST}/properties/search-sold`, {
+        params: {
+          regionId,
+          soldWithin: 90, // Last 90 days for broader comp pool
+        },
+        headers: {
+          "x-rapidapi-host": REDFIN_RAPIDAPI_HOST,
+          "x-rapidapi-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000, // Larger response, give more time
+      });
+
+      const homes = response.data?.data;
+      if (!homes || !Array.isArray(homes)) {
+        console.warn("[Redfin] No sold properties returned");
+        return { comparableSales: [], redfinRegionId: regionId };
+      }
+
+      console.log(`[Redfin] Got ${homes.length} recently sold properties in ${city}, ${state}`);
+
+      // Parse each sold property into our ComparableSale format
+      const allComps: ComparableSale[] = homes
+        .map((item: any) => {
+          const hd = item?.homeData;
+          if (!hd) return null;
+
+          const price = Number(hd.priceInfo?.amount);
+          const sqft = Number(hd.sqftInfo?.amount);
+          const beds = hd.beds;
+          const baths = hd.baths;
+          const yb = hd.yearBuilt?.yearBuilt;
+          const lot = hd.lotSize?.amount ? Number(hd.lotSize.amount) : undefined;
+          const addr = hd.addressInfo;
+          const sashes = hd.sashes || [];
+          const lastSold = hd.lastSaleData?.lastSoldDate;
+
+          // Extract sale date from sashes or lastSaleData
+          let saleDate = "";
+          const soldSash = sashes.find((s: any) => s.sashTypeName === "Sold");
+          if (soldSash?.lastSaleDate) {
+            saleDate = soldSash.lastSaleDate;
+          } else if (lastSold) {
+            saleDate = new Date(lastSold).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+          }
+
+          // Calculate days on market
+          let dom: number | undefined;
+          if (hd.daysOnMarket?.listingAddedDate && lastSold) {
+            const listed = new Date(hd.daysOnMarket.listingAddedDate).getTime();
+            const sold = new Date(lastSold).getTime();
+            dom = Math.max(0, Math.round((sold - listed) / 86400000));
+          }
+
+          // Build full address
+          const fullAddress = addr
+            ? `${addr.formattedStreetLine || ""}, ${addr.city || ""}, ${addr.state || ""} ${addr.zip || ""}`.trim()
+            : hd.url?.replace(/^\/[A-Z]{2}\//, "").replace(/\//g, " ").replace(/home\/\d+$/, "").trim() || "Unknown";
+
+          // Get first photo
+          const photoUrl = hd.photos?.[0] || hd.bigPhotos?.[0] || undefined;
+
+          if (!price || price <= 0) return null;
+
+          return {
+            address: fullAddress,
+            salePrice: price,
+            saleDate,
+            squareFeet: sqft || 0,
+            bedrooms: beds,
+            bathrooms: baths,
+            yearBuilt: yb,
+            lotSize: lot,
+            daysOnMarket: dom,
+            latitude: addr?.centroid?.centroid?.latitude,
+            longitude: addr?.centroid?.centroid?.longitude,
+            photoUrl,
+            similarity: 0, // Will be calculated below
+            source: "redfin" as const,
+          } as ComparableSale;
+        })
+        .filter((c: ComparableSale | null): c is ComparableSale => c !== null);
+
+      // Calculate similarity scores based on subject property characteristics
+      const scoredComps = allComps.map((comp) => {
+        let score = 50; // Base score
+
+        if (subjectData?.bedrooms && comp.bedrooms) {
+          const bedDiff = Math.abs(subjectData.bedrooms - comp.bedrooms);
+          score += bedDiff === 0 ? 15 : bedDiff === 1 ? 8 : 0;
+        }
+        if (subjectData?.bathrooms && comp.bathrooms) {
+          const bathDiff = Math.abs(subjectData.bathrooms - comp.bathrooms);
+          score += bathDiff === 0 ? 10 : bathDiff <= 1 ? 5 : 0;
+        }
+        if (subjectData?.squareFeet && comp.squareFeet) {
+          const sqftRatio = comp.squareFeet / subjectData.squareFeet;
+          if (sqftRatio >= 0.85 && sqftRatio <= 1.15) score += 15;
+          else if (sqftRatio >= 0.7 && sqftRatio <= 1.3) score += 8;
+        }
+        if (subjectData?.yearBuilt && comp.yearBuilt) {
+          const ageDiff = Math.abs(subjectData.yearBuilt - comp.yearBuilt);
+          score += ageDiff <= 5 ? 10 : ageDiff <= 15 ? 5 : 0;
+        }
+
+        return { ...comp, similarity: Math.min(100, score) };
+      });
+
+      // Sort by similarity (highest first), then take top 20 for analysis
+      scoredComps.sort((a, b) => b.similarity - a.similarity);
+      const topComps = scoredComps.slice(0, 20);
+
+      console.log(`[Redfin] Scored ${allComps.length} comps, top 20 selected (best similarity: ${topComps[0]?.similarity || 0})`);
+
+      return { comparableSales: topComps, redfinRegionId: regionId };
+    } catch (error) {
+      console.error("[Redfin] Error:", (error as any)?.response?.status ?? error);
+      return { comparableSales: [] };
+    }
+  });
+}
+
+// ─── ATTOM (FUTURE) ─────────────────────────────────────────────────────────
+// Will provide: Foreclosure data, climate risk, crime stats, school data
+// Currently gracefully skips when key is absent — ready for re-activation
 
 async function queryAttomData(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("attom", address, city, state, async () => {
     try {
-      if (!process.env.ATTOM_API_KEY) { console.warn("[AttomData] API key not configured"); return {}; }
+      if (!process.env.ATTOM_API_KEY) {
+        // Graceful skip — ATTOM key not yet configured
+        return {};
+      }
       const response = await axios.get("https://api.gateway.attomdata.com/propertyapi/v1.0.0/property/detail", {
         params: { address1: address, address2: `${city}, ${state}` },
         headers: { apikey: process.env.ATTOM_API_KEY, Accept: "application/json" },
@@ -214,15 +441,16 @@ async function queryAttomData(address: string, city: string, state: string): Pro
   });
 }
 
-// ─── AGGREGATOR ──────────────────────────────────────────────────────────────
+// ─── AGGREGATOR ─────────────────────────────────────────────────────────────
 
 export async function aggregatePropertyData(address: string, city: string, state: string): Promise<PropertyData> {
   try {
-    // Add 30-second timeout to prevent hanging
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error("API aggregation timeout after 30s")), 30000)
+    // Add 45-second timeout to prevent hanging (Redfin can be slow with large responses)
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("API aggregation timeout after 45s")), 45000)
     );
-    
+
+    // Phase 1: Get core property data from RentCast + ReGRID + ATTOM in parallel
     const [rentcastData, regridData, attomData] = await Promise.race([
       Promise.all([
         queryRentCast(address, city, state),
@@ -232,46 +460,106 @@ export async function aggregatePropertyData(address: string, city: string, state
       timeoutPromise,
     ]);
 
-    // RentCast is now the primary source — it has the richest data
+    // Phase 2: Get Redfin comps using subject property characteristics for similarity scoring
+    const subjectData = {
+      bedrooms: rentcastData.bedrooms || attomData.bedrooms,
+      bathrooms: rentcastData.bathrooms || attomData.bathrooms,
+      squareFeet: rentcastData.squareFeet || attomData.squareFeet || regridData.squareFeet,
+      yearBuilt: rentcastData.yearBuilt || attomData.yearBuilt || regridData.yearBuilt,
+    };
+
+    let redfinResult: { comparableSales: ComparableSale[]; redfinRegionId?: string } = { comparableSales: [] };
+    try {
+      redfinResult = await Promise.race([
+        queryRedfin(address, city, state, subjectData),
+        new Promise<{ comparableSales: ComparableSale[] }>((_, reject) =>
+          setTimeout(() => reject(new Error("Redfin timeout")), 20000)
+        ),
+      ]);
+    } catch (err) {
+      console.warn("[Aggregator] Redfin query failed or timed out, continuing without Redfin comps:", (err as Error).message);
+    }
+
+    // ── Merge comparable sales from all sources ──────────────────────────────
+    // Redfin comps are the most detailed (photos, DOM, coordinates)
+    // RentCast comps supplement with correlation-based similarity
+    // Deduplicate by address similarity
+    const redfinComps = redfinResult.comparableSales || [];
+    const rentcastComps = rentcastData.comparableSales || [];
+
+    const mergedComps = [...redfinComps]; // Redfin first (richer data)
+    const normalizeAddr = (a: string) => a.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    for (const rc of rentcastComps) {
+      const isDupe = mergedComps.some(
+        (existing) => normalizeAddr(existing.address).includes(normalizeAddr(rc.address).slice(0, 20)) ||
+          normalizeAddr(rc.address).includes(normalizeAddr(existing.address).slice(0, 20))
+      );
+      if (!isDupe) mergedComps.push(rc);
+    }
+
+    // Sort merged comps: highest similarity first
+    mergedComps.sort((a, b) => b.similarity - a.similarity);
+
+    // ── Build final merged PropertyData ──────────────────────────────────────
+    // Each API is primary for its domain
     const merged: PropertyData = {
       address,
       city,
       state,
       source: "aggregated",
-      // Tax assessment: RentCast has real assessor data, ATTOM as backup, ReGRID as fallback
+
+      // Tax assessment: RentCast is primary (real assessor data), ATTOM backup, ReGRID derived
       assessedValue: rentcastData.assessedValue || attomData.assessedValue || regridData.assessedValue,
       propertyTax: rentcastData.propertyTax,
-      // Market value: RentCast AVM, then last sale as proxy
+
+      // Market value: RentCast AVM is primary, then last sale as proxy
       marketValue: rentcastData.marketValue || rentcastData.lastSalePrice || attomData.lastSalePrice,
-      // Physical attributes: cross-reference all sources
+
+      // Physical attributes: RentCast primary, ATTOM secondary, ReGRID for GIS data
       squareFeet: rentcastData.squareFeet || attomData.squareFeet || regridData.squareFeet,
-      lotSize: rentcastData.lotSize || regridData.lotSize,
+      lotSize: regridData.lotSize || rentcastData.lotSize, // ReGRID GIS lot size is most accurate
       yearBuilt: rentcastData.yearBuilt || attomData.yearBuilt || regridData.yearBuilt,
       bedrooms: rentcastData.bedrooms || attomData.bedrooms,
       bathrooms: rentcastData.bathrooms || attomData.bathrooms,
-      // Location & parcel
-      county: rentcastData.county || attomData.county || regridData.county,
+
+      // Location & parcel: ReGRID is primary for parcel/zoning, RentCast for county
+      county: rentcastData.county || regridData.county || attomData.county,
       zipCode: rentcastData.zipCode,
-      parcelNumber: rentcastData.parcelNumber || attomData.parcelNumber || regridData.parcelNumber,
-      zoning: regridData.zoning,
-      // Sale history
+      parcelNumber: regridData.parcelNumber || rentcastData.parcelNumber || attomData.parcelNumber,
+      zoning: regridData.zoning, // ReGRID is the authoritative source for zoning
+
+      // Sale history: RentCast primary, ATTOM secondary
       lastSalePrice: rentcastData.lastSalePrice || attomData.lastSalePrice,
       lastSaleDate: rentcastData.lastSaleDate || attomData.lastSaleDate,
-      // Comps
-      comparableSales: rentcastData.comparableSales || [],
+
+      // Comparable sales: merged from Redfin (primary) + RentCast (supplementary)
+      comparableSales: mergedComps,
       rentalComps: rentcastData.rentalComps || [],
+
+      // Redfin metadata
+      redfinRegionId: redfinResult.redfinRegionId,
     };
 
     const hasData = merged.assessedValue || merged.marketValue || merged.squareFeet;
-    console.log(`[Aggregator] Merged data — assessed: $${merged.assessedValue || "N/A"}, market: $${merged.marketValue || "N/A"}, sqft: ${merged.squareFeet || "N/A"}, tax: $${merged.propertyTax || "N/A"}, comps: ${merged.comparableSales?.length || 0}${hasData ? "" : " ⚠️ NO DATA FROM ANY API"}`);
+    const sources = [
+      rentcastData.source ? "RentCast" : null,
+      regridData.source ? "ReGRID" : null,
+      redfinComps.length > 0 ? "Redfin" : null,
+      attomData.source ? "ATTOM" : null,
+    ].filter(Boolean).join(" + ");
+
+    console.log(
+      `[Aggregator] Merged data from [${sources}] — assessed: $${merged.assessedValue || "N/A"}, market: $${merged.marketValue || "N/A"}, sqft: ${merged.squareFeet || "N/A"}, tax: $${merged.propertyTax || "N/A"}, lot: ${merged.lotSize || "N/A"}sqft, zoning: ${merged.zoning || "N/A"}, comps: ${merged.comparableSales?.length || 0} (Redfin: ${redfinComps.length}, RentCast: ${rentcastComps.length})${hasData ? "" : " ⚠️ NO DATA FROM ANY API"}`
+    );
 
     return merged;
   } catch (error) {
     console.error("[Aggregator] Error:", error);
-    return { 
-      address, 
-      city, 
-      state, 
+    return {
+      address,
+      city,
+      state,
       source: "error",
       assessedValue: undefined,
       marketValue: undefined,
