@@ -1,10 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
+
+export interface StructuredAddress {
+  formattedAddress: string;
+  streetNumber?: string;
+  street?: string;
+  city?: string;
+  county?: string;
+  state?: string;
+  stateCode?: string;
+  zipCode?: string;
+  lat?: number;
+  lng?: number;
+}
 
 interface AddressAutocompleteProps {
   value: string;
   onChange: (address: string) => void;
+  /** Called after user selects a suggestion. Receives the raw string. */
   onAddressSelected?: (address: string) => void;
+  /** Called with structured geocoded data once available (async, non-blocking). */
+  onStructuredAddress?: (data: StructuredAddress) => void;
   placeholder?: string;
 }
 
@@ -19,16 +35,17 @@ function newSessionToken(): string {
 
 const DEBOUNCE_MS = 180;
 
-export function AddressAutocomplete({ 
-  value, 
-  onChange, 
+export function AddressAutocomplete({
+  value,
+  onChange,
   onAddressSelected,
-  placeholder = "Enter property address..." 
+  onStructuredAddress,
+  placeholder = "Enter property address...",
 }: AddressAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [isCapturingStreetView, setIsCapturingStreetView] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,21 +68,39 @@ export function AddressAutocomplete({
     };
   }, []);
 
-  const captureStreetView = useCallback(async (address: string) => {
-    setIsCapturingStreetView(true);
+  /**
+   * Geocode the selected address and fire onStructuredAddress.
+   * Also triggers Street View capture in the background.
+   * Both are non-blocking — the form is usable immediately after selection.
+   */
+  const enrichAddress = useCallback(async (address: string) => {
+    // Fire Street View capture (fire-and-forget)
+    fetch("/api/capture-street-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    }).catch(() => {/* non-critical */});
+
+    // Geocode to get structured components
+    if (!onStructuredAddress) return;
+    setIsGeocoding(true);
     try {
-      // Trigger Street View capture on the backend
-      await fetch("/api/capture-street-view", {
+      const res = await fetch("/api/geocode-address", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address }),
-      }).catch(() => {
-        // Non-blocking; Street View capture is optional enhancement
       });
+      if (!res.ok) return;
+      const data = await res.json() as { result?: StructuredAddress | null };
+      if (data.result) {
+        onStructuredAddress(data.result);
+      }
+    } catch (err) {
+      console.error("[AddressAutocomplete] geocode error:", err);
     } finally {
-      setIsCapturingStreetView(false);
+      setIsGeocoding(false);
     }
-  }, []);
+  }, [onStructuredAddress]);
 
   const fetchSuggestions = useCallback(async (input: string) => {
     const id = ++requestIdRef.current;
@@ -111,10 +146,12 @@ export function AddressAutocomplete({
     setIsOpen(false);
     // Google bills per-session; rotate the token after each successful pick.
     sessionTokenRef.current = newSessionToken();
-    
-    // Trigger Street View capture and callback
-    captureStreetView(suggestion);
+
+    // Notify parent immediately with the raw string
     onAddressSelected?.(suggestion);
+
+    // Enrich asynchronously (geocode + street view capture)
+    enrichAddress(suggestion);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -153,17 +190,16 @@ export function AddressAutocomplete({
           onKeyDown={handleKeyDown}
           onFocus={() => value.length >= 3 && suggestions.length > 0 && setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full pl-10 pr-4 py-3 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent"
+          className="w-full pl-10 pr-10 py-3 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent"
           autoComplete="off"
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-controls="address-autocomplete-listbox"
           role="combobox"
-          disabled={isCapturingStreetView}
         />
-        {isCapturingStreetView && (
+        {isGeocoding && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="animate-spin h-4 w-4 border-2 border-[#7C3AED] border-t-transparent rounded-full" />
+            <Loader2 className="animate-spin h-4 w-4 text-[#7C3AED]" />
           </div>
         )}
       </div>
@@ -187,7 +223,7 @@ export function AddressAutocomplete({
               }`}
             >
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
+                <MapPin className="w-4 h-4 shrink-0" />
                 <span className="text-sm">{suggestion}</span>
               </div>
             </button>

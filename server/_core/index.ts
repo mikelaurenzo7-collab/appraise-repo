@@ -161,6 +161,23 @@ async function startServer() {
     }
   });
 
+  // Geocode address → structured components (city, county, state, zip)
+  // Used by the frontend to auto-fill form fields after autocomplete selection
+  app.post("/api/geocode-address", async (req: any, res: any) => {
+    try {
+      const address = typeof req.body?.address === "string" ? req.body.address : "";
+      if (!address) {
+        return res.status(400).json({ error: "Address required" });
+      }
+      const { geocodeAddress } = await import("./streetViewCapture");
+      const result = await geocodeAddress(address);
+      res.json({ result });
+    } catch (error) {
+      console.error("[Geocode Address Error]", error);
+      res.json({ result: null });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

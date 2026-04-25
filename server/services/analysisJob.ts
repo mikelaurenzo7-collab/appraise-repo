@@ -21,6 +21,7 @@ import {
 } from "../db";
 import { notifyOwner } from "../_core/notification";
 import { getJurisdictionRules } from "../data/jurisdictionRules";
+import { capturePropertyImagery } from "../_core/streetViewCapture";
 
 // Prevent duplicate concurrent jobs for the same submission
 const activeJobs = new Set<number>();
@@ -83,12 +84,30 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
+    // ── Step 1b: Capture Google Maps imagery (fire-and-forget) ──────────────
+    // Non-blocking — imagery is captured in the background while analysis runs.
+    // Results are written to the DB when ready (usually within 5-10 seconds).
+    capturePropertyImagery(submission.address).then(async (imagery) => {
+      const imgUpdate: Record<string, string> = {};
+      if (imagery.streetViewFront) imgUpdate.streetViewUrl = imagery.streetViewFront;
+      if (imagery.satellite) imgUpdate.satelliteUrl = imagery.satellite;
+      if (imagery.roadmap) imgUpdate.roadmapUrl = imagery.roadmap;
+      if (imagery.geocoded?.lat) imgUpdate.lat = String(imagery.geocoded.lat);
+      if (imagery.geocoded?.lng) imgUpdate.lng = String(imagery.geocoded.lng);
+      if (Object.keys(imgUpdate).length > 0) {
+        await updatePropertySubmission(submissionId, imgUpdate as any).catch(() => {});
+        console.log(`[AnalysisJob] ✓ Imagery captured for #${submissionId} (${Object.keys(imgUpdate).join(", ")})`);
+      }
+    }).catch((err: unknown) => {
+      console.warn(`[AnalysisJob] Imagery capture failed for #${submissionId} (non-critical):`, err instanceof Error ? err.message : err);
+    });
+
     // ── Step 2: Aggregate data from all 4 APIs ───────────────────────────────
     await persistActivityLog({
       submissionId,
       type: "api_aggregation_started",
       actor: "system",
-      description: "Querying RentCast, ReGRID, and AttomData in parallel",
+      description: "Querying RentCast, Realie, and AttomData in parallel",
       status: "success",
     });
 

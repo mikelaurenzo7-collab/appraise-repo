@@ -30,7 +30,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+import { AddressAutocomplete, type StructuredAddress } from "@/components/AddressAutocomplete";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { AnalyticsEvent, track } from "@/lib/analytics";
 
@@ -279,6 +279,13 @@ export default function GetStarted() {
                   value={address}
                   onChange={setAddress}
                   placeholder="123 Main St, Austin, TX 78701"
+                  onStructuredAddress={(data: StructuredAddress) => {
+                    // Auto-detect state from geocoded data (more reliable than regex)
+                    if (data.stateCode) {
+                      setSelectedState(data.stateCode);
+                      setSelectedCountyId(null);
+                    }
+                  }}
                 />
                 <p className="text-xs text-[#94A3B8] mt-1.5">Include street number, city, state, and ZIP for best results</p>
               </div>

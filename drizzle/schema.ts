@@ -51,6 +51,13 @@ export const propertySubmissions = mysqlTable("property_submissions", {
   assessor: varchar("assessor", { length: 255 }),
   appealDeadline: timestamp("appealDeadline"),
 
+  // Google Maps imagery (captured async after submission)
+  streetViewUrl: varchar("streetViewUrl", { length: 500 }),
+  satelliteUrl: varchar("satelliteUrl", { length: 500 }),
+  roadmapUrl: varchar("roadmapUrl", { length: 500 }),
+  lat: varchar("lat", { length: 20 }),
+  lng: varchar("lng", { length: 20 }),
+
   // Status tracking
   status: mysqlEnum("status", ["pending", "analyzing", "analyzed", "contacted", "appeal-filed", "hearing-scheduled", "won", "lost", "withdrawn", "archived"]).default("pending").notNull(),
   filingMethod: mysqlEnum("filingMethod", ["poa", "pro-se", "none"]),

@@ -134,16 +134,19 @@ function formatPhotonFeature(f: PhotonFeature): string | null {
   return parts.join(", ");
 }
 
-// ─── Google Places (legacy, via Forge) ────────────────────────────────────────
-// Kept opt-in because of observed reliability issues through the Forge proxy.
-// When enabled, we pass explicit continental-US bias so Google doesn't fall
-// back to caller-IP geolocation.
+// ─── Google Places (via Forge proxy) ─────────────────────────────────────────
+// Auth: BUILT_IN_FORGE_API_KEY passed as ?key= query param (NOT Bearer token).
+// Endpoint: Forge proxy at /v1/maps/proxy/maps/api/place/autocomplete/json
+
+const FORGE_BASE = (process.env.BUILT_IN_FORGE_API_URL || "https://forge.manus.ai").replace(/\/+$/, "");
+const FORGE_KEY = process.env.BUILT_IN_FORGE_API_KEY || "";
 
 async function fetchFromGoogle(
   input: string,
   opts: PlacesAutocompleteOptions
 ): Promise<string[]> {
   const params = new URLSearchParams({
+    key: FORGE_KEY,
     input,
     components: "country:us",
     types: "address",
@@ -152,10 +155,8 @@ async function fetchFromGoogle(
   });
   if (opts.sessionToken) params.set("sessiontoken", opts.sessionToken);
 
-  const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params.toString()}`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${process.env.BUILT_IN_FORGE_API_KEY}` },
-  });
+  const url = `${FORGE_BASE}/v1/maps/proxy/maps/api/place/autocomplete/json?${params.toString()}`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) {
     console.error("[PlacesAutocomplete:google] HTTP", response.status);
     return [];
@@ -163,7 +164,7 @@ async function fetchFromGoogle(
   const data = (await response.json()) as {
     status?: string;
     error_message?: string;
-    predictions?: Array<{ description: string }>;
+    predictions?: Array<{ description: string; place_id?: string }>;
   };
   if (data.status && data.status !== "OK" && data.status !== "ZERO_RESULTS") {
     console.error(
