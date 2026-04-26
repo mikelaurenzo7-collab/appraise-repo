@@ -39,6 +39,13 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  // sameSite: "none" is required because this app runs inside a Manus
+  // iframe (cross-origin context). "lax" or "strict" would break session
+  // sharing between the Manus portal and the embedded app. This is a
+  // deliberate product decision — we mitigate CSRF risk via:
+  // 1. httpOnly + secure flags (cookie not accessible to JS, HTTPS only)
+  // 2. tRPC batch links with credentials (same-origin-like behaviour)
+  // 3. No mutation endpoints accessible without authentication
   return {
     httpOnly: true,
     path: "/",

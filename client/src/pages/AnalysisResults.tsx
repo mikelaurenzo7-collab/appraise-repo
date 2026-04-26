@@ -88,7 +88,7 @@ export default function AnalysisResults() {
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const submissionId = params.get("id") ? parseInt(params.get("id")!, 10) : null;
-  const generateReportMutation = trpc.properties.generateReport.useMutation();
+  const generateReportMutation = trpc.payments.generateReport.useMutation();
 
   const { data, isLoading, error } = trpc.properties.getAnalysis.useQuery(
     { submissionId: submissionId! },

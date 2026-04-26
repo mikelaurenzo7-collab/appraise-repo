@@ -17,6 +17,12 @@
  */
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
+import { validateAudioUrl } from "./voiceTranscription"; // Re-use SSRF URL validator
+
+function validateImageUrl(url: string): { ok: true } | { ok: false; error: string } {
+  // Use the same SSRF validator as voice transcription
+  return validateAudioUrl(url);
+}
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -39,6 +45,18 @@ export async function generateImage(
   }
   if (!ENV.forgeApiKey) {
     throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
+  }
+
+  // Validate any external image URLs to prevent SSRF
+  if (options.originalImages) {
+    for (const img of options.originalImages) {
+      if (img.url) {
+        const check = validateImageUrl(img.url);
+        if (!check.ok) {
+          throw new Error(`Invalid image URL: ${check.error}`);
+        }
+      }
+    }
   }
 
   // Build the full URL by appending the service path to the base URL
