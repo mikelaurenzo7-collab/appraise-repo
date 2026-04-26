@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSearch } from "wouter";
 import { Link } from "wouter";
 import {
@@ -122,8 +122,39 @@ export default function AnalysisResults() {
   }
 
   const submission = data?.submission;
+
+  if (error || !submission) {
+    return (
+      <div className="min-h-screen bg-[#F1F5F9]">
+        <Navbar />
+        <section className="pt-32 pb-20">
+          <div className="container max-w-2xl text-center">
+            <AlertTriangle size={48} className="text-red-500 mx-auto mb-4" />
+            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Unable to Load Analysis</h1>
+            <p className="text-[#64748B] mb-8">
+              {error?.message || "This property analysis is not available yet."}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/dashboard" className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold">
+                Go to Dashboard <ArrowRight size={16} />
+              </Link>
+              <Link
+                href="/get-started"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold border border-[#0F172A]/20 text-[#0F172A] hover:bg-white transition-colors"
+              >
+                Start New Analysis
+              </Link>
+            </div>
+          </div>
+        </section>
+        <Footer />
+      </div>
+    );
+  }
+
   const analysis = data?.analysis;
   const isAnalyzing = submission?.status === "pending" || submission?.status === "analyzing";
+  const appealWorkflowHref = submissionId ? `/appeal-workflow/${submissionId}` : "/dashboard";
 
   if (isAnalyzing) {
     return (
@@ -248,7 +279,7 @@ export default function AnalysisResults() {
             {/* Executive Summary */}
             <div className="lg:col-span-2 p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
               <div className="text-xs text-[#64748B] uppercase tracking-widest mb-3">Executive Summary</div>
-              <p className="text-[#E2E8F0] leading-relaxed mb-6">
+              <p className="text-[#0F172A] leading-relaxed mb-6">
                 {analysis?.executiveSummary || "Analysis summary is being generated..."}
               </p>
 
@@ -291,7 +322,7 @@ export default function AnalysisResults() {
                 {analysis.appealStrengthFactors.map((factor: string, i: number) => (
                   <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[#F1F5F9]">
                     <CheckCircle2 size={16} className="text-[#7C3AED] mt-0.5 shrink-0" />
-                    <span className="text-sm text-[#E2E8F0]">{factor}</span>
+                    <span className="text-sm text-[#0F172A]">{factor}</span>
                   </div>
                 ))}
               </div>
@@ -339,7 +370,7 @@ export default function AnalysisResults() {
                     <div className="w-6 h-6 rounded-full bg-[#0F172A] text-[#7C3AED] flex items-center justify-center shrink-0 text-xs font-bold">
                       {i + 1}
                     </div>
-                    <span className="text-sm text-[#E2E8F0]">{step}</span>
+                    <span className="text-sm text-[#0F172A]">{step}</span>
                   </div>
                 ))}
               </div>
@@ -373,7 +404,7 @@ export default function AnalysisResults() {
                 </div>
               </div>
               <Link
-                href="/get-started"
+                href={appealWorkflowHref}
                 className="ml-auto shrink-0 btn-gold px-4 py-2 rounded text-sm font-semibold"
               >
                 File Now
@@ -446,7 +477,10 @@ export default function AnalysisResults() {
               onClick={async () => {
                 setPdfGenerating(true);
                 try {
-                  await generateReportMutation.mutateAsync({ submissionId: submissionId! });
+                  const result = await generateReportMutation.mutateAsync({ submissionId: submissionId! });
+                  if (result.url) {
+                    window.open(result.url, "_blank", "noopener,noreferrer");
+                  }
                 } catch (err) {
                   console.error("PDF generation failed:", err);
                 } finally {
@@ -470,7 +504,7 @@ export default function AnalysisResults() {
             </button>
             {generateReportMutation.data?.url && (
               <div className="mt-4 text-sm text-green-300">
-                ✓ PDF ready! Check your downloads folder.
+                PDF ready in a new tab.
               </div>
             )}
           </div>
@@ -486,7 +520,7 @@ export default function AnalysisResults() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/get-started"
+              href={appealWorkflowHref}
               className="btn-gold inline-flex items-center justify-center gap-2 px-6 py-3 rounded font-semibold"
             >
               Start My Appeal <ArrowRight size={16} />

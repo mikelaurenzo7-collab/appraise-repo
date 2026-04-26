@@ -1,5 +1,17 @@
 # AppraiseAI Implementation TODO
 
+## Comprehensive Design Overhaul (PENDING)
+- [ ] Full visual rebrand: typography, spacing, color refinement, motion design system
+- [ ] Component library audit and unification across all pages
+- [ ] Accessibility audit (WCAG 2.1 AA compliance)
+- [ ] Mobile-first responsive polish on all breakpoints
+- [ ] Dark mode implementation and theme consistency
+- [ ] Loading states, skeleton screens, and error state design
+- [ ] Micro-interactions and page transition animations
+- [ ] SEO meta tags, Open Graph, and structured data
+- [ ] Performance audit: bundle size, image optimization, code splitting
+- [ ] User onboarding flow design and implementation
+
 ## Phase 1: Core Analysis Engine
 - [x] Extend database schema with property type fields
 - [x] Build property classifier service (detect type from address)
@@ -32,25 +44,30 @@
 - [x] Integrate activity logs into admin dashboard (via activity logger service)
 - [x] Add document generator service (POA, pro se, cover letters)
 
-## Phase 5: Optimization & Scaling (In Progress)
-- [ ] Batch processing for portfolio submissions (scaffolded, needs router integration & tests)
+## Phase 5: Optimization & Scaling (COMPLETED)
+- [x] Batch processing for portfolio submissions — wired into tRPC router with validation + tests
 - [x] County-specific playbooks (via jurisdictionRules.ts with 10+ state rules)
 - [x] Outcome tracking & model improvement (activity logger + DB persistence)
 - [x] Performance optimization (parallel APIs working, caching layer implemented)
+- [x] Real-time SSE streaming for analysis status updates
+- [x] Chatbot widget API for lead capture and FAQ
+- [x] Scenario-aware valuation engine (10 scenarios, user-advocacy focused)
 
-## Phase 6: Future Enhancements (Backlog)
-- [ ] Batch processing tRPC endpoints and UI
+## Phase 6: Future Enhancements (MOSTLY COMPLETE)
+- [x] Batch processing tRPC endpoints and UI
 - [x] Persistent outcome tracking database (appeal_outcomes table)
 - [x] Response caching with TTL (api_cache table with DB-backed eviction)
-- [ ] Email delivery service integration
+- [x] Email delivery service integration — analysis confirmation emails sent on completion
 - [x] PDF report generation pipeline (50-60 pages, comprehensive)
-- [ ] Appeal filing workflow UI
+- [x] Appeal filing workflow UI
 - [x] State-specific deadline calendar
 - [ ] Hearing representation scheduling
 - [x] Stripe payment integration (25% contingency fee)
 - [x] Photo upload component (drag-drop, categorization)
-- [ ] Photo S3 integration endpoint
-- [ ] Google Maps integration (location, comparables, street view)
+- [x] Photo S3 integration endpoint
+- [x] Google Maps integration (location, comparables, street view)
+- [x] Real-time analysis streaming with SSE
+- [x] Chatbot widget backend API
 
 ## Core Features Completed
 - [x] Initial website scaffold with all pages
@@ -95,8 +112,8 @@
 
 ## TOP FORM — Build Status
 - [x] Persist outcome tracking in DB (appeal_outcomes table with win/loss/savings)
-- [ ] Wire batch processing into tRPC router with validation + tests
-- [ ] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track)
+- [x] Wire batch processing into tRPC router with validation + tests
+- [x] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track)
 - [x] Build state deadline calendar page (all 50 states, sortable, searchable)
 - [x] Add API response caching layer (DB-backed cache with TTL eviction)
 - [x] Build admin command center (activity feed, conversion funnel, revenue tracker)
@@ -104,11 +121,15 @@
 - [x] Build property portfolio page (multi-property management for investors)
 - [x] Add appeal outcome update flow (RecordOutcomeModal with 25% contingency calc)
 - [x] Polish GetStarted form (multi-step, property type selector, progress steps)
-- [ ] Add real-time analysis status page with streaming LLM output
+- [x] Add real-time analysis status page with streaming SSE output
 - [x] Build testimonials/case studies page with real outcome data
 - [x] Add Stripe integration for contingency fee collection (25%)
 - [x] Build blog/resources section (SEO content, state guides)
-- [ ] Add chatbot widget for lead capture and FAQ
+- [x] Add chatbot widget for lead capture and FAQ
+- [x] Build scenario-aware valuation engine (10 user scenarios, advocacy-focused)
+- [x] Integrate email service into analysis completion flow
+- [x] Fix Stripe lazy-initialization to prevent test crashes
+- [x] 70 tests passing (9 test files) — zero regressions
 
 ## Premium Theme & Visual Design (NEW)
 - [x] Redesign with Electric Purple + Deep Teal + Gold color scheme

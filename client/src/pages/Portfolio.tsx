@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { ManusLoginButton } from "@/components/ManusLoginButton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 
 function formatCurrency(v: number | null | undefined) {
@@ -99,7 +99,13 @@ export default function Portfolio() {
               Sign in to track all your properties, monitor appeal status, and see your total tax savings in one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <a href={getLoginUrl()} className="btn-gold px-6 py-3 rounded font-semibold inline-block">Sign In to View Portfolio</a>
+              <ManusLoginButton
+                className="btn-gold px-6 py-3 h-auto rounded font-semibold"
+                dialogTitle="Open your property portfolio"
+                dialogDescription="We’ll bring you straight back to your portfolio after Manus signs you in."
+              >
+                Sign In to View Portfolio
+              </ManusLoginButton>
               <Link href="/get-started" className="px-6 py-3 rounded border border-[#0F172A] text-[#0F172A] font-semibold hover:bg-[#0F172A] hover:text-white transition-colors inline-block text-center">
                 Add Your First Property
               </Link>

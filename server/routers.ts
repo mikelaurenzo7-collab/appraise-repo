@@ -26,9 +26,20 @@ import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
 import { storagePut } from "./storage";
+import { processBatch, validateBatchRequest, type BatchSubmissionRequest } from "./services/batchProcessor";
+import { invokeLLM } from "./_core/llm";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+// Lazy-initialize Stripe to avoid test crashes when STRIPE_SECRET_KEY is missing
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Stripe is not configured" });
+    _stripe = new Stripe(key);
+  }
+  return _stripe;
+}
 
 // Admin-only middleware
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -198,6 +209,115 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── BATCH PROCESSING ───────────────────────────────────────────────────
+  batch: router({
+    submitBatch: protectedProcedure
+      .input(z.object({
+        clientName: z.string().min(1, "Client name is required"),
+        properties: z.array(z.object({
+          address: z.string().min(1, "Address is required"),
+          city: z.string().min(1, "City is required"),
+          state: z.string().min(2, "State is required").max(2),
+          zipCode: z.string().min(5, "ZIP code is required"),
+          county: z.string().optional(),
+          propertyType: z.string().optional(),
+          assessedValue: z.number().optional(),
+        })).min(1, "At least one property is required").max(100, "Maximum 100 properties per batch"),
+        filingMethod: z.enum(["poa", "pro-se"]),
+        contactEmail: z.string().email("Valid email is required"),
+        contactPhone: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const request: BatchSubmissionRequest = {
+          clientId: ctx.user.id.toString(),
+          clientName: input.clientName,
+          properties: input.properties,
+          filingMethod: input.filingMethod,
+          contactEmail: input.contactEmail,
+          contactPhone: input.contactPhone,
+        };
+
+        const validationErrors = validateBatchRequest(request);
+        if (validationErrors.length > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: validationErrors.join("; "),
+          });
+        }
+
+        await persistActivityLog({
+          type: "batch_submitted",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Batch submission: ${input.clientName} — ${input.properties.length} properties`,
+          metadata: JSON.stringify({ clientName: input.clientName, propertyCount: input.properties.length, filingMethod: input.filingMethod }),
+          status: "success",
+        });
+
+        const result = await processBatch(request);
+
+        await persistActivityLog({
+          type: "batch_complete",
+          actor: "system",
+          description: `Batch complete: ${result.successCount}/${result.totalProperties} successful`,
+          metadata: JSON.stringify({ batchId: result.batchId, successCount: result.successCount, estimatedSavings: result.estimatedTotalSavings }),
+          status: "success",
+        });
+
+        return result;
+      }),
+
+    // Chatbot widget — lead capture & FAQ
+    chat: publicProcedure
+      .input(z.object({
+        message: z.string().min(1, "Message is required"),
+        sessionId: z.string().optional(),
+        propertyAddress: z.string().optional(),
+        userEmail: z.string().email().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const systemPrompt = `You are AppraiseAI's friendly property tax appeal assistant. You help homeowners and investors understand:
+- Whether they might be overassessed
+- How the appeal process works
+- What documents they need
+- Timeline and deadlines
+- Cost structure (25% contingency, only pay if we win)
+
+Be concise, helpful, and always advocate for the property owner. If they provide an address, encourage them to submit it for a free AI analysis. Never give legal advice — always suggest consulting with our team for complex situations.`;
+
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: input.message },
+            ],
+            maxTokens: 500,
+          });
+
+          const content = response.choices[0]?.message.content;
+          const reply = typeof content === "string" ? content : "I'm here to help with your property tax appeal questions. Could you tell me more about your situation?";
+
+          return {
+            reply,
+            sessionId: input.sessionId || `chat_${Date.now()}`,
+            suggestedActions: [
+              "Get free analysis",
+              "View pricing",
+              "Check deadlines",
+              "Talk to a human",
+            ],
+          };
+        } catch (error) {
+          console.error("[Chatbot] Error:", error);
+          return {
+            reply: "I'm having trouble connecting right now. For immediate help, try our free property analysis or contact our team directly.",
+            sessionId: input.sessionId || `chat_${Date.now()}`,
+            suggestedActions: ["Get free analysis", "Contact support"],
+          };
+        }
+      }),
+  }),
+
   // ─── USER ────────────────────────────────────────────────────────────────
   user: router({
     getSubmissions: protectedProcedure.query(async ({ ctx }) => {
@@ -253,6 +373,7 @@ export const appRouter = router({
         annualTaxSavings: z.number().min(0),
       }))
       .mutation(async ({ ctx, input }) => {
+        const stripe = getStripe();
         // Calculate 25% contingency fee
         const contingencyFee = Math.round(input.annualTaxSavings * 0.25 * 100);
         const minCharge = 5000; // $50 minimum
@@ -295,6 +416,7 @@ export const appRouter = router({
 
     // Get payment history
     getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
+      const stripe = getStripe();
       const charges = await stripe.charges.list({
         limit: 50,
       });
@@ -308,6 +430,7 @@ export const appRouter = router({
           status: charge.status,
           created: new Date(charge.created * 1000),
           description: charge.description,
+          receiptUrl: charge.receipt_url || null,
          }));
     }),
 

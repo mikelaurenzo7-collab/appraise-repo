@@ -31,6 +31,19 @@ export const propertySubmissions = mysqlTable("property_submissions", {
 
   // Property details
   propertyType: mysqlEnum("propertyType", ["residential", "multi-family", "commercial", "agricultural", "industrial", "land", "unknown"]).default("unknown"),
+  userScenario: mysqlEnum("userScenario", [
+    "primary_residence",
+    "rental_property",
+    "vacation_home",
+    "inherited_property",
+    "recently_purchased",
+    "planning_to_sell",
+    "distressed_condition",
+    "new_construction",
+    "recently_renovated",
+    "none",
+  ]).default("none"),
+  conditionNotes: text("conditionNotes"),
   squareFeet: int("squareFeet"),
   lotSize: int("lotSize"),
   yearBuilt: int("yearBuilt"),
@@ -40,8 +53,13 @@ export const propertySubmissions = mysqlTable("property_submissions", {
   // Analysis results
   assessedValue: int("assessedValue"),
   marketValue: int("marketValue"),
+  estimatedMarketValueLow: int("estimatedMarketValueLow"),
+  estimatedMarketValueHigh: int("estimatedMarketValueHigh"),
   potentialSavings: int("potentialSavings"),
+  taxRateOverride: decimal("taxRateOverride", { precision: 5, scale: 4 }),
   appealStrengthScore: int("appealStrengthScore"),
+  confidenceScore: int("confidenceScore"),
+  compQualityScore: int("compQualityScore"),
 
   // Jurisdiction info
   county: varchar("county", { length: 100 }),
@@ -83,6 +101,11 @@ export const propertyAnalysis = mysqlTable("property_analysis", {
   executiveSummary: text("executiveSummary"),
   valuationJustification: text("valuationJustification"),
   nextSteps: text("nextSteps"),
+
+  // Scenario-aware analysis
+  scenarioContext: text("scenarioContext"),
+  valuationApproachWeights: text("valuationApproachWeights"),
+  compQualityBreakdown: text("compQualityBreakdown"),
 
   // Report generation
   reportUrl: varchar("reportUrl", { length: 500 }),

@@ -41,11 +41,7 @@ function Router() {
       <Route path="/testimonials" component={Testimonials} />
       <Route path="/batch" component={BatchProcessing} />
       <Route path="/appeal-workflow/:submissionId" component={(props) => (
-        <AppealFilingWorkflow
-          submissionId={props.params.submissionId}
-          propertyAddress="123 Main St, Austin, TX 78701"
-          appealStrengthScore={75}
-        />
+        <AppealFilingWorkflow submissionId={props.params.submissionId} />
       )} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

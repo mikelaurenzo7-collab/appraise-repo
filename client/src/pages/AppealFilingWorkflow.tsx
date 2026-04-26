@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { ChevronRight, CheckCircle2, FileText, Signature, Clock, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "wouter";
+import { ChevronRight, CheckCircle2, FileText, Signature, Clock, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ManusLoginButton } from "@/components/ManusLoginButton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 
@@ -47,22 +49,167 @@ const steps: WorkflowStep[] = [
 
 interface AppealFilingWorkflowProps {
   submissionId: string;
-  propertyAddress: string;
-  appealStrengthScore: number;
+}
+
+function formatAddress(parts: {
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+}) {
+  return [parts.address, parts.city, parts.state, parts.zipCode]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatCompactCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: value < 10000 ? 1 : 0,
+  }).format(value);
 }
 
 export default function AppealFilingWorkflow({
   submissionId,
-  propertyAddress,
-  appealStrengthScore,
 }: AppealFilingWorkflowProps) {
-  const { user } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [filingMethod, setFilingMethod] = useState<"poa" | "pro_se" | null>(null);
-  const [documentsReviewed, setDocumentsReviewed] = useState(false);
   const [documentsSigned, setDocumentsSigned] = useState(false);
+  const numericSubmissionId = Number.parseInt(submissionId, 10);
+
+  const analysisQuery = trpc.properties.getAnalysis.useQuery(
+    { submissionId: numericSubmissionId },
+    {
+      enabled: Number.isFinite(numericSubmissionId),
+      refetchOnWindowFocus: false,
+    }
+  );
 
   const createCheckoutMutation = trpc.payments.createCheckoutSession.useMutation();
+
+  const submission = analysisQuery.data?.submission;
+  const analysis = analysisQuery.data?.analysis;
+  const propertyAddress = submission
+    ? formatAddress(submission)
+    : "your property";
+  const appealStrengthScore = submission?.appealStrengthScore ?? 0;
+  const estimatedSavings = submission?.potentialSavings ??
+    (appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000);
+
+  useEffect(() => {
+    if (filingMethod) return;
+
+    if (submission?.filingMethod === "poa") {
+      setFilingMethod("poa");
+      return;
+    }
+
+    if (submission?.filingMethod === "pro-se") {
+      setFilingMethod("pro_se");
+      return;
+    }
+
+    if (analysis?.recommendedApproach === "poa") {
+      setFilingMethod("poa");
+      return;
+    }
+
+    if (analysis?.recommendedApproach === "pro-se") {
+      setFilingMethod("pro_se");
+    }
+  }, [analysis?.recommendedApproach, filingMethod, submission?.filingMethod]);
+
+  if (!Number.isFinite(numericSubmissionId)) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center px-6">
+        <div className="max-w-xl rounded-3xl border border-[#334155] bg-[#1E293B] p-8 text-center shadow-2xl">
+          <AlertCircle size={48} className="text-[#7C3AED] mx-auto mb-5" />
+          <h1 className="text-3xl font-black text-white mb-4">Invalid appeal link</h1>
+          <p className="text-[#CBD5E1] mb-8">
+            This appeal workflow is missing a valid submission id. Re-open the workflow from your analysis results or dashboard.
+          </p>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center justify-center rounded bg-[#7C3AED] px-6 py-3 font-semibold text-white hover:bg-[#6D28D9]"
+          >
+            Go to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (analysisQuery.isLoading || loading) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#7C3AED]" size={40} />
+      </div>
+    );
+  }
+
+  if (analysisQuery.error || !submission) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center px-6">
+        <div className="max-w-xl rounded-3xl border border-[#334155] bg-[#1E293B] p-8 text-center shadow-2xl">
+          <AlertCircle size={48} className="text-red-400 mx-auto mb-5" />
+          <h1 className="text-3xl font-black text-white mb-4">We couldn't load this appeal</h1>
+          <p className="text-[#CBD5E1] mb-8">
+            {analysisQuery.error?.message || "The underlying analysis is not available yet."}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => analysisQuery.refetch()}
+              className="border-[#475569] text-white hover:bg-white/5"
+            >
+              Try Again
+            </Button>
+            <Link
+              href={`/analysis?id=${numericSubmissionId}`}
+              className="inline-flex items-center justify-center rounded bg-[#7C3AED] px-6 py-3 font-semibold text-white hover:bg-[#6D28D9]"
+            >
+              Back to Analysis
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] py-12">
+        <div className="container max-w-3xl">
+          <div className="rounded-3xl border border-[#334155] bg-[#1E293B] px-8 py-12 text-center shadow-2xl">
+            <AlertCircle size={48} className="text-[#7C3AED] mx-auto mb-5" />
+            <h1 className="text-3xl font-black text-white mb-4">Sign in with Manus to file your appeal</h1>
+            <p className="text-[#CBD5E1] max-w-xl mx-auto mb-8 leading-relaxed">
+              We’ll bring you right back to this filing workflow so you can finish the documents, payment, and tracking steps without losing your place.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <ManusLoginButton
+                className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-6 py-3 h-auto rounded font-semibold"
+                dialogTitle="Continue your appeal filing"
+                dialogDescription="We’ll return you to this filing workflow immediately after Manus signs you in."
+              >
+                Continue with Manus
+              </ManusLoginButton>
+              <Link
+                href={`/analysis?id=${submissionId}`}
+                className="px-6 py-3 rounded border border-[#475569] text-white font-semibold hover:bg-white/5 transition-colors"
+              >
+                Back to Analysis
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleGenerateDocuments = async () => {
     if (!filingMethod) return;
@@ -84,13 +231,9 @@ export default function AppealFilingWorkflow({
 
   const handleConfirmAndPay = async () => {
     try {
-      // Calculate 25% contingency fee
-      const estimatedSavings = appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000;
-      const contingencyFee = estimatedSavings * 0.25;
-
       // Create checkout session
       const response = await createCheckoutMutation.mutateAsync({
-        submissionId: parseInt(submissionId),
+        submissionId: numericSubmissionId,
         annualTaxSavings: estimatedSavings,
       });
 
@@ -181,11 +324,7 @@ export default function AppealFilingWorkflow({
                 <div className="bg-[#0F172A] rounded-lg p-6 border border-[#334155]">
                   <p className="text-[#94A3B8] text-sm uppercase font-semibold mb-2">Estimated Savings</p>
                   <p className="text-4xl font-bold text-[#10B981]">
-                    $
-                    {(
-                      (appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000) / 1000
-                    ).toFixed(0)}
-                    K/yr
+                    {formatCompactCurrency(estimatedSavings)}/yr
                   </p>
                   <p className="text-[#CBD5E1] text-sm mt-2">Potential annual tax savings</p>
                 </div>
@@ -401,11 +540,11 @@ export default function AppealFilingWorkflow({
                 <div className="flex justify-between items-center pt-4">
                   <span className="text-[#CBD5E1] font-semibold">Contingency Fee (25%)</span>
                   <div className="text-2xl font-bold text-[#FBBF24]">
-                    $
-                    {(
-                      (appealStrengthScore >= 70 ? 5000 : appealStrengthScore >= 40 ? 2500 : 1000) *
-                      0.25
-                    ).toLocaleString()}
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: "USD",
+                      maximumFractionDigits: 0,
+                    }).format(estimatedSavings * 0.25)}
                   </div>
                 </div>
               </div>
