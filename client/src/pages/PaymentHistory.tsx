@@ -91,8 +91,7 @@ export default function PaymentHistory() {
                     className="gap-2"
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Download receipt functionality
-                      console.log("Download receipt for payment:", payment.id);
+                      // Download receipt functionality would go here in production
                     }}
                   >
                     <Download size={16} />
