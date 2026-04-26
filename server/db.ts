@@ -2,11 +2,23 @@ import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users,
-  propertySubmissions, InsertPropertySubmission,
+  propertySubmissions, InsertPropertySubmission, PropertySubmission,
   propertyAnalysis, InsertPropertyAnalysis,
   appealOutcomes, InsertAppealOutcome,
   activityLogs, InsertActivityLog,
   apiCache, InsertApiCache,
+  reportJobs, InsertReportJob, ReportJob,
+  counties, County, InsertCounty,
+  filingTiers, FilingTier, InsertFilingTier,
+  poaFilings, POAFiling, InsertPOAFiling,
+  proSeFilings, ProSeFiling, InsertProSeFiling,
+  paralegalsQueue, ParalegalsQueueItem, InsertParalegalsQueueItem,
+  filingRecipes, FilingRecipe, InsertFilingRecipe,
+  scrivenerAuthorizations, ScrivenerAuthorization, InsertScrivenerAuthorization,
+  filingJobs, FilingJob, InsertFilingJob,
+  refundRequests, RefundRequest, InsertRefundRequest,
+  stripeEventsProcessed, InsertStripeEventProcessed,
+  countyWaitlist, CountyWaitlistEntry, InsertCountyWaitlistEntry,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -295,6 +307,57 @@ export async function getActivityLogsBySubmission(submissionId: number) {
   }
 }
 
+export interface SubmissionPhoto {
+  url: string;
+  category: "exterior" | "interior" | "roof" | "foundation" | "other";
+  caption?: string;
+  fileName?: string;
+  uploadedAt: Date;
+}
+
+/**
+ * Pure parser: converts activity-log rows into photo records.
+ * Extracted so it can be unit-tested without a DB or module mocks.
+ */
+export function parsePhotosFromLogs(
+  logs: Array<{ type: string; metadata: string | null; createdAt: Date }>
+): SubmissionPhoto[] {
+  const photos: SubmissionPhoto[] = [];
+  for (const log of logs) {
+    if (log.type !== "photo_uploaded" || !log.metadata) continue;
+    try {
+      const meta = JSON.parse(log.metadata) as {
+        url?: string;
+        category?: SubmissionPhoto["category"];
+        caption?: string;
+        fileName?: string;
+      };
+      if (!meta.url) continue;
+      photos.push({
+        url: meta.url,
+        category: meta.category ?? "other",
+        caption: meta.caption,
+        fileName: meta.fileName,
+        uploadedAt: log.createdAt,
+      });
+    } catch {
+      // skip malformed metadata
+    }
+  }
+  // Return in upload order (oldest first) so the PDF renders a stable sequence.
+  return photos.reverse();
+}
+
+/**
+ * Extract uploaded photos for a submission by reading the `photo_uploaded`
+ * activity-log entries. Photos are stored in S3 via storagePut and only the
+ * URL + category + caption are persisted (as JSON in `metadata`).
+ */
+export async function getSubmissionPhotos(submissionId: number): Promise<SubmissionPhoto[]> {
+  const logs = await getActivityLogsBySubmission(submissionId);
+  return parsePhotosFromLogs(logs);
+}
+
 export async function getRecentActivityLogs(limit = 50) {
   const db = await getDb();
   if (!db) return [];
@@ -360,5 +423,1102 @@ export async function evictExpiredCache() {
   } catch (error) {
     console.error("[Cache] Failed to evict expired cache:", error);
     return 0;
+  }
+}
+
+// ─── REPORT JOBS ─────────────────────────────────────────────────────────────
+
+export async function createReportJob(data: InsertReportJob): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(reportJobs).values(data);
+    const id = (result as any).insertId;
+    return id ? await getReportJobById(id) : null;
+  } catch (error) {
+    console.error("[ReportJob] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getReportJobById(jobId: number): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(reportJobs).where(eq(reportJobs.id, jobId)).limit(1);
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error("[ReportJob] Failed to get by ID:", error);
+    return null;
+  }
+}
+
+export async function getReportJobBySubmissionId(submissionId: number): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(reportJobs)
+      .where(eq(reportJobs.submissionId, submissionId))
+      .orderBy(desc(reportJobs.createdAt))
+      .limit(1);
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error("[ReportJob] Failed to get by submission:", error);
+    return null;
+  }
+}
+
+export async function updateReportJob(jobId: number, data: Partial<InsertReportJob>): Promise<ReportJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db.update(reportJobs).set(data).where(eq(reportJobs.id, jobId));
+    return await getReportJobById(jobId);
+  } catch (error) {
+    console.error("[ReportJob] Failed to update:", error);
+    return null;
+  }
+}
+
+export async function listPendingReportJobs(limit = 10): Promise<ReportJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const now = new Date();
+    return await db.select().from(reportJobs)
+      .where(and(
+        eq(reportJobs.status, "queued"),
+        gte(reportJobs.expiresAt, now)
+      ))
+      .orderBy(reportJobs.queuedAt)
+      .limit(limit);
+  } catch (error) {
+    console.error("[ReportJob] Failed to list pending:", error);
+    return [];
+  }
+}
+
+export async function listFailedReportJobs(limit = 10): Promise<ReportJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(reportJobs)
+      .where(eq(reportJobs.status, "failed"))
+      .orderBy(desc(reportJobs.updatedAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[ReportJob] Failed to list failed:", error);
+    return [];
+  }
+}
+
+export async function cleanupExpiredReportJobs(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const now = new Date();
+    const result = await db.update(reportJobs)
+      .set({ status: "expired" })
+      .where(and(
+        lt(reportJobs.expiresAt, now),
+        eq(reportJobs.status, "queued")
+      ));
+    return (result as any).affectedRows ?? 0;
+  } catch (error) {
+    console.error("[ReportJob] Failed to cleanup expired:", error);
+    return 0;
+  }
+}
+
+
+// ─── COUNTIES ────────────────────────────────────────────────────────────────
+
+export async function getCounty(state: string, countyName: string): Promise<County | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(counties)
+      .where(and(
+        eq(counties.state, state),
+        eq(counties.countyName, countyName)
+      ))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[County] Failed to get county:", error);
+    return null;
+  }
+}
+
+export async function getCountyById(id: number): Promise<County | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(counties)
+      .where(eq(counties.id, id))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[County] Failed to get county by ID:", error);
+    return null;
+  }
+}
+
+export async function listCountiesByState(state: string): Promise<County[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(counties)
+      .where(eq(counties.state, state))
+      .orderBy(counties.countyName);
+  } catch (error) {
+    console.error("[County] Failed to list counties:", error);
+    return [];
+  }
+}
+
+export async function createCounty(county: InsertCounty): Promise<County | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(counties).values(county);
+    const id = (result as any).insertId;
+    return await getCountyById(id);
+  } catch (error) {
+    console.error("[County] Failed to create county:", error);
+    return null;
+  }
+}
+
+// ─── FILING TIERS ────────────────────────────────────────────────────────────
+
+export async function createFilingTier(tier: InsertFilingTier): Promise<FilingTier | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(filingTiers).values(tier);
+    const id = (result as any).insertId;
+    return await db.select().from(filingTiers)
+      .where(eq(filingTiers.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[FilingTier] Failed to create tier:", error);
+    return null;
+  }
+}
+
+export async function getFilingTierBySubmission(submissionId: number): Promise<FilingTier | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(filingTiers)
+      .where(eq(filingTiers.submissionId, submissionId))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[FilingTier] Failed to get tier:", error);
+    return null;
+  }
+}
+
+// ─── POA FILINGS ─────────────────────────────────────────────────────────────
+
+export async function createPOAFiling(filing: InsertPOAFiling): Promise<POAFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(poaFilings).values(filing);
+    const id = (result as any).insertId;
+    return await db.select().from(poaFilings)
+      .where(eq(poaFilings.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[POAFiling] Failed to create filing:", error);
+    return null;
+  }
+}
+
+export async function getPOAFilingBySubmission(submissionId: number): Promise<POAFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(poaFilings)
+      .where(eq(poaFilings.submissionId, submissionId))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[POAFiling] Failed to get filing:", error);
+    return null;
+  }
+}
+
+export async function listPendingPOAFilings(): Promise<POAFiling[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(poaFilings)
+      .where(eq(poaFilings.status, "pending"))
+      .orderBy(poaFilings.createdAt);
+  } catch (error) {
+    console.error("[POAFiling] Failed to list pending:", error);
+    return [];
+  }
+}
+
+// ─── PRO SE FILINGS ──────────────────────────────────────────────────────────
+
+export async function createProSeFiling(filing: InsertProSeFiling): Promise<ProSeFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(proSeFilings).values(filing);
+    const id = (result as any).insertId;
+    return await db.select().from(proSeFilings)
+      .where(eq(proSeFilings.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[ProSeFiling] Failed to create filing:", error);
+    return null;
+  }
+}
+
+export async function getProSeFilingBySubmission(submissionId: number): Promise<ProSeFiling | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.select().from(proSeFilings)
+      .where(eq(proSeFilings.submissionId, submissionId))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[ProSeFiling] Failed to get filing:", error);
+    return null;
+  }
+}
+
+// ─── PARALEGALS QUEUE ────────────────────────────────────────────────────────
+
+export async function addToParalegalsQueue(item: InsertParalegalsQueueItem): Promise<ParalegalsQueueItem | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(paralegalsQueue).values(item);
+    const id = (result as any).insertId;
+    return await db.select().from(paralegalsQueue)
+      .where(eq(paralegalsQueue.id, id))
+      .limit(1)
+      .then(r => r[0] || null);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to add item:", error);
+    return null;
+  }
+}
+
+export async function listQueuedItems(): Promise<ParalegalsQueueItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(paralegalsQueue)
+      .where(eq(paralegalsQueue.status, "queued"))
+      .orderBy(paralegalsQueue.priority, paralegalsQueue.queuedAt);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to list queued:", error);
+    return [];
+  }
+}
+
+export async function listParalegalsWorkload(paralegalName: string): Promise<ParalegalsQueueItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(paralegalsQueue)
+      .where(and(
+        eq(paralegalsQueue.assignedTo, paralegalName),
+        eq(paralegalsQueue.status, "in-progress")
+      ))
+      .orderBy(paralegalsQueue.deadline);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to list workload:", error);
+    return [];
+  }
+}
+
+/**
+ * Aggregated filing view used by the Paralegals Dashboard.
+ * Joins the queue to the underlying POA filing, submission, and county
+ * so the UI can render everything from one query.
+ */
+export type FilingQueueRow = {
+  queueId: number;
+  poaFilingId: number;
+  submissionId: number;
+  status: ParalegalsQueueItem["status"];
+  priority: ParalegalsQueueItem["priority"];
+  assignedTo: string | null;
+  deadline: Date | null;
+  queuedAt: Date;
+  completedAt: Date | null;
+  county: string;
+  state: string;
+  address: string;
+  ownerEmail: string;
+  ownerPhone: string | null;
+  filingType: "poa" | "pro-se";
+  notes: string | null;
+};
+
+export async function listFilingQueue(): Promise<FilingQueueRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        queueId: paralegalsQueue.id,
+        poaFilingId: paralegalsQueue.poaFilingId,
+        status: paralegalsQueue.status,
+        priority: paralegalsQueue.priority,
+        assignedTo: paralegalsQueue.assignedTo,
+        deadline: paralegalsQueue.deadline,
+        queuedAt: paralegalsQueue.queuedAt,
+        completedAt: paralegalsQueue.completedAt,
+        notes: paralegalsQueue.notes,
+        submissionId: poaFilings.submissionId,
+        countyId: poaFilings.countyId,
+        countyName: counties.countyName,
+        state: counties.state,
+        address: propertySubmissions.address,
+        ownerEmail: propertySubmissions.email,
+        ownerPhone: propertySubmissions.phone,
+      })
+      .from(paralegalsQueue)
+      .leftJoin(poaFilings, eq(paralegalsQueue.poaFilingId, poaFilings.id))
+      .leftJoin(counties, eq(poaFilings.countyId, counties.id))
+      .leftJoin(propertySubmissions, eq(poaFilings.submissionId, propertySubmissions.id))
+      .orderBy(paralegalsQueue.priority, paralegalsQueue.queuedAt);
+
+    return rows.map((r) => ({
+      queueId: r.queueId,
+      poaFilingId: r.poaFilingId,
+      submissionId: r.submissionId ?? 0,
+      status: r.status,
+      priority: r.priority,
+      assignedTo: r.assignedTo ?? null,
+      deadline: r.deadline ?? null,
+      queuedAt: r.queuedAt,
+      completedAt: r.completedAt ?? null,
+      county: r.countyName ?? "",
+      state: r.state ?? "",
+      address: r.address ?? "",
+      ownerEmail: r.ownerEmail ?? "",
+      ownerPhone: r.ownerPhone ?? null,
+      filingType: "poa",
+      notes: r.notes ?? null,
+    }));
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to list filing queue:", error);
+    return [];
+  }
+}
+
+export async function assignQueueItem(
+  queueId: number,
+  assignedTo: string
+): Promise<ParalegalsQueueItem | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db
+      .update(paralegalsQueue)
+      .set({ assignedTo, status: "in-progress", startedAt: new Date() })
+      .where(eq(paralegalsQueue.id, queueId));
+    return await db
+      .select()
+      .from(paralegalsQueue)
+      .where(eq(paralegalsQueue.id, queueId))
+      .limit(1)
+      .then((r) => r[0] || null);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to assign queue item:", error);
+    return null;
+  }
+}
+
+export async function completeQueueItem(
+  queueId: number,
+  notes?: string
+): Promise<ParalegalsQueueItem | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const updates: Partial<InsertParalegalsQueueItem> = {
+      status: "completed",
+      completedAt: new Date(),
+    };
+    if (notes !== undefined) updates.notes = notes;
+    await db.update(paralegalsQueue).set(updates).where(eq(paralegalsQueue.id, queueId));
+    return await db
+      .select()
+      .from(paralegalsQueue)
+      .where(eq(paralegalsQueue.id, queueId))
+      .limit(1)
+      .then((r) => r[0] || null);
+  } catch (error) {
+    console.error("[ParalegalsQueue] Failed to mark complete:", error);
+    return null;
+  }
+}
+
+/**
+ * User-facing filing status rows. For each submission owned by this email,
+ * return the POA filing (if any), outcome, and key timeline data.
+ */
+export type UserFilingRow = {
+  submissionId: number;
+  address: string;
+  city: string | null;
+  state: string | null;
+  status: PropertySubmission["status"];
+  filingMethod: PropertySubmission["filingMethod"];
+  filedDate: Date | null;
+  hearingDate: Date | null;
+  hearingLocation: string | null;
+  hearingFormat: POAFiling["hearingFormat"] | null;
+  outcome: POAFiling["outcome"] | null;
+  newAssessedValue: number | null;
+  assessmentReduction: number | null;
+  annualTaxSavings: number | null;
+  confirmationNumber: string | null;
+  portalUrl: string | null;
+  lastUpdated: Date;
+  notes: string | null;
+  // Filing-job surfaced artifacts — shown in the user dashboard so the
+  // owner can see "USPS tracking #9407…, delivered 4/18" without
+  // clicking through.
+  filingJob: {
+    id: number;
+    status: FilingJob["status"];
+    deliveryChannel: FilingJob["deliveryChannel"];
+    deliveryStatus: FilingJob["deliveryStatus"];
+    portalConfirmationNumber: string | null;
+    mailTrackingNumber: string | null;
+    lobExpectedDeliveryDate: Date | null;
+    emailRecipient: string | null;
+    completedAt: Date | null;
+    errorMessage: string | null;
+  } | null;
+};
+
+export async function listUserFilings(userEmail: string): Promise<UserFilingRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const submissions = await db
+      .select()
+      .from(propertySubmissions)
+      .where(eq(propertySubmissions.email, userEmail))
+      .orderBy(desc(propertySubmissions.createdAt));
+
+    const results: UserFilingRow[] = [];
+    for (const s of submissions) {
+      const poa = await db
+        .select()
+        .from(poaFilings)
+        .where(eq(poaFilings.submissionId, s.id))
+        .limit(1)
+        .then((r) => r[0] || null);
+      const outcome = await db
+        .select()
+        .from(appealOutcomes)
+        .where(eq(appealOutcomes.submissionId, s.id))
+        .limit(1)
+        .then((r) => r[0] || null);
+      const job = await db
+        .select()
+        .from(filingJobs)
+        .where(eq(filingJobs.submissionId, s.id))
+        .orderBy(desc(filingJobs.createdAt))
+        .limit(1)
+        .then((r) => r[0] || null);
+
+      results.push({
+        submissionId: s.id,
+        address: s.address,
+        city: s.city ?? null,
+        state: s.state ?? null,
+        status: s.status,
+        filingMethod: s.filingMethod ?? null,
+        filedDate: poa?.filingDate ?? outcome?.filedAt ?? job?.completedAt ?? null,
+        hearingDate: poa?.hearingDate ?? outcome?.hearingDate ?? null,
+        hearingLocation: poa?.hearingLocation ?? null,
+        hearingFormat: poa?.hearingFormat ?? null,
+        outcome: poa?.outcome ?? null,
+        newAssessedValue: poa?.newAssessedValue ?? outcome?.finalAssessedValue ?? null,
+        assessmentReduction: poa?.assessmentReduction ?? outcome?.reductionAmount ?? null,
+        annualTaxSavings: outcome?.annualTaxSavings ?? s.potentialSavings ?? null,
+        confirmationNumber: poa?.confirmationNumber ?? null,
+        portalUrl: poa?.portalUrl ?? null,
+        lastUpdated: poa?.updatedAt ?? s.updatedAt,
+        notes: poa?.notes ?? null,
+        filingJob: job
+          ? {
+              id: job.id,
+              status: job.status,
+              deliveryChannel: job.deliveryChannel,
+              deliveryStatus: job.deliveryStatus,
+              portalConfirmationNumber: job.portalConfirmationNumber ?? null,
+              mailTrackingNumber: job.mailTrackingNumber ?? null,
+              lobExpectedDeliveryDate: job.lobExpectedDeliveryDate ?? null,
+              emailRecipient: job.emailRecipient ?? null,
+              completedAt: job.completedAt ?? null,
+              errorMessage: job.errorMessage ?? null,
+            }
+          : null,
+      });
+    }
+    return results;
+  } catch (error) {
+    console.error("[Database] Failed to list user filings:", error);
+    return [];
+  }
+}
+
+/**
+ * Look up the submissions that belong to a batchId. Batches are tagged in
+ * the activity_logs table via metadata.batchId at submission time.
+ */
+export async function getBatchSubmissionIds(batchId: string): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const logs = await db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.type, "batch_submitted"))
+      .orderBy(desc(activityLogs.createdAt));
+    for (const log of logs) {
+      if (!log.metadata) continue;
+      try {
+        const meta = JSON.parse(log.metadata);
+        if (meta.batchId === batchId && Array.isArray(meta.results)) {
+          return meta.results
+            .filter((r: any) => r?.submissionId)
+            .map((r: any) => Number(r.submissionId));
+        }
+      } catch {
+        // ignore malformed metadata
+      }
+    }
+    return [];
+  } catch (error) {
+    console.error("[Database] Failed to fetch batch submission ids:", error);
+    return [];
+  }
+}
+
+// ─── FILING RECIPES ─────────────────────────────────────────────────────────
+
+export async function getActiveRecipeForCounty(countyId: number): Promise<FilingRecipe | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = await db.select().from(filingRecipes)
+      .where(and(eq(filingRecipes.countyId, countyId), eq(filingRecipes.active, true)))
+      .orderBy(desc(filingRecipes.version))
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    console.error("[FilingRecipes] Failed to load recipe:", error);
+    return null;
+  }
+}
+
+export async function upsertRecipe(recipe: InsertFilingRecipe): Promise<FilingRecipe | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    // Deactivate older active recipes for this county
+    await db.update(filingRecipes)
+      .set({ active: false })
+      .where(eq(filingRecipes.countyId, recipe.countyId));
+    const result = await db.insert(filingRecipes).values({ ...recipe, active: true });
+    const id = (result as any).insertId;
+    return await db.select().from(filingRecipes).where(eq(filingRecipes.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingRecipes] Failed to upsert recipe:", error);
+    return null;
+  }
+}
+
+// ─── SCRIVENER AUTHORIZATIONS ───────────────────────────────────────────────
+
+export async function createScrivenerAuthorization(
+  auth: InsertScrivenerAuthorization
+): Promise<ScrivenerAuthorization | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(scrivenerAuthorizations).values(auth);
+    const id = (result as any).insertId;
+    return await db.select().from(scrivenerAuthorizations)
+      .where(eq(scrivenerAuthorizations.id, id))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[ScrivenerAuth] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getScrivenerAuthorizationById(id: number): Promise<ScrivenerAuthorization | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(scrivenerAuthorizations)
+      .where(eq(scrivenerAuthorizations.id, id))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[ScrivenerAuth] Failed to fetch:", error);
+    return null;
+  }
+}
+
+// ─── FILING JOBS ────────────────────────────────────────────────────────────
+
+export async function createFilingJob(job: InsertFilingJob): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(filingJobs).values(job);
+    const id = (result as any).insertId;
+    return await db.select().from(filingJobs).where(eq(filingJobs.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingJob] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getFilingJobById(id: number): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(filingJobs).where(eq(filingJobs.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingJob] Failed to fetch:", error);
+    return null;
+  }
+}
+
+export async function getFilingJobBySubmissionId(submissionId: number): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(filingJobs)
+      .where(eq(filingJobs.submissionId, submissionId))
+      .orderBy(desc(filingJobs.createdAt))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[FilingJob] Failed to fetch by submission:", error);
+    return null;
+  }
+}
+
+export async function updateFilingJob(id: number, updates: Partial<InsertFilingJob>): Promise<FilingJob | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db.update(filingJobs).set(updates).where(eq(filingJobs.id, id));
+    return getFilingJobById(id);
+  } catch (error) {
+    console.error("[FilingJob] Failed to update:", error);
+    return null;
+  }
+}
+
+export async function listPendingFilingJobs(limit = 5): Promise<FilingJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(filingJobs)
+      .where(eq(filingJobs.status, "pending"))
+      .orderBy(filingJobs.queuedAt)
+      .limit(limit);
+  } catch (error) {
+    console.error("[FilingJob] Failed to list pending:", error);
+    return [];
+  }
+}
+
+export async function listRecentFilingJobs(limit = 50): Promise<FilingJob[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(filingJobs)
+      .orderBy(desc(filingJobs.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[FilingJob] Failed to list recent:", error);
+    return [];
+  }
+}
+
+export async function listFilingJobsByStatus(
+  statuses: Array<FilingJob["status"]>,
+  limit = 100
+): Promise<FilingJob[]> {
+  if (statuses.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db
+      .select()
+      .from(filingJobs)
+      .where(
+        statuses.length === 1
+          ? eq(filingJobs.status, statuses[0])
+          : sql`${filingJobs.status} in (${sql.join(
+              statuses.map((s) => sql`${s}`),
+              sql`, `
+            )})`
+      )
+      .orderBy(desc(filingJobs.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[FilingJob] Failed to list by status:", error);
+    return [];
+  }
+}
+
+// ─── REFUND REQUESTS ────────────────────────────────────────────────────────
+
+export async function createRefundRequest(req: InsertRefundRequest): Promise<RefundRequest | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(refundRequests).values(req);
+    const id = (result as any).insertId;
+    return await db.select().from(refundRequests).where(eq(refundRequests.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to create:", error);
+    return null;
+  }
+}
+
+export async function getRefundRequestBySubmissionId(submissionId: number): Promise<RefundRequest | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    return await db.select().from(refundRequests)
+      .where(eq(refundRequests.submissionId, submissionId))
+      .orderBy(desc(refundRequests.createdAt))
+      .limit(1)
+      .then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to fetch:", error);
+    return null;
+  }
+}
+
+export async function listPendingRefundRequests(): Promise<RefundRequest[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(refundRequests)
+      .where(eq(refundRequests.status, "pending"))
+      .orderBy(refundRequests.requestedAt);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to list pending:", error);
+    return [];
+  }
+}
+
+export async function updateRefundRequest(id: number, updates: Partial<InsertRefundRequest>): Promise<RefundRequest | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    await db.update(refundRequests).set(updates).where(eq(refundRequests.id, id));
+    return await db.select().from(refundRequests).where(eq(refundRequests.id, id)).limit(1).then(r => r[0] ?? null);
+  } catch (error) {
+    console.error("[RefundRequest] Failed to update:", error);
+    return null;
+  }
+}
+
+// ─── STRIPE WEBHOOK IDEMPOTENCY ─────────────────────────────────────────────
+
+export async function recordStripeEvent(eventId: string, eventType: string): Promise<"recorded" | "duplicate"> {
+  const db = await getDb();
+  if (!db) return "recorded"; // fail open when DB is unavailable; webhook side will log
+  try {
+    await db.insert(stripeEventsProcessed).values({
+      eventId,
+      eventType,
+    });
+    return "recorded";
+  } catch (error) {
+    // MySQL duplicate-key error => we've already handled this event.
+    const code = (error as any)?.code;
+    if (code === "ER_DUP_ENTRY" || code === 1062) return "duplicate";
+    console.error("[StripeEvents] Failed to record event:", error);
+    return "recorded";
+  }
+}
+
+// ─── COUNTY ELIGIBILITY ─────────────────────────────────────────────────────
+
+export type CountyEligibility = {
+  poaEligible: boolean;
+  onlinePortalOnly: boolean;
+  pinOnlyLogin: boolean;
+  hasActiveRecipe: boolean;
+  withinFilingWindow: boolean;
+  reasonsIneligible: string[];
+  // Which channel we actually plan to use if the user proceeds. Lets the
+  // UI show "We'll file via certified mail" or "We'll file through the
+  // online portal" before the user authorizes or pays.
+  selectedChannel:
+    | "portal"
+    | "mail_certified"
+    | "mail_first_class"
+    | "email"
+    | "unsupported";
+};
+
+function monthDayWithinWindow(start: string | null | undefined, end: string | null | undefined, today = new Date()): boolean {
+  if (!start || !end) return true; // no window configured means always-on
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  const now = `${mm}-${dd}`;
+  if (start <= end) return now >= start && now <= end;
+  // Window wraps the year boundary
+  return now >= start || now <= end;
+}
+
+export async function getCountyEligibility(countyId: number): Promise<CountyEligibility> {
+  const reasons: string[] = [];
+  const county = await getCountyById(countyId);
+  if (!county) {
+    return {
+      poaEligible: false,
+      onlinePortalOnly: false,
+      pinOnlyLogin: false,
+      hasActiveRecipe: false,
+      withinFilingWindow: false,
+      reasonsIneligible: ["County not found"],
+      selectedChannel: "unsupported",
+    };
+  }
+  const recipe = await getActiveRecipeForCounty(countyId);
+  const withinFilingWindow = monthDayWithinWindow(county.filingWindowStart ?? null, county.filingWindowEnd ?? null);
+  if (!withinFilingWindow) reasons.push("Outside the annual filing window");
+
+  // Channel resolution mirrors services/deliveryDispatcher.resolveChannel.
+  // We keep the logic in both places because `getCountyEligibility` has to
+  // stay dependency-light (db.ts doesn't import services) — but the two
+  // MUST stay consistent or the user sees a different channel at preview
+  // vs. at filing time.
+  const preferred = county.preferredChannel;
+  const hasMailingAddress =
+    !!county.mailingAddressLine1 &&
+    !!county.mailingAddressCity &&
+    !!county.mailingAddressState &&
+    !!county.mailingAddressZip;
+  const hasEmail = !!county.intakeEmail && county.intakeEmail.includes("@");
+  const recipeUsable =
+    !!recipe &&
+    (recipe.verificationStatus === "verified" ||
+      recipe.verificationStatus === "staging" ||
+      process.env.ALLOW_DRAFT_RECIPES === "1");
+
+  let selected: CountyEligibility["selectedChannel"] = "unsupported";
+  if (preferred === "portal" && recipeUsable) {
+    selected = "portal";
+  } else if (preferred === "email" && hasEmail) {
+    selected = "email";
+  } else if (
+    (preferred === "mail_certified" || preferred === "mail_first_class") &&
+    hasMailingAddress
+  ) {
+    selected = preferred;
+  } else {
+    // Fall back.
+    const fb = county.fallbackChannel;
+    if (fb === "email" && hasEmail) selected = "email";
+    else if (
+      (fb === "mail_certified" || fb === "mail_first_class") &&
+      hasMailingAddress
+    )
+      selected = fb;
+  }
+
+  if (selected === "unsupported") {
+    reasons.push("No viable delivery channel configured for this county");
+    if (!hasMailingAddress) reasons.push("No county mailing address on file");
+    if (!hasEmail && preferred === "email")
+      reasons.push("County intake email not configured");
+    if (preferred === "portal" && !recipeUsable) {
+      if (!recipe) reasons.push("No active filing recipe for this county");
+      else if (recipe.verificationStatus === "draft")
+        reasons.push("Recipe is not verified against the live portal");
+      else if (recipe.verificationStatus === "broken")
+        reasons.push("Recipe is currently broken pending fix");
+    }
+  }
+
+  return {
+    poaEligible: Boolean(county.poaEligible),
+    onlinePortalOnly: Boolean(county.onlinePortalOnly),
+    pinOnlyLogin: Boolean(county.pinOnlyLogin),
+    hasActiveRecipe: Boolean(recipe),
+    withinFilingWindow,
+    reasonsIneligible: reasons,
+    selectedChannel: selected,
+  };
+}
+
+// ─── COUNTY WAITLIST ────────────────────────────────────────────────────────
+
+export async function addWaitlistEntry(
+  entry: InsertCountyWaitlistEntry
+): Promise<CountyWaitlistEntry | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(countyWaitlist).values(entry);
+    const id = (result as any).insertId;
+    return await db.select().from(countyWaitlist)
+      .where(eq(countyWaitlist.id, id))
+      .limit(1)
+      .then((r) => r[0] ?? null);
+  } catch (error) {
+    console.error("[Waitlist] Failed to add entry:", error);
+    return null;
+  }
+}
+
+export async function listWaitlistEntries(limit = 200): Promise<CountyWaitlistEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(countyWaitlist)
+      .orderBy(desc(countyWaitlist.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[Waitlist] Failed to list entries:", error);
+    return [];
+  }
+}
+
+export async function aggregateWaitlistByCounty(): Promise<
+  Array<{ state: string | null; countyName: string | null; count: number }>
+> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        state: countyWaitlist.state,
+        countyName: countyWaitlist.countyName,
+        count: sql<number>`count(*)`,
+      })
+      .from(countyWaitlist)
+      .groupBy(countyWaitlist.state, countyWaitlist.countyName)
+      .orderBy(sql`count(*) desc`);
+    return rows.map((r) => ({
+      state: r.state,
+      countyName: r.countyName,
+      count: Number(r.count ?? 0),
+    }));
+  } catch (error) {
+    console.error("[Waitlist] Failed to aggregate:", error);
+    return [];
+  }
+}
+
+// ─── FILING STATS (ADMIN) ───────────────────────────────────────────────────
+
+export type FilingStatsRow = { key: string; count: number };
+
+export interface FilingStats {
+  totalJobs: number;
+  sinceDate: Date;
+  byStatus: FilingStatsRow[];
+  byChannel: FilingStatsRow[];
+  byDeliveryStatus: FilingStatsRow[];
+  deliveredInWindow: number;
+  returnedInWindow: number;
+  successRate7d: number | null; // 0..1 of completed/(completed+failed) in the last 7 days
+}
+
+export async function getFilingStats(windowDays = 30): Promise<FilingStats> {
+  const empty: FilingStats = {
+    totalJobs: 0,
+    sinceDate: new Date(),
+    byStatus: [],
+    byChannel: [],
+    byDeliveryStatus: [],
+    deliveredInWindow: 0,
+    returnedInWindow: 0,
+    successRate7d: null,
+  };
+  const db = await getDb();
+  if (!db) return empty;
+
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  try {
+    const rows = await db
+      .select()
+      .from(filingJobs)
+      .where(gte(filingJobs.createdAt, since));
+
+    const byStatus = new Map<string, number>();
+    const byChannel = new Map<string, number>();
+    const byDeliveryStatus = new Map<string, number>();
+    let delivered = 0;
+    let returned = 0;
+    let completed7d = 0;
+    let failed7d = 0;
+
+    for (const r of rows) {
+      byStatus.set(r.status, (byStatus.get(r.status) ?? 0) + 1);
+      const ch = r.deliveryChannel ?? "unassigned";
+      byChannel.set(ch, (byChannel.get(ch) ?? 0) + 1);
+      const ds = r.deliveryStatus ?? "pending";
+      byDeliveryStatus.set(ds, (byDeliveryStatus.get(ds) ?? 0) + 1);
+      if (ds === "delivered") delivered += 1;
+      if (ds === "returned" || ds === "failed") returned += 1;
+      if (r.completedAt && r.completedAt >= sevenDaysAgo) {
+        if (r.status === "completed") completed7d += 1;
+        else if (r.status === "failed") failed7d += 1;
+      }
+    }
+
+    const totalRated = completed7d + failed7d;
+    const successRate7d = totalRated > 0 ? completed7d / totalRated : null;
+
+    const mapToRows = (m: Map<string, number>): FilingStatsRow[] =>
+      Array.from(m.entries())
+        .map(([key, count]) => ({ key, count }))
+        .sort((a, b) => b.count - a.count);
+
+    return {
+      totalJobs: rows.length,
+      sinceDate: since,
+      byStatus: mapToRows(byStatus),
+      byChannel: mapToRows(byChannel),
+      byDeliveryStatus: mapToRows(byDeliveryStatus),
+      deliveredInWindow: delivered,
+      returnedInWindow: returned,
+      successRate7d,
+    };
+  } catch (error) {
+    console.error("[FilingStats] Query failed:", error);
+    return empty;
   }
 }

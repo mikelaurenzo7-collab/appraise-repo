@@ -3,14 +3,105 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>AppraiseAI — Instant Property Appraisals & Tax Appeal Experts</title>
-    <meta name="description" content="AppraiseAI delivers instant AI-powered property appraisals and files your property tax appeal nationwide — via power of attorney or pro se. Stop overpaying. Start saving." />
+    <title>AppraiseAI — Instant Property Appraisals &amp; Tax Appeal Software</title>
+    <meta name="description" content="AppraiseAI is software that prepares and files your pro-se property tax appeal nationwide. Flat fee, 60-day money-back guarantee. Stop overpaying." />
+    <meta name="theme-color" content="#7C3AED" />
+    <link rel="canonical" href="https://appraise-ai.manus.space/" />
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="AppraiseAI" />
     <meta property="og:title" content="AppraiseAI — Fight Your Property Tax Bill" />
-    <meta property="og:description" content="Instant appraisals. Nationwide tax appeals. We file for you via power of attorney. No win, no fee." />
+    <meta property="og:description" content="Software that prepares and files your pro-se property tax appeal. Flat fee. 60-day money-back guarantee. Nationwide." />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://appraise-ai.manus.space/" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://appraise-ai.manus.space/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="AppraiseAI — Property Tax Appeal Software" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AppraiseAI — Fight Your Property Tax Bill" />
+    <meta name="twitter:description" content="Software that prepares and files your pro-se property tax appeal. Flat fee. 60-day money-back guarantee. Nationwide." />
+    <meta name="twitter:image" content="https://appraise-ai.manus.space/og-image.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100;0,14..32,200;0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400;1,14..32,700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+
+    <!-- Structured data: Organization + SoftwareApplication + FAQ. Helps SERPs
+         build rich results and anchors "AppraiseAI" to the brand entity. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://appraise-ai.manus.space/#org",
+          "name": "AppraiseAI",
+          "url": "https://appraise-ai.manus.space/",
+          "logo": "https://appraise-ai.manus.space/og-image.png",
+          "sameAs": [],
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "customer support",
+            "email": "support@appraise-ai.com",
+            "availableLanguage": ["English"]
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://appraise-ai.manus.space/#website",
+          "url": "https://appraise-ai.manus.space/",
+          "name": "AppraiseAI",
+          "publisher": { "@id": "https://appraise-ai.manus.space/#org" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "AppraiseAI",
+          "applicationCategory": "FinanceApplication",
+          "operatingSystem": "Web",
+          "description": "Software that prepares and files pro-se property tax appeals nationwide.",
+          "offers": [
+            { "@type": "Offer", "name": "Starter", "price": "79", "priceCurrency": "USD" },
+            { "@type": "Offer", "name": "Standard", "price": "149", "priceCurrency": "USD" },
+            { "@type": "Offer", "name": "Premium", "price": "299", "priceCurrency": "USD" }
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Is AppraiseAI a law firm?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. AppraiseAI is a software tool, not a law firm. We prepare and transmit your pro-se property tax appeal packet as a scrivener. We do not provide legal advice."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Do I have to win for the fee to apply?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "We charge a flat fee based on your property's assessed value. If your appeal is denied, we'll refund your fee under our 60-day money-back guarantee."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Which counties does AppraiseAI support?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "We support nationwide pro-se filings via county portals, certified mail, or email delivery depending on each county's accepted channel. Check the deadlines calendar for your state and county."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+
     <style>
       :root {
         --font-inter: 'Inter', system-ui, sans-serif;
@@ -21,9 +112,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
   </body>
 </html>

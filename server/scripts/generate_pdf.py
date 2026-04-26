@@ -8,16 +8,53 @@ Usage: python3 generate_pdf.py <input_json_path> <output_pdf_path>
 
 import sys
 import json
+import os
+import tempfile
 from datetime import datetime
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, KeepTogether, PageBreak
+    HRFlowable, KeepTogether, PageBreak, Image
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+
+
+PHOTO_CATEGORY_LABELS = {
+    "exterior": "Exterior",
+    "interior": "Interior",
+    "roof": "Roof",
+    "foundation": "Foundation",
+    "other": "Other",
+}
+
+
+def _download_photo(url, dest_dir):
+    """Download a photo URL to a temp file; return path or None on failure."""
+    try:
+        req = Request(url, headers={"User-Agent": "AppraiseAI-PDF/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            data = resp.read()
+        if not data:
+            return None
+        # pick a sane extension from URL; default to .jpg
+        ext = ".jpg"
+        lower = url.lower().split("?")[0]
+        for candidate in (".jpg", ".jpeg", ".png", ".webp"):
+            if lower.endswith(candidate):
+                ext = candidate
+                break
+        fd, path = tempfile.mkstemp(prefix="appraise-photo-", suffix=ext, dir=dest_dir)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        return path
+    except (URLError, HTTPError, OSError, ValueError) as exc:
+        sys.stderr.write(f"[PDF] Failed to fetch photo {url}: {exc}\n")
+        return None
 
 # ── Brand Colors ────────────────────────────────────────────────────────────
 NAVY    = colors.HexColor("#0F1F3D")
@@ -412,6 +449,63 @@ def generate_pdf(data: dict, output_path: str):
         else:
             story.append(Paragraph(next_steps, styles["body"]))
         story.append(Spacer(1, 14))
+
+    # ── PROPERTY PHOTOS ───────────────────────────────────────────────────────
+    photos = data.get("photos") or []
+    if photos:
+        story.append(PageBreak())
+        story.append(section_header("Property Photos", styles))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            "Photos submitted by the property owner as supporting evidence for the appeal.",
+            styles["body"]
+        ))
+        story.append(Spacer(1, 10))
+
+        # Group by category, preserving input order within each group
+        grouped = {}
+        for p in photos:
+            cat = (p.get("category") or "other").lower()
+            grouped.setdefault(cat, []).append(p)
+
+        tmp_dir = tempfile.mkdtemp(prefix="appraise-photos-")
+        try:
+            for cat in ("exterior", "interior", "roof", "foundation", "other"):
+                items = grouped.get(cat)
+                if not items:
+                    continue
+                story.append(Spacer(1, 6))
+                story.append(Paragraph(
+                    f"<b>{PHOTO_CATEGORY_LABELS.get(cat, cat.title())}</b>",
+                    styles["body"]
+                ))
+                story.append(Spacer(1, 4))
+                for photo in items:
+                    url = photo.get("url")
+                    if not url:
+                        continue
+                    path = _download_photo(url, tmp_dir)
+                    if not path:
+                        continue
+                    try:
+                        img = Image(path, width=5.5 * inch, height=3.5 * inch, kind="proportional")
+                    except Exception as exc:  # noqa: BLE001
+                        sys.stderr.write(f"[PDF] Failed to embed photo: {exc}\n")
+                        continue
+                    caption_text = photo.get("caption") or ""
+                    block = [img]
+                    if caption_text:
+                        block.append(Spacer(1, 3))
+                        block.append(Paragraph(
+                            f"<i>{caption_text}</i>",
+                            styles["disclaimer"]
+                        ))
+                    block.append(Spacer(1, 10))
+                    story.append(KeepTogether(block))
+        finally:
+            # Temp files are kept until Python exits; ReportLab needs them until build.
+            # We intentionally do NOT cleanup here — the process exits shortly after.
+            pass
 
     # ── DISCLAIMER ────────────────────────────────────────────────────────────
     story.append(HRFlowable(width=W, thickness=0.5, color=colors.HexColor("#E0DDD5"), spaceAfter=8))

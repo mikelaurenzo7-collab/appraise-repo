@@ -1,8 +1,19 @@
 import express, { Request, Response } from "express";
 import Stripe from "stripe";
-import { updateAppealOutcome, getAppealOutcomeBySubmissionId } from "../db";
+import {
+  updateAppealOutcome,
+  getAppealOutcomeBySubmissionId,
+  recordStripeEvent,
+} from "../db";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
+  _stripe = new Stripe(key);
+  return _stripe;
+}
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 /**
@@ -24,16 +35,28 @@ export function registerStripeWebhook(app: express.Application) {
       let event: Stripe.Event;
 
       try {
-        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+        event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
       } catch (err: any) {
         console.error("[Stripe Webhook] Signature verification failed:", err.message);
         return res.status(400).json({ error: "Webhook signature verification failed" });
       }
 
-      // Handle test events
+      // Handle test events (Stripe's CLI test uses evt_test_*). These still
+      // pass signature verification because we use the real secret; we just
+      // short-circuit the handler so tests don't mutate real data.
       if (event.id.startsWith("evt_test_")) {
         console.log("[Stripe Webhook] Test event detected, returning verification response");
         return res.json({ verified: true });
+      }
+
+      // Idempotency — refuse to reprocess an event id we've already handled.
+      // Stripe retries on 5xx, and misconfigured endpoints can deliver the
+      // same event twice. Without this check, a duplicate checkout.session.
+      // completed would double-apply payment state.
+      const outcome = await recordStripeEvent(event.id, event.type);
+      if (outcome === "duplicate") {
+        console.log(`[Stripe Webhook] Duplicate event ${event.id} ignored`);
+        return res.json({ received: true, duplicate: true });
       }
 
       try {

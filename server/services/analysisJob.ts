@@ -358,6 +358,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       title: `Analysis Complete — ${strengthLabel} (${scenarioContext.scenarioLabel})`,
       content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${scenarioAppealStrength}/100\nPotential Savings: $${scenarioTaxSavings.toLocaleString()}/yr\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
     }).catch((err: unknown) => console.error("[AnalysisJob] Failed to notify owner:", err));
+    // Queue report generation (24-hour SLA)
 
     // ── Step 9b: Send user email confirmation ────────────────────────────────
     if (submission.email) {

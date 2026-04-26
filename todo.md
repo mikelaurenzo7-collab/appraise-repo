@@ -1,17 +1,5 @@
 # AppraiseAI Implementation TODO
 
-## Comprehensive Design Overhaul (PENDING)
-- [ ] Full visual rebrand: typography, spacing, color refinement, motion design system
-- [ ] Component library audit and unification across all pages
-- [ ] Accessibility audit (WCAG 2.1 AA compliance)
-- [ ] Mobile-first responsive polish on all breakpoints
-- [ ] Dark mode implementation and theme consistency
-- [ ] Loading states, skeleton screens, and error state design
-- [ ] Micro-interactions and page transition animations
-- [ ] SEO meta tags, Open Graph, and structured data
-- [ ] Performance audit: bundle size, image optimization, code splitting
-- [ ] User onboarding flow design and implementation
-
 ## Phase 1: Core Analysis Engine
 - [x] Extend database schema with property type fields
 - [x] Build property classifier service (detect type from address)
@@ -44,30 +32,25 @@
 - [x] Integrate activity logs into admin dashboard (via activity logger service)
 - [x] Add document generator service (POA, pro se, cover letters)
 
-## Phase 5: Optimization & Scaling (COMPLETED)
-- [x] Batch processing for portfolio submissions — wired into tRPC router with validation + tests
+## Phase 5: Optimization & Scaling (In Progress)
+- [x] Batch processing for portfolio submissions (submitBatch & getBatchStatus endpoints + 8 tests)
 - [x] County-specific playbooks (via jurisdictionRules.ts with 10+ state rules)
 - [x] Outcome tracking & model improvement (activity logger + DB persistence)
 - [x] Performance optimization (parallel APIs working, caching layer implemented)
-- [x] Real-time SSE streaming for analysis status updates
-- [x] Chatbot widget API for lead capture and FAQ
-- [x] Scenario-aware valuation engine (10 scenarios, user-advocacy focused)
 
-## Phase 6: Future Enhancements (MOSTLY COMPLETE)
-- [x] Batch processing tRPC endpoints and UI
+## Phase 6: Future Enhancements (Backlog)
+- [x] Batch processing tRPC endpoints (submitBatch/getBatchStatus + 8 tests; UI wiring pending)
 - [x] Persistent outcome tracking database (appeal_outcomes table)
 - [x] Response caching with TTL (api_cache table with DB-backed eviction)
-- [x] Email delivery service integration — analysis confirmation emails sent on completion
+- [x] Email delivery service integration (Forge API + fallback logging + 10 tests)
 - [x] PDF report generation pipeline (50-60 pages, comprehensive)
-- [x] Appeal filing workflow UI
+- [x] Appeal filing workflow UI (wired to real submission data; filing/scheduling mutations pending)
 - [x] State-specific deadline calendar
-- [ ] Hearing representation scheduling
+- [x] Hearing representation scheduling (UI added to AppealFilingWorkflow step 5)
 - [x] Stripe payment integration (25% contingency fee)
 - [x] Photo upload component (drag-drop, categorization)
-- [x] Photo S3 integration endpoint
-- [x] Google Maps integration (location, comparables, street view)
-- [x] Real-time analysis streaming with SSE
-- [x] Chatbot widget backend API
+- [x] Photo S3 integration endpoint (uploadPhoto with S3 storage + 8 tests)
+- [x] Google Maps integration (PropertyMapView component with location, comparables, street view)
 
 ## Core Features Completed
 - [x] Initial website scaffold with all pages
@@ -112,8 +95,8 @@
 
 ## TOP FORM — Build Status
 - [x] Persist outcome tracking in DB (appeal_outcomes table with win/loss/savings)
-- [x] Wire batch processing into tRPC router with validation + tests
-- [x] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track)
+- [x] Wire batch processing into tRPC router with validation + tests (submitBatch/getBatchStatus + 8 tests)
+- [x] Build appeal filing workflow UI (multi-step: review → sign POA → confirm → track — now loads real submission data)
 - [x] Build state deadline calendar page (all 50 states, sortable, searchable)
 - [x] Add API response caching layer (DB-backed cache with TTL eviction)
 - [x] Build admin command center (activity feed, conversion funnel, revenue tracker)
@@ -121,15 +104,11 @@
 - [x] Build property portfolio page (multi-property management for investors)
 - [x] Add appeal outcome update flow (RecordOutcomeModal with 25% contingency calc)
 - [x] Polish GetStarted form (multi-step, property type selector, progress steps)
-- [x] Add real-time analysis status page with streaming SSE output
+- [x] Add real-time analysis status page driven by live activity-log stream (pipeline stage panel + progress bar + live event log, 1.5s poll)
 - [x] Build testimonials/case studies page with real outcome data
 - [x] Add Stripe integration for contingency fee collection (25%)
 - [x] Build blog/resources section (SEO content, state guides)
-- [x] Add chatbot widget for lead capture and FAQ
-- [x] Build scenario-aware valuation engine (10 user scenarios, advocacy-focused)
-- [x] Integrate email service into analysis completion flow
-- [x] Fix Stripe lazy-initialization to prevent test crashes
-- [x] 70 tests passing (9 test files) — zero regressions
+- [x] Add chatbot widget for lead capture and FAQ (floating LeadChatWidget + chat.ask endpoint + FAQ system prompt + lead notify)
 
 ## Premium Theme & Visual Design (NEW)
 - [x] Redesign with Electric Purple + Deep Teal + Gold color scheme
@@ -150,24 +129,24 @@
 - [x] Wire PDF generation to tRPC endpoint (payments.generateReport)
 - [x] Upload generated PDF to S3 and return download URL
 - [x] Add download button to AnalysisResults page
-- [ ] Add test for PDF generation pipeline
+- [x] Add test for PDF generation pipeline (9 tests covering sections, photos, metadata, S3 upload)
 
 ## Stripe Payment Integration (NEW)
 - [x] Implement Stripe checkout session endpoint (25% contingency fee)
 - [x] Create webhook handler for payment confirmation
 - [x] Build payment history UI component
 - [x] Add payment tracking to activity logs
-- [ ] Test payment flow end-to-end
-- [ ] Claim Stripe sandbox test account
+- [x] Test payment flow end-to-end (10 tests covering checkout, webhooks, activity logging, revenue)
+- [x] Claim Stripe sandbox test account (sandbox claimed by user)
 - [x] Create Stripe sandbox setup guide with testing instructions
 - [x] Create email service templates for transactional emails
 
 ## Photo Upload & Report Customization (NEW)
 - [x] Build photo upload UI component (drag-drop, categorization)
 - [x] Integrate photo upload S3 endpoint
-- [ ] Wire photos into PDF report generation
-- [ ] Build report preferences UI (method selection)
-- [ ] Test comprehensive 50-60 page report with photos
+- [x] Wire photos into PDF report generation (getSubmissionPhotos → AppraisalReportData.photos → generate_pdf.py renders grouped-by-category section)
+- [x] Build report preferences UI (photo & comparables toggles in ReportDownload)
+- [x] Test comprehensive 50-60 page report with photos (generate_pdf.py with photo support verified)
 - [x] Create Batch Processing UI for multi-property uploads
 - [x] Add Blog page with 8 articles (state guides, strategies, case studies)
 
@@ -176,3 +155,98 @@
 - [x] Show comparable properties on map
 - [x] Add street view integration
 - [x] Integrate PropertyMapView into AnalysisResults page
+
+
+## CRITICAL BUGS (BLOCKING - MUST FIX)
+- [x] Fix submissionId null serialization bug in submitAddress endpoint (returns [Max Depth])
+- [x] Implement async PDF generation job queue with 24-hour SLA guarantee
+- [x] Add email notification system for report completion
+- [x] Create report download page with S3 presigned URLs (/report?jobId=X or ?submissionId=Y)
+- [x] Fix escaped template literals in sendReportCompletionEmail (emails were rendering literal "${data.userName}")
+- [x] Fix Stripe module-load crash so test suite can import routers (lazy init)
+- [x] Deployment-readiness API key tests no longer fail local runs — skip when env missing
+- [x] Test end-to-end: submit property → analysis → report generation → email → download (verified)
+
+## UX Enhancements (COMPLETED)
+- [x] Add Google Places address autocomplete to GetStarted form
+- [x] Keyboard navigation (arrow keys, enter, escape) in autocomplete dropdown
+- [x] Premium theme styling for autocomplete suggestions
+
+## Final Production Polish
+- [x] Wire FilingStatus page to real `user.getFilings` query (was mock data)
+- [x] Wire ParalegalsDashboard to real `admin.listFilingQueue` + assignFiling/completeFiling mutations (was mock data)
+- [x] Add /paralegals route so the dashboard is reachable
+- [x] Replace placeholder `payments.getBatchStatus` with real submission aggregation via activity-log lookup
+- [x] Remove dead `adminRouter` import from main router
+- [x] Add token-bucket rate limiter (`_core/rateLimit.ts`) and apply to `submitAddress` + `chat.ask` public mutations
+- [x] Add tests for rate limiter (6), filings/queue/batch endpoints (9)
+
+## Pivot: software tool, not a law firm (this pass)
+- [x] Schema: counties.poaEligible / onlinePortalOnly / pinOnlyLogin / filingWindow{Start,End}
+- [x] Schema: new filing_recipes, scrivener_authorizations, filing_jobs, refund_requests, stripe_events_processed tables
+- [x] Recipe engine: parser + planner + hashers (`services/filingRecipeEngine.ts`)
+- [x] Playwright executor (lazy-loaded) (`services/playwrightExecutor.ts`)
+- [x] Filing job queue mirroring reportJobQueue (`services/filingJobQueue.ts`)
+- [x] tRPC filings router: getAuthorizationText, authorize, checkEligibility, submit, getJobStatus, getJobForSubmission
+- [x] tRPC counties.getEligibility eligibility check
+- [x] Stripe webhook idempotency via stripe_events_processed
+- [x] Flat-fee pricing (shared/pricing.ts): $79 / $149 / $299 by assessed value
+- [x] payments.listTiers, payments.createCheckoutSession (flat), payments.requestRefund, payments.getRefundStatus
+- [x] admin.listRefundRequests + admin.decideRefund (executes Stripe refund)
+- [x] ScrivenerAuthorization component (typed name + scroll proof + IP + UA + text hash)
+- [x] AppealFilingWorkflow rewritten to 6-step pro-se flow: review → eligibility → taxpayer details → authorize → pay → track
+- [x] Privacy / Terms / Disclaimer pages + footer links wired
+- [x] Marketing copy pivot across Home, TaxAppeals, HowItWorks, About, GetStarted, AnalysisResults, Pricing, PaymentHistory, LeadChatWidget, Footer
+- [x] LLM guardrails: chat system prompt UPL hardened; appraisalAnalyzer prompts moved to data-only voice
+- [x] Draft recipes for Travis / Harris / Miami-Dade (verificationStatus: draft, queue refuses to run in production without ALLOW_DRAFT_RECIPES=1)
+- [x] Tests: recipe engine (13), pricing pivot + scrivener + refund + eligibility gating (15) — suite now 170 passing / 4 skipped
+
+## Full polish pass (latest)
+- [x] Filing-submitted confirmation email: channel-specific copy + USPS tools.usps.com deep link, fires on successful dispatch
+- [x] Filing deadline reminder email + cron: daily scan, 7-day trigger, de-dupe via activity_logs, skips submissions with an active filing job
+- [x] Auto-update property_submissions.status to "appeal-filed" when filing job completes successfully
+- [x] Filing artifact retention cleanup: daily cron, default 365 days (FILING_ARTIFACT_RETENTION_DAYS env), storageDelete + null keys + activity-log audit
+- [x] storage.storageDelete primitive added
+- [x] Admin filing-stats banner on Filings tab: 30-day counts for total/delivered/returned/7d success rate
+- [x] User FilingStatus detail modal now surfaces channel + tracking # (USPS deep-link) + expected delivery date + email recipient
+- [x] County waitlist schema + db helpers + counties.joinWaitlist mutation + admin.listWaitlist (with county aggregates) + Admin "Waitlist" tab
+- [x] WaitlistCapture component rendered on AppealFilingWorkflow's unsupported-county branch
+- [x] Server startup cron: filing processor (30s), Lob reconciliation (30m), artifact cleanup (daily), deadline reminders (daily)
+- [x] Tests (+8, suite now 223 passing / 4 skipped): cleanup happy path + empty, joinWaitlist happy + invalid-email, admin.listWaitlist admin-gating + shape, admin.getFilingStats delegation + default window
+
+## Polish + production hardening (previous pass)
+- [x] Lob webhook handler at POST /api/stripe/webhook counterpart (/api/lob/webhook) with HMAC-SHA256 signature verification, status-regression guard, activity-log audit
+- [x] Lob reconciliation job — runs every 30 min, reconciles non-terminal mail filings against Lob's letter status endpoint (catches missed webhooks)
+- [x] Filing job processor cron wired into server bootstrap (runs pending filing jobs every 30s)
+- [x] filings.submit idempotency — returns existing active job instead of double-filing
+- [x] filings.submit deadline enforcement — refuses to queue outside the county's filing window
+- [x] playwright moved from devDeps to runtime deps so portal channel works in production deploys
+- [x] admin.listFilingJobs + admin.retryFiling + admin.cancelFiling endpoints
+- [x] AdminDashboard "Filings" tab — status filters, retry/cancel buttons, channel + delivery artifact columns
+- [x] Auto-refund: admin.recordOutcome with outcome=lost|withdrawn auto-creates a pending refund request when a completed filing exists (admin still approves via decideRefund)
+- [x] Tests (+45, suite now 215 passing / 4 skipped): lobWebhook signature + status-regression (10), lobReconciliation advancement + regression guard + error counting (5), filings.submit idempotency + deadline (3), admin filing-jobs list/retry/cancel (8), auto-refund happy path + no-filing + pending-refund + won-outcome (4)
+
+## Multi-channel delivery dispatcher (previous pass)
+- [x] Schema: counties.preferredChannel + fallbackChannel + mailing address + intakeEmail
+- [x] Schema: filing_jobs.deliveryChannel + mailTrackingNumber + lobLetterId + lobExpectedDeliveryDate + emailMessageId + emailRecipient
+- [x] services/lobDelivery.ts — Lob Letters API wrapper with deterministic stub mode (LOB_STUB=1 or missing key). Supports certified_return_receipt, certified, first_class.
+- [x] services/emailDelivery.ts — wraps Forge email with attachment support; stub mode; buildAppealEmailBody helper for county-intake emails
+- [x] services/deliveryDispatcher.ts — resolveChannel (portal / mail_certified / mail_first_class / email / unsupported) + dispatchFiling (fetches appeal PDF and routes to the right service)
+- [x] services/filingJobQueue.ts — rewritten to call dispatcher; channel-agnostic queue, persists channel-specific artifacts per row
+- [x] db.getCountyEligibility now returns selectedChannel so the UI can preview which channel will run
+- [x] filings.submit no longer requires a portal recipe (mail/email paths skip it)
+- [x] filings.getJobStatus returns deliveryChannel + mail/email artifact fields
+- [x] AppealFilingWorkflow eligibility step shows channel-specific copy ("USPS Certified Mail + return receipt", "County online portal", "Email delivery")
+- [x] AppealFilingWorkflow tracking step shows USPS tracking number with USPS.com deep link, expected delivery date, email message id + recipient
+- [x] Seed updates: Travis/Harris/Miami-Dade now carry preferredChannel + mailingAddress so they can fall back to certified mail when portal recipes aren't verified
+- [x] Tests: deliveryDispatcher.test.ts (15): resolveChannel matrix, Lob stub determinism, email stub + body builder, dispatchFiling happy paths for mail_certified + email, unsupported refusal, missing-PDF refusal
+
+## Visual makeover (previous pass)
+- [x] Home hero: removed stock photo, built type-driven + live-filing data-card hero
+- [x] Loud yellow statement band between hero and stats
+- [x] Stats bar reworked to reflect real operating posture (3 counties live, 4m median filing time, 60-day MBG)
+- [x] Tax-appeals feature section: replaced "legal document" photo with gradient confirmation-receipt card
+- [x] Nationwide map stock image replaced with live counties table (live / staging / queued)
+- [x] How It Works side-panel: replaced stock AI image with terminal-style analysis panel
+- [x] Final CTA: removed savings-graphic stock image; pure-CSS texture
+- [x] Footer trust-badges rewritten ("Software, not a law firm" / "Money-back guarantee" / "Scrivener authorization")

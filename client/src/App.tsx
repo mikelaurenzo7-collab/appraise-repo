@@ -12,14 +12,20 @@ import About from "./pages/About";
 import GetStarted from "./pages/GetStarted";
 import AnalysisResults from "./pages/AnalysisResults";
 import AdminDashboard from "./pages/AdminDashboard";
+import ParalegalsDashboard from "./pages/ParalegalsDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import DeadlineCalendar from "./pages/DeadlineCalendar";
 import Portfolio from "./pages/Portfolio";
 import PaymentHistory from "./pages/PaymentHistory";
 import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 import Testimonials from "./pages/Testimonials";
 import BatchProcessing from "./pages/BatchProcessing";
 import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
+import ReportDownload from "./pages/ReportDownload";
+import FilingStatus from "./pages/FilingStatus";
+import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
+import LeadChatWidget from "./components/LeadChatWidget";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -34,15 +40,24 @@ function Router() {
       <Route path="/analysis" component={AnalysisResults} />
       <Route path="/dashboard" component={UserDashboard} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/paralegals" component={ParalegalsDashboard} />
       <Route path="/deadlines" component={DeadlineCalendar} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/payments" component={PaymentHistory} />
       <Route path="/blog" component={Blog} />
+      <Route path="/blog/:id">
+        {(params) => <BlogPost id={params.id} />}
+      </Route>
       <Route path="/testimonials" component={Testimonials} />
       <Route path="/batch" component={BatchProcessing} />
-      <Route path="/appeal-workflow/:submissionId" component={(props) => (
-        <AppealFilingWorkflow submissionId={props.params.submissionId} />
-      )} />
+      <Route path="/filing-status" component={FilingStatus} />
+      <Route path="/report" component={ReportDownload} />
+      <Route path="/appeal-workflow/:submissionId">
+        {(params) => <AppealFilingWorkflow submissionId={params.submissionId} />}
+      </Route>
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/disclaimer" component={Disclaimer} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -56,6 +71,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <LeadChatWidget />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

@@ -51,6 +51,14 @@ export interface AppraisalReportData {
   bathrooms?: number | null;
   lotSize?: number | null;
   parcelNumber?: string;
+  // Optional property photos to embed in the report. The Python renderer
+  // downloads each URL, writes it to a temp file, and embeds it with
+  // ReportLab's Image flowable.
+  photos?: Array<{
+    url: string;
+    category: "exterior" | "interior" | "roof" | "foundation" | "other";
+    caption?: string;
+  }>;
 }
 
 export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
