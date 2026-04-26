@@ -194,7 +194,13 @@ export default function UserDashboard() {
     };
   }, [submissions]);
 
-  const referralLink = `https://appraiseai.manus.space/ref/${user?.name?.toLowerCase().replace(/\s+/g, "-") || "you"}`;
+  // Use real referral code from the API
+  const { data: referralData } = trpc.referral.dashboard.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const referralLink = referralData?.code
+    ? `${window.location.origin}/ref/${referralData.code}`
+    : `${window.location.origin}/ref/loading...`;
 
   if (loading || subLoading) {
     return (
@@ -438,7 +444,7 @@ export default function UserDashboard() {
                       {/* Filing method + deadline */}
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
                         <span className="capitalize">
-                          {sub.filingMethod === "poa" ? "Power of Attorney" : sub.filingMethod === "pro-se" ? "Pro Se (DIY)" : "Free Analysis"}
+                          {sub.filingMethod === "poa" ? "Automated Filing" : sub.filingMethod === "pro-se" ? "Pro Se (DIY)" : "Free Analysis"}
                         </span>
                         {sub.appealDeadline && (
                           <span className="text-amber-500 font-medium">

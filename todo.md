@@ -580,3 +580,14 @@
 - [x] Expand reconciliation weights for all new property types
 - [x] TypeScript audit — 0 errors
 - [x] Full test suite — 35 files, 316 tests passing, 1 skipped
+
+## Phase 20: Pre-Launch Improvements (This Pass)
+
+- [x] Auth-aware Navbar — login/logout/avatar for signed-in users, "Sign In" button for guests
+- [x] UserDashboard referral link — wired to real trpc.referral.dashboard API code (was fake URL)
+- [x] GetStarted FAQ — replaced "Power of Attorney" with "Scrivener Authorization" language
+- [ ] Home page county count — update "3" to accurate seeded count (14+)
+- [ ] Home page hero — inline address input in hero (skip /get-started click)
+- [ ] GetStarted Step 2 button label — rename "Add Photos" to "Continue →" (photos optional)
+- [ ] Twitter/X meta tag — add twitter:site @AppraiseAI to index.html
+- [ ] Remove dead PortfolioDashboard.tsx file (unrouted, 100% mock data)

@@ -791,8 +791,8 @@ export default function GetStarted() {
                 a: "We'll tell you honestly. If your assessment is fair, there's no point filing an appeal. We only proceed when we believe you have a strong case.",
               },
               {
-                q: "What does Power of Attorney mean?",
-                a: "You sign a limited POA that authorizes AppraiseAI to file your appeal and appear before the tax board on your behalf. It's limited to your property tax appeal only.",
+                q: "What is a Scrivener Authorization?",
+                a: "For the Automated Filing tier, you sign a per-filing Scrivener Authorization — a limited document that allows AppraiseAI to prepare and submit your appeal through the county's online portal on your behalf. You remain the filer of record. It covers only your specific property tax appeal.",
               },
               {
                 q: "How long does the appeal process take?",
