@@ -55,25 +55,54 @@ ${
 }
     `;
 
-    const prompt = `You are generating a DATA report for a property owner who is
-considering a pro-se tax-assessment appeal. You are NOT their attorney and you
-do NOT provide case-specific legal advice. Produce descriptive, evidence-based
-fields only. Do not use prescriptive language ("you should…", "argue that…").
-Stick to what the market data shows.
+    const prompt = `You are preparing the analytical narrative for a property
+owner who intends to challenge an over-assessment by their county tax authority.
+You are NOT their attorney and you do NOT provide case-specific legal advice.
+Your role is that of an independent valuation analyst whose work product will
+be entered into a property-tax appeal record.
+
+Tone & framing:
+- Professional, evidence-based, and quantitative — every observation must be
+  traceable to a comp, a public record, a measurement, or an arithmetic step.
+- Where the data fairly supports a lower fair market value than the current
+  assessment, say so plainly and explain WHY the data supports that conclusion.
+  This is not advocacy — it is competent valuation.
+- Avoid prescriptive legal language ("you should argue…", "demand that…").
+  Use analytical language ("the comparable evidence indicates…",
+  "the data is consistent with a fair market value of…").
+- Do not editorialize about the assessor. Stick to numbers and methodology.
 
 ${dataSummary}
 
 Provide a JSON response with:
-1. marketValueEstimate: Estimated fair market value from the supplied data
-2. assessmentGap: Dollar difference between assessed value and marketValueEstimate
-3. assessmentGapPercent: Percentage difference (gap / assessed value)
-4. appealStrengthScore: 0-100 score describing how supportive the data is
-5. appealStrengthFactors: 3-5 observational, data-based factors (no strategy advice)
-6. recommendedApproach: "poa" (automated online filing), "pro-se" (guided mail-in filing), or "not-recommended"
-7. executiveSummary: 2-3 factual sentences summarizing the data
-8. valuationJustification: Paragraph describing the methodology — which comps, which public records
-9. potentialSavings: Estimated annual tax savings if assessment were reduced to marketValueEstimate
-10. nextSteps: 3-4 informational next steps (e.g. "gather your tax notice", "verify assessed value"), NOT legal strategy
+1. marketValueEstimate: Independent fair-market-value conclusion derived from the
+   comparable sales and public records above. Round to the nearest $500.
+2. assessmentGap: assessedValue minus marketValueEstimate (positive = over-assessed).
+3. assessmentGapPercent: gap / assessedValue, expressed as a number.
+4. appealStrengthScore: 0-100. Reflects (a) the magnitude of the gap, (b) the
+   quantity and quality of corroborating comparable sales, and (c) the
+   consistency of the supporting public-record data.
+5. appealStrengthFactors: 3-5 concise, evidence-grade factors (e.g. "comparable
+   sales within 0.5 mi support a value of $X", "lot size discrepancy vs.
+   assessor record"). Each factor must be verifiable from the data shown.
+6. recommendedApproach: "poa" (we file on the owner's behalf), "pro-se"
+   (guided owner-filed appeal), or "not-recommended" (data does not support
+   an appeal at this time).
+7. executiveSummary: 2-3 sentences. State the assessed value, the
+   evidence-supported fair market value, and the resulting over-assessment if
+   any, in plain professional language.
+8. valuationJustification: One paragraph (4-7 sentences). Walk through the
+   methodology used: which approach (sales comparison / income / cost) was
+   weighted most, which comps drove the conclusion, and how public-record
+   data corroborates or refines the estimate.
+9. potentialSavings: Estimated annual property-tax savings if the assessment
+   were reduced to marketValueEstimate (use 1.2% as default effective rate
+   when not otherwise indicated).
+10. nextSteps: 3-4 concrete, professional next steps the owner can take
+    (e.g. "Verify assessed value on the most recent tax notice",
+    "Photograph any deferred-maintenance items prior to the hearing",
+    "Confirm appeal-filing deadline with the county assessor's office"). Do
+    not provide legal strategy or jurisdiction-specific procedural advice.
 
 Respond ONLY with valid JSON, no additional text.`;
 
@@ -82,7 +111,11 @@ Respond ONLY with valid JSON, no additional text.`;
         {
           role: "system",
           content:
-            "You are a data-analysis engine producing factual property-valuation information. You are not an attorney and do not provide legal advice. Output valid JSON only. Describe what the data shows; never prescribe legal strategy.",
+            "You are an independent valuation analyst preparing supporting analysis for a property-tax appeal. " +
+            "You produce professional, evidence-based, USPAP-aligned narratives. You are not an attorney and " +
+            "do not provide legal advice. You output valid JSON only. When the data fairly supports a fair " +
+            "market value below the current assessment, you state that conclusion clearly and explain the " +
+            "underlying evidence — but you never invent facts and never editorialize about the assessor.",
         },
         {
           role: "user",

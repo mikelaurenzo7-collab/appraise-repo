@@ -358,6 +358,42 @@ export async function getSubmissionPhotos(submissionId: number): Promise<Submiss
   return parsePhotosFromLogs(logs);
 }
 
+export interface PhotoAnalysisRecord {
+  photoCount: number;
+  overallConditionScore: number;
+  overallEvidenceStrength: number;
+  appealStrengthDelta: number;
+  topObservations: string[];
+  topValueIssues: string[];
+}
+
+/**
+ * Returns the most recent photo-analysis result for a submission by reading
+ * the latest `photo_analysis_complete` activity-log entry. Returns null when
+ * no photo analysis has run yet.
+ */
+export async function getLatestPhotoAnalysis(submissionId: number): Promise<PhotoAnalysisRecord | null> {
+  const logs = await getActivityLogsBySubmission(submissionId);
+  for (const log of logs) {
+    if (log.type !== "photo_analysis_complete" || !log.metadata) continue;
+    try {
+      const meta = JSON.parse(log.metadata) as Partial<PhotoAnalysisRecord>;
+      if (typeof meta.overallConditionScore !== "number") continue;
+      return {
+        photoCount: meta.photoCount ?? 0,
+        overallConditionScore: meta.overallConditionScore,
+        overallEvidenceStrength: meta.overallEvidenceStrength ?? 0,
+        appealStrengthDelta: meta.appealStrengthDelta ?? 0,
+        topObservations: meta.topObservations ?? [],
+        topValueIssues: meta.topValueIssues ?? [],
+      };
+    } catch {
+      // skip malformed
+    }
+  }
+  return null;
+}
+
 export async function getRecentActivityLogs(limit = 50) {
   const db = await getDb();
   if (!db) return [];

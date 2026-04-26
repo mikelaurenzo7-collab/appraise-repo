@@ -450,6 +450,74 @@ def generate_pdf(data: dict, output_path: str):
             story.append(Paragraph(next_steps, styles["body"]))
         story.append(Spacer(1, 14))
 
+    # ── PROPERTY CONDITION FINDINGS (from photo analysis) ────────────────────
+    findings = data.get("photoFindings") or None
+    if findings and isinstance(findings, dict):
+        story.append(section_header("Property Condition Findings", styles))
+        story.append(Spacer(1, 8))
+
+        cond_score = findings.get("overallConditionScore", 0)
+        evid_score = findings.get("overallEvidenceStrength", 0)
+        cond_color = score_color(100 - cond_score)  # invert: lower condition = stronger appeal evidence
+
+        cond_table = Table(
+            [[
+                Paragraph("Composite Condition Index", styles["label"]),
+                Paragraph(
+                    f"{cond_score}/100",
+                    ParagraphStyle("cond_num", fontName="Helvetica-Bold",
+                                   fontSize=12, textColor=cond_color, alignment=TA_RIGHT),
+                ),
+            ], [
+                Paragraph("Evidence Strength", styles["label"]),
+                Paragraph(
+                    f"{evid_score}/100",
+                    ParagraphStyle("evid_num", fontName="Helvetica-Bold",
+                                   fontSize=12, textColor=NAVY, alignment=TA_RIGHT),
+                ),
+            ]],
+            colWidths=[5 * inch, 2.5 * inch],
+        )
+        cond_table.setStyle(TableStyle([
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [CREAM, LIGHT]),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        story.append(cond_table)
+        story.append(Spacer(1, 10))
+
+        summary_para = findings.get("summaryParagraph") or ""
+        if summary_para:
+            story.append(Paragraph(summary_para, styles["body"]))
+            story.append(Spacer(1, 8))
+
+        observations = findings.get("topObservations") or []
+        if observations:
+            story.append(Paragraph("<b>Documented Observations</b>", styles["body"]))
+            story.append(Spacer(1, 3))
+            for obs in observations[:6]:
+                story.append(Paragraph(f"• {obs}", styles["bullet"]))
+            story.append(Spacer(1, 6))
+
+        value_issues = findings.get("topValueIssues") or []
+        if value_issues:
+            story.append(Paragraph("<b>Value-Impacting Items</b>", styles["body"]))
+            story.append(Spacer(1, 3))
+            for issue in value_issues[:6]:
+                story.append(Paragraph(f"• {issue}", styles["bullet"]))
+            story.append(Spacer(1, 6))
+
+        story.append(Paragraph(
+            "<i>Condition findings are descriptive in nature and supplement, but do not "
+            "replace, the comparable-sales analysis. Final fair-market-value conclusions "
+            "are driven by the sales-comparison approach.</i>",
+            styles["disclaimer"],
+        ))
+        story.append(Spacer(1, 14))
+
     # ── PROPERTY PHOTOS ───────────────────────────────────────────────────────
     photos = data.get("photos") or []
     if photos:
@@ -526,8 +594,24 @@ def generate_pdf(data: dict, output_path: str):
         styles["footer"]
     ))
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
     print(f"✅ PDF generated: {output_path}")
+
+
+def _draw_page_chrome(canvas, doc):
+    """Draw a thin gold rule and page number on every page."""
+    canvas.saveState()
+    page_w = letter[0]
+    # Top gold rule
+    canvas.setStrokeColor(GOLD)
+    canvas.setLineWidth(0.6)
+    canvas.line(0.6 * inch, letter[1] - 0.45 * inch, page_w - 0.6 * inch, letter[1] - 0.45 * inch)
+    # Footer page number
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(MUTED)
+    canvas.drawRightString(page_w - 0.6 * inch, 0.4 * inch, f"Page {doc.page}")
+    canvas.drawString(0.6 * inch, 0.4 * inch, "AppraiseAI · Confidential")
+    canvas.restoreState()
 
 
 if __name__ == "__main__":

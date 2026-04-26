@@ -12,11 +12,13 @@
 import { classifyPropertyType, classifyByAddressPattern } from "./propertyClassifier";
 import { aggregatePropertyData } from "./propertyDataAggregator";
 import { analyzeProperty } from "./appraisalAnalyzer";
+import { analyzePropertyPhotos, type PhotoAnalysisSummary } from "./photoAnalyzer";
 import {
   createPropertyAnalysis,
   updatePropertySubmission,
   getPropertySubmissionById,
   getPropertyAnalysisBySubmissionId,
+  getSubmissionPhotos,
   persistActivityLog,
 } from "../db";
 import { notifyOwner } from "../_core/notification";
@@ -193,6 +195,50 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     const approachOverride = getScenarioApproachOverride(userScenario, scenarioAppealStrength);
     const finalApproach = approachOverride || analysis.recommendedApproach;
 
+    // ── Step 4c: Photo condition analysis (additive, never blocking) ─────────
+    let photoSummary: PhotoAnalysisSummary | null = null;
+    let appealStrengthAfterPhotos = scenarioAppealStrength;
+    try {
+      const photos = await getSubmissionPhotos(submissionId);
+      if (photos.length > 0) {
+        broadcastAnalysisUpdate(submissionId, "step", {
+          step: "photo_analysis_started",
+          message: `Analyzing ${photos.length} photo${photos.length === 1 ? "" : "s"} for condition evidence...`,
+          photoCount: photos.length,
+        });
+        photoSummary = await analyzePropertyPhotos(photos);
+        if (photoSummary.findings.length > 0) {
+          appealStrengthAfterPhotos = Math.max(
+            0,
+            Math.min(100, scenarioAppealStrength + photoSummary.appealStrengthDelta),
+          );
+          await persistActivityLog({
+            submissionId,
+            type: "photo_analysis_complete",
+            actor: "system",
+            description: `Photo analysis complete — ${photoSummary.findings.length} photo${photoSummary.findings.length === 1 ? "" : "s"} analyzed, condition: ${photoSummary.overallConditionScore}/100, appeal-strength delta: ${photoSummary.appealStrengthDelta >= 0 ? "+" : ""}${photoSummary.appealStrengthDelta}`,
+            metadata: JSON.stringify({
+              photoCount: photoSummary.findings.length,
+              overallConditionScore: photoSummary.overallConditionScore,
+              overallEvidenceStrength: photoSummary.overallEvidenceStrength,
+              appealStrengthDelta: photoSummary.appealStrengthDelta,
+              topObservations: photoSummary.topObservations,
+              topValueIssues: photoSummary.topValueIssues,
+            }),
+            status: "success",
+          });
+          broadcastAnalysisUpdate(submissionId, "step", {
+            step: "photo_analysis_complete",
+            photoCount: photoSummary.findings.length,
+            conditionScore: photoSummary.overallConditionScore,
+            appealStrengthDelta: photoSummary.appealStrengthDelta,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn(`[AnalysisJob] Photo analysis failed (non-blocking) for #${submissionId}:`, (err as Error).message);
+    }
+
     await persistActivityLog({
       submissionId,
       type: "scenario_adjustments_applied",
@@ -277,10 +323,20 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           ...analysis.appealStrengthFactors,
           `Scenario: ${scenarioContext.scenarioLabel}`,
           ...scenarioContext.userAdvocacyPoints.slice(0, 2),
+          ...(photoSummary && photoSummary.findings.length > 0
+            ? [
+                `Photo evidence: ${photoSummary.findings.length} photo${photoSummary.findings.length === 1 ? "" : "s"} analyzed (condition ${photoSummary.overallConditionScore}/100)`,
+                ...photoSummary.topValueIssues.slice(0, 3).map(i => `Photo observation: ${i}`),
+              ]
+            : []),
         ]),
         recommendedApproach: finalApproach,
         executiveSummary: analysis.executiveSummary,
-        valuationJustification: `${analysis.valuationJustification}\n\nScenario Context (${scenarioContext.scenarioLabel}): ${scenarioContext.narrativeTemplate}`,
+        valuationJustification:
+          `${analysis.valuationJustification}\n\nScenario Context (${scenarioContext.scenarioLabel}): ${scenarioContext.narrativeTemplate}` +
+          (photoSummary && photoSummary.findings.length > 0
+            ? `\n\nProperty Condition Evidence: ${photoSummary.summaryParagraph}`
+            : ""),
         nextSteps: JSON.stringify(appealStrategy?.nextActions || analysis.nextSteps),
         scenarioContext: JSON.stringify({
           scenario: userScenario,
@@ -314,7 +370,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       estimatedMarketValueLow: Math.round(scenarioAdjustedValue * 0.92),
       estimatedMarketValueHigh: Math.round(scenarioAdjustedValue * 1.08),
       potentialSavings: scenarioTaxSavings,
-      appealStrengthScore: scenarioAppealStrength,
+      appealStrengthScore: appealStrengthAfterPhotos,
       confidenceScore: Math.round(scenarioContext.appealStrengthModifiers.evidenceStrengthMultiplier * 80),
       compQualityScore: Math.round(scenarioContext.valuationAdjustments.marketApproachWeight * 100),
       county: propertyData.county || undefined,
@@ -327,8 +383,8 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
 
     const durationMs = Date.now() - startTime;
     const strengthLabel =
-      analysis.appealStrengthScore >= 70 ? "STRONG appeal candidate" :
-      analysis.appealStrengthScore >= 40 ? "Moderate appeal potential" : "Low appeal potential";
+      appealStrengthAfterPhotos >= 70 ? "STRONG appeal candidate" :
+      appealStrengthAfterPhotos >= 40 ? "Moderate appeal potential" : "Low appeal potential";
 
     await persistActivityLog({
       submissionId,
@@ -337,16 +393,23 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       description: `Pipeline complete in ${(durationMs / 1000).toFixed(1)}s — ${strengthLabel}`,
       metadata: JSON.stringify({
         durationMs,
-        appealStrengthScore: analysis.appealStrengthScore,
-        potentialSavings: analysis.potentialSavings,
+        appealStrengthScore: appealStrengthAfterPhotos,
+        potentialSavings: scenarioTaxSavings,
         propertyType: normalizedType,
         appealDeadline: appealDeadline?.toISOString(),
+        photoAnalysis: photoSummary && photoSummary.findings.length > 0
+          ? {
+              photoCount: photoSummary.findings.length,
+              conditionScore: photoSummary.overallConditionScore,
+              appealStrengthDelta: photoSummary.appealStrengthDelta,
+            }
+          : null,
       }),
       status: "success",
       durationMs,
     });    broadcastAnalysisUpdate(submissionId, "complete", {
       status: "analyzed",
-      appealStrengthScore: scenarioAppealStrength,
+      appealStrengthScore: appealStrengthAfterPhotos,
       potentialSavings: scenarioTaxSavings,
       marketValueEstimate: scenarioAdjustedValue,
       assessmentGap: scenarioAdjustedGap,
@@ -356,7 +419,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     // ── Step 9: Notify owner ──────────────────────────────────────────────────
     await notifyOwner({
       title: `Analysis Complete — ${strengthLabel} (${scenarioContext.scenarioLabel})`,
-      content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${scenarioAppealStrength}/100\nPotential Savings: $${scenarioTaxSavings.toLocaleString()}/yr\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
+      content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${appealStrengthAfterPhotos}/100\nPotential Savings: $${scenarioTaxSavings.toLocaleString()}/yr\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
     }).catch((err: unknown) => console.error("[AnalysisJob] Failed to notify owner:", err));
     // Queue report generation (24-hour SLA)
 
@@ -366,11 +429,11 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         userEmail: submission.email,
         userName: submission.email.split("@")[0],
         propertyAddress: submission.address,
-        appealStrengthScore: scenarioAppealStrength,
+        appealStrengthScore: appealStrengthAfterPhotos,
       }).catch((err: unknown) => console.error("[AnalysisJob] Failed to send confirmation email:", err));
     }
 
-    console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${scenarioAppealStrength}/100, scenario: ${userScenario}`);
+    console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${appealStrengthAfterPhotos}/100, scenario: ${userScenario}`);
 
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);

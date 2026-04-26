@@ -22,6 +22,7 @@ import {
   persistActivityLog,
   evictExpiredCache,
   getSubmissionPhotos,
+  getLatestPhotoAnalysis,
   getFilingTierBySubmission,
   createFilingTier,
   getDb,
@@ -757,6 +758,7 @@ export const appRouter = router({
 
         const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
         const photos = await getSubmissionPhotos(input.submissionId);
+        const photoAnalysis = await getLatestPhotoAnalysis(input.submissionId);
 
         const reportData: AppraisalReportData = {
           submissionId: input.submissionId,
@@ -786,6 +788,16 @@ export const appRouter = router({
           lotSize: submission.lotSize ?? undefined,
           parcelNumber: undefined,
           photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
+          photoFindings: photoAnalysis
+            ? {
+                overallConditionScore: photoAnalysis.overallConditionScore,
+                overallEvidenceStrength: photoAnalysis.overallEvidenceStrength,
+                summaryParagraph:
+                  `Visual inspection of ${photoAnalysis.photoCount} owner-submitted photograph${photoAnalysis.photoCount === 1 ? "" : "s"} indicates a composite condition index of ${photoAnalysis.overallConditionScore}/100. These observations supplement the comparable-sales analysis and are descriptive in nature.`,
+                topObservations: photoAnalysis.topObservations,
+                topValueIssues: photoAnalysis.topValueIssues,
+              }
+            : undefined,
         };
 
         const { url, key } = await generateAppraisalPDF(reportData);
