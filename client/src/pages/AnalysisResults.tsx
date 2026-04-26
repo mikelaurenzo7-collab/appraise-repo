@@ -23,6 +23,7 @@ import {
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PropertyMapView from "@/components/PropertyMapView";
+import { ShimmerSkeleton, ShimmerCard, ShimmerStatRow } from "@/components/ShimmerSkeleton";
 import { trpc } from "@/lib/trpc";
 import {
   computePipelineState,
@@ -138,10 +139,19 @@ export default function AnalysisResults() {
       <div className="min-h-screen bg-[#F1F5F9]">
         <Navbar />
         <section className="pt-32 pb-20">
-          <div className="container max-w-2xl text-center">
-            <Loader2 size={48} className="text-[#7C3AED] mx-auto mb-4 animate-spin" />
-            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">Loading Analysis...</h1>
-            <p className="text-[#64748B]">Fetching your property analysis results.</p>
+          <div className="container max-w-4xl">
+            <ShimmerSkeleton count={1} className="h-8 w-48 mx-auto mb-4 rounded-lg" />
+            <ShimmerSkeleton count={1} className="h-4 w-64 mx-auto mb-12 rounded-md" />
+            <ShimmerStatRow count={3} />
+            <div className="mt-8 grid lg:grid-cols-3 gap-6">
+              <ShimmerCard lines={2} />
+              <div className="lg:col-span-2">
+                <ShimmerCard lines={4} />
+              </div>
+            </div>
+            <div className="mt-6">
+              <ShimmerCard lines={3} />
+            </div>
           </div>
         </section>
         <Footer />

@@ -26,6 +26,7 @@ import ReportDownload from "./pages/ReportDownload";
 import FilingStatus from "./pages/FilingStatus";
 import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
 import LeadChatWidget from "./components/LeadChatWidget";
+import ScrollProgress from "./components/ScrollProgress";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -70,6 +71,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
+          <ScrollProgress />
           <Router />
           <LeadChatWidget />
         </TooltipProvider>
