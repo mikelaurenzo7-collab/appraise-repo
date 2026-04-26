@@ -85,6 +85,13 @@
       "when": 1777131303563,
       "tag": "0011_material_doorman",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1777187849281,
+      "tag": "0012_silky_silhouette",
+      "breakpoints": true
     }
   ]
 }
