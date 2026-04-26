@@ -1,5 +1,6 @@
 import { useState } from "react";
 import RecordOutcomeModal from "@/components/RecordOutcomeModal";
+import { ManusLoginButton } from "@/components/ManusLoginButton";
 import { Link } from "wouter";
 import {
   BarChart3, TrendingDown, FileText, Clock, CheckCircle2, AlertTriangle,
@@ -8,7 +9,6 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 
 function StatusBadge({ status }: { status: string }) {
@@ -102,7 +102,13 @@ export default function AdminDashboard() {
         <div className="text-center">
           <AlertTriangle size={48} className="text-[#7C3AED] mx-auto mb-4" />
           <h1 className="font-display text-2xl font-bold text-[#0F172A] mb-4">Admin Access Required</h1>
-          <a href={getLoginUrl()} className="btn-gold px-6 py-3 rounded font-semibold inline-block">Sign In</a>
+          <ManusLoginButton
+            className="btn-gold px-6 py-3 h-auto rounded font-semibold"
+            dialogTitle="Admin access requires Manus"
+            dialogDescription="We’ll return you to the command center after Manus signs you in."
+          >
+            Sign In
+          </ManusLoginButton>
         </div>
       </div>
     );

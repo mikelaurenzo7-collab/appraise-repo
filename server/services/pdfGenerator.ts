@@ -79,6 +79,16 @@ export interface AppraisalReportData {
   }>;
   streetViewUrl?: string;
   satelliteImageUrl?: string;
+  // Optional photo-condition analysis findings, surfaced as a dedicated section
+  // in the PDF. Provided by the photoAnalyzer service. When present, the PDF
+  // renders a "Property Condition Findings" page before the photo gallery.
+  photoFindings?: {
+    overallConditionScore: number;
+    overallEvidenceStrength: number;
+    summaryParagraph: string;
+    topObservations: string[];
+    topValueIssues: string[];
+  };
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

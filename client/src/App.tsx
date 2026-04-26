@@ -30,6 +30,7 @@ import AppealScoring from "./pages/AppealScoring";
 import PhotoAnalysis from "./pages/PhotoAnalysis";
 import CountyGuides from "./pages/CountyGuides";
 import ReferralProgram from "./pages/ReferralProgram";
+import ScrollProgress from "./components/ScrollProgress";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -80,6 +81,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
+          <ScrollProgress />
           <Router />
           <LeadChatWidget />
         </TooltipProvider>

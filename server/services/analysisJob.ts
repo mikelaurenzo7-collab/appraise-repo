@@ -12,17 +12,29 @@
 import { classifyPropertyType, classifyByAddressPattern } from "./propertyClassifier";
 import { aggregatePropertyData } from "./propertyDataAggregator";
 import { analyzeProperty } from "./appraisalAnalyzer";
+import { analyzePropertyPhotos, type PhotoAnalysisSummary } from "./photoAnalyzer";
 import {
   createPropertyAnalysis,
   updatePropertySubmission,
   getPropertySubmissionById,
   getPropertyAnalysisBySubmissionId,
+  getSubmissionPhotos,
   persistActivityLog,
 } from "../db";
 import { notifyOwner } from "../_core/notification";
 import { runPropertyResearch, analyzePropertyPhotos } from "./geminiResearch";
 import { getJurisdictionRules } from "../data/jurisdictionRules";
 import { capturePropertyImagery } from "../_core/streetViewCapture";
+import {
+  getScenarioContext,
+  calculateScenarioAdjustedValue,
+  calculateScenarioAppealStrength,
+  calculateScenarioTaxSavings,
+  generateScenarioPromptContext,
+  getScenarioApproachOverride,
+  type UserScenario,
+} from "./scenarioValuation";
+import { broadcastAnalysisUpdate } from "../_core/sseBroadcaster";
 
 // Prevent duplicate concurrent jobs for the same submission
 const activeJobs = new Set<number>();
@@ -66,6 +78,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       description: `AI analysis pipeline started for ${submission.address}`,
       status: "success",
     });
+    broadcastAnalysisUpdate(submissionId, "status", { status: "analyzing", message: "Starting AI analysis pipeline..." });
 
     // ── Step 1: Classify property type ───────────────────────────────────────
     const llmType = await classifyPropertyType(
@@ -84,6 +97,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       metadata: JSON.stringify({ propertyType, llmType }),
       status: "success",
     });
+    broadcastAnalysisUpdate(submissionId, "step", { step: "property_classified", propertyType });
 
     // ── Step 1b: Capture Google Maps imagery (fire-and-forget) ──────────────
     // Non-blocking — imagery is captured in the background while analysis runs.
@@ -111,6 +125,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       description: "Querying RentCast, Realie, and AttomData in parallel",
       status: "success",
     });
+    broadcastAnalysisUpdate(submissionId, "step", { step: "api_aggregation_started", message: "Fetching property data from 4 sources..." });
 
     const propertyData = await aggregatePropertyData(
       submission.address,
@@ -131,6 +146,12 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         source: propertyData.source,
       }),
       status: "success",
+    });
+    broadcastAnalysisUpdate(submissionId, "step", {
+      step: "api_aggregation_complete",
+      assessedValue: propertyData.assessedValue,
+      marketValue: propertyData.marketValue,
+      comparablesFound: propertyData.comparableSales?.length ?? 0,
     });
 
     // ── Step 2.5: Gemini dual-model research (non-blocking, best-effort) ────────────────────
@@ -197,28 +218,136 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     const state = submission.state || "";
     const jurisdictionRules = getJurisdictionRules(state);
 
-    // ── Step 4: LLM analysis ─────────────────────────────────────────────────
+    // ── Step 3b: Load scenario context ───────────────────────────────────────
+    const userScenario = (submission.userScenario || "none") as UserScenario;
+    const scenarioContext = getScenarioContext(userScenario);
+
+    await persistActivityLog({
+      submissionId,
+      type: "scenario_loaded",
+      actor: "system",
+      description: `Scenario-aware analysis: ${scenarioContext.scenarioLabel}`,
+      metadata: JSON.stringify({
+        scenario: userScenario,
+        scenarioLabel: scenarioContext.scenarioLabel,
+        urgency: scenarioContext.appealStrengthModifiers.urgencyLevel,
+      }),
+      status: "success",
+    });
+
+    // ── Step 4: LLM analysis (scenario-aware) ────────────────────────────────
     await persistActivityLog({
       submissionId,
       type: "llm_analysis_started",
       actor: "system",
-      description: "LLM appraisal analysis running — USPAP-aligned methodology",
+      description: "LLM appraisal analysis running — USPAP-aligned, scenario-aware methodology",
       status: "success",
     });
 
     const analysis = await analyzeProperty(propertyData, propertyType, researchInsights, photoAnalysis);
 
+    // ── Step 4b: Apply scenario adjustments ──────────────────────────────────
+    const scenarioAdjustedValue = calculateScenarioAdjustedValue(
+      analysis.marketValueEstimate,
+      userScenario,
+      propertyData
+    );
+
+    const scenarioAdjustedGap = (propertyData.assessedValue || 0) - scenarioAdjustedValue;
+    const scenarioGapPercent = propertyData.assessedValue
+      ? (scenarioAdjustedGap / propertyData.assessedValue) * 100
+      : 0;
+
+    const scenarioAppealStrength = calculateScenarioAppealStrength(
+      analysis.appealStrengthScore,
+      scenarioGapPercent,
+      userScenario
+    );
+
+    const scenarioTaxSavings = calculateScenarioTaxSavings(
+      Math.max(0, scenarioAdjustedGap),
+      userScenario,
+      0.012 // Default US average tax rate; jurisdiction-specific rates can be added to JurisdictionRule
+    );
+
+    // Override recommended approach based on scenario
+    const approachOverride = getScenarioApproachOverride(userScenario, scenarioAppealStrength);
+    const finalApproach = approachOverride || analysis.recommendedApproach;
+
+    // ── Step 4c: Photo condition analysis (additive, never blocking) ─────────
+    let photoSummary: PhotoAnalysisSummary | null = null;
+    let appealStrengthAfterPhotos = scenarioAppealStrength;
+    try {
+      const photos = await getSubmissionPhotos(submissionId);
+      if (photos.length > 0) {
+        broadcastAnalysisUpdate(submissionId, "step", {
+          step: "photo_analysis_started",
+          message: `Analyzing ${photos.length} photo${photos.length === 1 ? "" : "s"} for condition evidence...`,
+          photoCount: photos.length,
+        });
+        photoSummary = await analyzePropertyPhotos(photos);
+        if (photoSummary.findings.length > 0) {
+          appealStrengthAfterPhotos = Math.max(
+            0,
+            Math.min(100, scenarioAppealStrength + photoSummary.appealStrengthDelta),
+          );
+          await persistActivityLog({
+            submissionId,
+            type: "photo_analysis_complete",
+            actor: "system",
+            description: `Photo analysis complete — ${photoSummary.findings.length} photo${photoSummary.findings.length === 1 ? "" : "s"} analyzed, condition: ${photoSummary.overallConditionScore}/100, appeal-strength delta: ${photoSummary.appealStrengthDelta >= 0 ? "+" : ""}${photoSummary.appealStrengthDelta}`,
+            metadata: JSON.stringify({
+              photoCount: photoSummary.findings.length,
+              overallConditionScore: photoSummary.overallConditionScore,
+              overallEvidenceStrength: photoSummary.overallEvidenceStrength,
+              appealStrengthDelta: photoSummary.appealStrengthDelta,
+              topObservations: photoSummary.topObservations,
+              topValueIssues: photoSummary.topValueIssues,
+            }),
+            status: "success",
+          });
+          broadcastAnalysisUpdate(submissionId, "step", {
+            step: "photo_analysis_complete",
+            photoCount: photoSummary.findings.length,
+            conditionScore: photoSummary.overallConditionScore,
+            appealStrengthDelta: photoSummary.appealStrengthDelta,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn(`[AnalysisJob] Photo analysis failed (non-blocking) for #${submissionId}:`, (err as Error).message);
+    }
+
+    await persistActivityLog({
+      submissionId,
+      type: "scenario_adjustments_applied",
+      actor: "system",
+      description: `Scenario adjustments applied — value: $${scenarioAdjustedValue.toLocaleString()}, strength: ${scenarioAppealStrength}/100, savings: $${scenarioTaxSavings.toLocaleString()}/yr`,
+      metadata: JSON.stringify({
+        baseMarketValue: analysis.marketValueEstimate,
+        scenarioAdjustedValue,
+        baseAppealStrength: analysis.appealStrengthScore,
+        scenarioAppealStrength,
+        baseSavings: analysis.potentialSavings,
+        scenarioTaxSavings,
+        finalApproach,
+        scenario: userScenario,
+      }),
+      status: "success",
+    });
+
     await persistActivityLog({
       submissionId,
       type: "llm_analysis_complete",
       actor: "system",
-      description: `Gemini + LLM analysis complete — appeal strength: ${analysis.appealStrengthScore}/100, potential savings: $${analysis.potentialSavings?.toLocaleString() ?? "N/A"}, approach: ${analysis.recommendedApproach}${photoAnalysis ? `, condition: ${photoAnalysis.conditionScore}/5` : ""}`,
+      description: `Gemini + LLM analysis complete — appeal strength: ${scenarioAppealStrength}/100, potential savings: $${scenarioTaxSavings?.toLocaleString() ?? "N/A"}, approach: ${finalApproach}${photoAnalysis ? `, condition: ${photoAnalysis.conditionScore}/5` : ""}`,
       metadata: JSON.stringify({
-        appealStrengthScore: analysis.appealStrengthScore,
-        potentialSavings: analysis.potentialSavings,
-        marketValueEstimate: analysis.marketValueEstimate,
-        assessmentGap: analysis.assessmentGap,
-        recommendedApproach: analysis.recommendedApproach,
+        appealStrengthScore: scenarioAppealStrength,
+        potentialSavings: scenarioTaxSavings,
+        marketValueEstimate: scenarioAdjustedValue,
+        assessmentGap: scenarioAdjustedGap,
+        recommendedApproach: finalApproach,
+        scenario: userScenario,
       }),
       status: "success",
     });
@@ -230,7 +359,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       propertyData.county || submission.county || undefined,
       propertyType,
       propertyData.assessedValue || 0,
-      propertyData.marketValue || analysis.marketValueEstimate || 0,
+      scenarioAdjustedValue,
       new Date()
     );
 
@@ -257,7 +386,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       appealDeadline.setDate(appealDeadline.getDate() + jurisdictionRules.appealDeadlineDays);
     }
 
-    // ── Step 7: Persist analysis record ──────────────────────────────────────
+    // ── Step 7: Persist analysis record (with scenario context) ──────────────
     const existingAnalysis = await getPropertyAnalysisBySubmissionId(submissionId);
     if (!existingAnalysis) {
       await createPropertyAnalysis({
@@ -267,13 +396,43 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         regrindData: JSON.stringify(propertyData),
         attomData: JSON.stringify(propertyData),
         comparableSales: JSON.stringify(propertyData.comparableSales || []),
-        marketValueEstimate: analysis.marketValueEstimate,
-        assessmentGap: analysis.assessmentGap,
-        appealStrengthFactors: JSON.stringify(analysis.appealStrengthFactors),
-        recommendedApproach: analysis.recommendedApproach,
+        marketValueEstimate: scenarioAdjustedValue,
+        assessmentGap: scenarioAdjustedGap,
+        appealStrengthFactors: JSON.stringify([
+          ...analysis.appealStrengthFactors,
+          `Scenario: ${scenarioContext.scenarioLabel}`,
+          ...scenarioContext.userAdvocacyPoints.slice(0, 2),
+          ...(photoSummary && photoSummary.findings.length > 0
+            ? [
+                `Photo evidence: ${photoSummary.findings.length} photo${photoSummary.findings.length === 1 ? "" : "s"} analyzed (condition ${photoSummary.overallConditionScore}/100)`,
+                ...photoSummary.topValueIssues.slice(0, 3).map(i => `Photo observation: ${i}`),
+              ]
+            : []),
+        ]),
+        recommendedApproach: finalApproach,
         executiveSummary: analysis.executiveSummary,
-        valuationJustification: analysis.valuationJustification,
+        valuationJustification:
+          `${analysis.valuationJustification}\n\nScenario Context (${scenarioContext.scenarioLabel}): ${scenarioContext.narrativeTemplate}` +
+          (photoSummary && photoSummary.findings.length > 0
+            ? `\n\nProperty Condition Evidence: ${photoSummary.summaryParagraph}`
+            : ""),
         nextSteps: JSON.stringify(appealStrategy?.nextActions || analysis.nextSteps),
+        scenarioContext: JSON.stringify({
+          scenario: userScenario,
+          scenarioLabel: scenarioContext.scenarioLabel,
+          urgencyLevel: scenarioContext.appealStrengthModifiers.urgencyLevel,
+          adjustments: scenarioContext.valuationAdjustments,
+        }),
+        valuationApproachWeights: JSON.stringify({
+          market: scenarioContext.valuationAdjustments.marketApproachWeight,
+          income: scenarioContext.valuationAdjustments.incomeApproachWeight,
+          cost: scenarioContext.valuationAdjustments.costApproachWeight,
+        }),
+        compQualityBreakdown: JSON.stringify({
+          totalComps: propertyData.comparableSales?.length ?? 0,
+          filteredComps: propertyData.comparableSales?.length ?? 0,
+          strategy: scenarioContext.compFilterStrategy,
+        }),
       });
     }
 
@@ -286,9 +445,13 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "analyzed",
       propertyType: normalizedType,
       assessedValue: propertyData.assessedValue,
-      marketValue: propertyData.marketValue || analysis.marketValueEstimate,
-      potentialSavings: analysis.potentialSavings,
-      appealStrengthScore: analysis.appealStrengthScore,
+      marketValue: scenarioAdjustedValue,
+      estimatedMarketValueLow: Math.round(scenarioAdjustedValue * 0.92),
+      estimatedMarketValueHigh: Math.round(scenarioAdjustedValue * 1.08),
+      potentialSavings: scenarioTaxSavings,
+      appealStrengthScore: appealStrengthAfterPhotos,
+      confidenceScore: Math.round(scenarioContext.appealStrengthModifiers.evidenceStrengthMultiplier * 80),
+      compQualityScore: Math.round(scenarioContext.valuationAdjustments.marketApproachWeight * 100),
       county: propertyData.county || undefined,
       squareFeet: propertyData.squareFeet,
       yearBuilt: propertyData.yearBuilt,
@@ -299,8 +462,8 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
 
     const durationMs = Date.now() - startTime;
     const strengthLabel =
-      analysis.appealStrengthScore >= 70 ? "STRONG appeal candidate" :
-      analysis.appealStrengthScore >= 40 ? "Moderate appeal potential" : "Low appeal potential";
+      appealStrengthAfterPhotos >= 70 ? "STRONG appeal candidate" :
+      appealStrengthAfterPhotos >= 40 ? "Moderate appeal potential" : "Low appeal potential";
 
     await persistActivityLog({
       submissionId,
@@ -309,23 +472,47 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       description: `Pipeline complete in ${(durationMs / 1000).toFixed(1)}s — ${strengthLabel}`,
       metadata: JSON.stringify({
         durationMs,
-        appealStrengthScore: analysis.appealStrengthScore,
-        potentialSavings: analysis.potentialSavings,
+        appealStrengthScore: appealStrengthAfterPhotos,
+        potentialSavings: scenarioTaxSavings,
         propertyType: normalizedType,
         appealDeadline: appealDeadline?.toISOString(),
+        photoAnalysis: photoSummary && photoSummary.findings.length > 0
+          ? {
+              photoCount: photoSummary.findings.length,
+              conditionScore: photoSummary.overallConditionScore,
+              appealStrengthDelta: photoSummary.appealStrengthDelta,
+            }
+          : null,
       }),
       status: "success",
       durationMs,
+    });    broadcastAnalysisUpdate(submissionId, "complete", {
+      status: "analyzed",
+      appealStrengthScore: appealStrengthAfterPhotos,
+      potentialSavings: scenarioTaxSavings,
+      marketValueEstimate: scenarioAdjustedValue,
+      assessmentGap: scenarioAdjustedGap,
+      scenario: userScenario,
+      durationMs,
     });
-
     // ── Step 9: Notify owner ──────────────────────────────────────────────────
     await notifyOwner({
-      title: `Analysis Complete — ${strengthLabel}`,
-      content: `Property: ${submission.address}\n\nMarket Value: $${analysis.marketValueEstimate.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${analysis.assessmentGap.toLocaleString()}\nAppeal Strength: ${analysis.appealStrengthScore}/100\nPotential Savings: $${analysis.potentialSavings?.toLocaleString() ?? "N/A"}/yr\nApproach: ${analysis.recommendedApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\n\nView: /analysis?id=${submissionId}`,
+      title: `Analysis Complete — ${strengthLabel} (${scenarioContext.scenarioLabel})`,
+      content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${appealStrengthAfterPhotos}/100\nPotential Savings: $${scenarioTaxSavings.toLocaleString()}/yr\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
     }).catch((err: unknown) => console.error("[AnalysisJob] Failed to notify owner:", err));
     // Queue report generation (24-hour SLA)
 
-    console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${analysis.appealStrengthScore}/100`);
+    // ── Step 9b: Send user email confirmation ────────────────────────────────
+    if (submission.email) {
+      await sendAnalysisConfirmationEmail({
+        userEmail: submission.email,
+        userName: submission.email.split("@")[0],
+        propertyAddress: submission.address,
+        appealStrengthScore: appealStrengthAfterPhotos,
+      }).catch((err: unknown) => console.error("[AnalysisJob] Failed to send confirmation email:", err));
+    }
+
+    console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${appealStrengthAfterPhotos}/100, scenario: ${userScenario}`);
 
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);

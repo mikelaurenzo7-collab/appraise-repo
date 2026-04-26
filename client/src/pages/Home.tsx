@@ -597,7 +597,7 @@ export default function Home() {
                     <Star key={j} size={14} className="fill-[#7C3AED] text-[#7C3AED]" />
                   ))}
                 </div>
-                <blockquote className="text-[#E2E8F0] font-body leading-relaxed mb-6 italic">
+                <blockquote className="text-[#334155] font-body leading-relaxed mb-6 italic">
                   "{t.quote}"
                 </blockquote>
                 <div className="flex items-center justify-between">

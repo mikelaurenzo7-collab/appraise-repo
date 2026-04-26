@@ -65,6 +65,57 @@ export type TranscriptionError = {
 };
 
 /**
+ * SSRF guard for external URLs supplied to media-fetching services.
+ * Allows only http(s), rejects private/loopback/link-local IPs and
+ * non-DNS hostnames. Used by audio + image fetchers.
+ */
+export function validateAudioUrl(url: string): { ok: true } | { ok: false; error: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, error: "Malformed URL" };
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return { ok: false, error: "Only http/https URLs are allowed" };
+  }
+  const host = parsed.hostname.toLowerCase();
+  // Reject explicit loopback / metadata / link-local hostnames
+  if (
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "metadata.google.internal" ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    return { ok: false, error: "Hostname not allowed" };
+  }
+  // Reject IPv4 private/loopback/link-local ranges if literal IP
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [parseInt(ipv4[1], 10), parseInt(ipv4[2], 10)];
+    if (
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a === 0 ||
+      a >= 224 // multicast / reserved
+    ) {
+      return { ok: false, error: "Private/reserved IP not allowed" };
+    }
+  }
+  // Reject IPv6 loopback / link-local / unique-local
+  if (host.startsWith("[") || host.includes(":")) {
+    if (host === "[::1]" || host.startsWith("[fe80") || host.startsWith("[fc") || host.startsWith("[fd")) {
+      return { ok: false, error: "Private/loopback IPv6 not allowed" };
+    }
+  }
+  return { ok: true };
+}
+
+/**
  * Transcribe audio to text using the internal Speech-to-Text service
  * 
  * @param options - Audio data and metadata
@@ -74,6 +125,16 @@ export async function transcribeAudio(
   options: TranscribeOptions
 ): Promise<TranscriptionResponse | TranscriptionError> {
   try {
+    // Validate audio URL before fetching
+    const urlCheck = validateAudioUrl(options.audioUrl);
+    if (!urlCheck.ok) {
+      return {
+        error: urlCheck.error,
+        code: "INVALID_FORMAT",
+        details: "The provided audio URL is not allowed",
+      };
+    }
+
     // Step 1: Validate environment configuration
     if (!ENV.forgeApiUrl) {
       return {

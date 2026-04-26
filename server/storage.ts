@@ -46,7 +46,12 @@ function ensureTrailingSlash(value: string): string {
 }
 
 function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
+  // Strip leading slashes, prevent path traversal by removing '..' segments
+  return relKey
+    .replace(/^\/+/, "")
+    .replace(/\.\.\//g, "")
+    .replace(/\.\.\\/g, "")
+    .replace(/\.{2,}/g, "");
 }
 
 function toFormData(

@@ -19,13 +19,12 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, LogOut, PanelLeft, Users, CreditCard } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
+import { ManusLoginButton } from "./ManusLoginButton";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -66,18 +65,17 @@ export default function DashboardLayout({
               Sign in to continue
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              Access to this dashboard requires Manus authentication. We’ll return you here as soon as you’re signed in.
             </p>
           </div>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
+          <ManusLoginButton
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
+            dialogTitle="Sign in to access your dashboard"
+            dialogDescription="We’ll bring you right back to this dashboard after Manus signs you in."
           >
-            Sign in
-          </Button>
+            Continue with Manus
+          </ManusLoginButton>
         </div>
       </div>
     );

@@ -26,6 +26,7 @@ import {
   persistActivityLog,
   evictExpiredCache,
   getSubmissionPhotos,
+  getLatestPhotoAnalysis,
   getFilingTierBySubmission,
   createFilingTier,
   getDb,
@@ -368,12 +369,17 @@ export const appRouter = router({
         }
       }),
 
-    getAnalysis: publicProcedure
+    getAnalysis: protectedProcedure
       .input(z.object({ submissionId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         try {
           const submission = await getPropertySubmissionById(input.submissionId);
           if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+          // Ownership check
+          if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+          }
 
           const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
           const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
@@ -414,84 +420,6 @@ export const appRouter = router({
           paymentStatus: tier?.paymentStatus || ("pending" as const),
           filingMethod: submission.filingMethod,
         };
-      }),
-
-    generateReport: protectedProcedure
-      .input(z.object({ submissionId: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        try {
-          const submission = await getPropertySubmissionById(input.submissionId);
-          if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
-
-          // ─── PAYMENT GATE ──────────────────────────────────────────
-          // Owner and admins bypass payment. Everyone else must have paid
-          // if they selected a paid filing method (poa or pro-se).
-          const isOwner = ctx.user.openId === ENV.ownerOpenId;
-          const isAdmin = ctx.user.role === "admin";
-          const isFree = submission.filingMethod === "none";
-
-          if (!isOwner && !isAdmin && !isFree) {
-            const tier = await getFilingTierBySubmission(input.submissionId);
-            if (!tier || tier.paymentStatus !== "paid") {
-              throw new TRPCError({
-                code: "PAYMENT_REQUIRED" as any,
-                message: "Payment is required before generating a report. Please complete checkout first.",
-              });
-            }
-          }
-
-          const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
-          const photos = await getSubmissionPhotos(input.submissionId);
-
-          // Build report data from submission + analysis
-          const reportData = {
-            submissionId: submission.id,
-            address: submission.address,
-            city: submission.city || undefined,
-            state: submission.state || undefined,
-            zipCode: submission.zipCode || undefined,
-            county: submission.county || undefined,
-            propertyType: submission.propertyType || "residential",
-            ownerName: undefined as string | undefined,
-            ownerEmail: submission.email || undefined,
-            assessedValue: submission.assessedValue ?? null,
-            marketValueEstimate: analysis?.marketValueEstimate ?? null,
-            assessmentGap: analysis?.assessmentGap ?? null,
-            potentialSavings: submission.potentialSavings ?? null,
-            appealStrengthScore: submission.appealStrengthScore ?? null,
-            executiveSummary: analysis?.executiveSummary || undefined,
-            valuationJustification: analysis?.valuationJustification || undefined,
-            recommendedApproach: analysis?.recommendedApproach || undefined,
-            filingMethod: submission.filingMethod || "poa",
-            reportType: "instant" as const,
-            comparableSales: analysis?.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-            squareFeet: submission.squareFeet ?? null,
-            yearBuilt: submission.yearBuilt ?? null,
-            bedrooms: submission.bedrooms ?? null,
-            bathrooms: submission.bathrooms ?? null,
-            lotSize: submission.lotSize ?? null,
-            parcelNumber: undefined,
-            photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
-          };
-
-          const { url, sizeBytes } = await generateAppraisalPDF(reportData);
-
-          await persistActivityLog({
-            submissionId: submission.id,
-            type: "report_generated",
-            actor: "user",
-            actorId: ctx.user.id,
-            description: `PDF report generated (${Math.round(sizeBytes / 1024)}KB)`,
-            metadata: JSON.stringify({ pdfUrl: url }),
-            status: "success",
-          });
-
-          return { success: true, url, sizeBytes };
-        } catch (error) {
-          if (error instanceof TRPCError) throw error;
-          console.error("[PDF] Generation failed:", error);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate PDF report. Please try again." });
-        }
       }),
   }),
 
@@ -919,10 +847,10 @@ export const appRouter = router({
     uploadPhoto: protectedProcedure
       .input(z.object({
         submissionId: z.number(),
-        fileName: z.string(),
-        fileData: z.string(), // base64 encoded
+        fileName: z.string().max(255).regex(/^[\w\-. ]+$/, "Invalid file name"),
+        fileData: z.string().max(50_000_000, "File exceeds 50MB limit"),
         category: z.enum(["exterior", "interior", "roof", "foundation", "other"]),
-        caption: z.string().optional(),
+        caption: z.string().max(500).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
@@ -930,7 +858,18 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         }
 
-        // Convert base64 to buffer and upload to S3
+        // Ownership check
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
+        // Validate base64 length sanity (rough check: 4/3 overhead)
+        const rawSize = Buffer.byteLength(input.fileData, "base64");
+        if (rawSize > 20 * 1024 * 1024) {
+          throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Decoded file exceeds 20MB limit" });
+        }
+
+        // Convert base64 to buffer
         const buffer = Buffer.from(input.fileData, "base64");
         const photoKey = `photos/${ctx.user.id}/${input.submissionId}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(photoKey, buffer, "image/jpeg");
@@ -956,6 +895,11 @@ export const appRouter = router({
         const submission = await getPropertySubmissionById(input.submissionId);
         if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
+        // Ownership check (GitHub security hardening)
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
         // ─── PAYMENT GATE ──────────────────────────────────────────
         const isOwner = ctx.user.openId === ENV.ownerOpenId;
         const isAdmin = ctx.user.role === "admin";
@@ -976,6 +920,7 @@ export const appRouter = router({
 
         const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
         const photos = await getSubmissionPhotos(input.submissionId);
+        const photoAnalysis = await getLatestPhotoAnalysis(input.submissionId);
 
         const reportData: AppraisalReportData = {
           submissionId: input.submissionId,
@@ -1005,6 +950,16 @@ export const appRouter = router({
           lotSize: submission.lotSize ?? undefined,
           parcelNumber: undefined,
           photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
+          photoFindings: photoAnalysis
+            ? {
+                overallConditionScore: photoAnalysis.overallConditionScore,
+                overallEvidenceStrength: photoAnalysis.overallEvidenceStrength,
+                summaryParagraph:
+                  `Visual inspection of ${photoAnalysis.photoCount} owner-submitted photograph${photoAnalysis.photoCount === 1 ? "" : "s"} indicates a composite condition index of ${photoAnalysis.overallConditionScore}/100. These observations supplement the comparable-sales analysis and are descriptive in nature.`,
+                topObservations: photoAnalysis.topObservations,
+                topValueIssues: photoAnalysis.topValueIssues,
+              }
+            : undefined,
         };
 
         const { url, key } = await generateAppraisalPDF(reportData);
@@ -1359,7 +1314,7 @@ export const appRouter = router({
     // Submissions management
     listSubmissions: adminProcedure
       .input(z.object({
-        limit: z.number().default(25),
+        limit: z.number().max(500).default(25),
         offset: z.number().default(0),
       }))
       .query(async ({ input }) => {
@@ -1499,7 +1454,7 @@ export const appRouter = router({
       }),
 
     listOutcomes: adminProcedure
-      .input(z.object({ limit: z.number().default(25), offset: z.number().default(0) }))
+      .input(z.object({ limit: z.number().max(500).default(25), offset: z.number().default(0) }))
       .query(async ({ input }) => {
         return listAppealOutcomes(input.limit, input.offset);
       }),
@@ -1510,7 +1465,7 @@ export const appRouter = router({
 
     // Activity feed
     getActivityFeed: adminProcedure
-      .input(z.object({ limit: z.number().default(50) }))
+      .input(z.object({ limit: z.number().max(500).default(50) }))
       .query(async ({ input }) => {
         return getRecentActivityLogs(input.limit);
       }),

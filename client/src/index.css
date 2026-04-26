@@ -394,10 +394,175 @@
     padding: 1.5rem;
     transition: all 0.3s ease-out;
   }
-  
+
   .stat-card:hover {
     background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(13, 148, 136, 0.1) 100%);
     border-color: rgba(124, 58, 237, 0.4);
+  }
+
+  /* ── Scroll Progress Bar ──────────────────────────────── */
+  .scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #7C3AED, #FBBF24, #0D9488);
+    z-index: 100;
+    transition: width 0.1s linear;
+  }
+
+  /* ── Shimmer Loading Skeleton ─────────────────────────── */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 25%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.03) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmerSweep 1.5s ease-in-out infinite;
+    border-radius: 0.5rem;
+  }
+
+  @keyframes shimmerSweep {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ── Magnetic Button Effect ───────────────────────────── */
+  .btn-magnetic {
+    transition: transform 0.15s ease-out;
+  }
+
+  /* ── Glow Ring Pulse ──────────────────────────────────── */
+  .glow-pulse {
+    position: relative;
+  }
+  .glow-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #7C3AED, #0D9488);
+    opacity: 0;
+    z-index: -1;
+    filter: blur(8px);
+    transition: opacity 0.3s ease;
+  }
+  .glow-pulse:hover::after {
+    opacity: 0.5;
+    animation: glowPulse 2s ease-in-out infinite;
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.3; filter: blur(8px); }
+    50% { opacity: 0.6; filter: blur(12px); }
+  }
+
+  /* ── Staggered Entrance Animation ─────────────────────── */
+  .stagger-in > * {
+    opacity: 0;
+    transform: translateY(16px);
+    animation: staggerFadeUp 0.5s ease-out forwards;
+  }
+  @keyframes staggerFadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Floating Animation ───────────────────────────────── */
+  .float {
+    animation: float 6s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-12px); }
+  }
+  .float-delay-1 { animation-delay: -1.5s; }
+  .float-delay-2 { animation-delay: -3s; }
+  .float-delay-3 { animation-delay: -4.5s; }
+
+  /* ── Text Gradient Utility ────────────────────────────── */
+  .text-gradient-purple {
+    background: linear-gradient(135deg, #A78BFA 0%, #7C3AED 50%, #5B21B6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #FCD34D 0%, #FBBF24 50%, #F59E0B 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Active Nav Glow ──────────────────────────────────── */
+  .nav-glow {
+    position: relative;
+  }
+  .nav-glow::before {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #7C3AED;
+    box-shadow: 0 0 8px 2px rgba(124, 58, 237, 0.5);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .nav-glow.active::before,
+  .nav-glow:hover::before {
+    opacity: 1;
+  }
+
+  /* ── Card Hover Lift ──────────────────────────────────── */
+  .card-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 40px -12px rgba(124, 58, 237, 0.15);
+  }
+
+  /* ── Noise Texture Overlay ────────────────────────────── */
+  .noise-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ── Smooth Scroll Behavior ───────────────────────────── */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* ── Custom Scrollbar ─────────────────────────────────── */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0F172A;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #7C3AED;
+  }
+
+  /* ── Selection Color ──────────────────────────────────── */
+  ::selection {
+    background: rgba(124, 58, 237, 0.3);
+    color: #F1F5F9;
+  }
     transform: translateY(-2px);
   }
 
