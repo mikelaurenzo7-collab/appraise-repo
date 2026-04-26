@@ -44,6 +44,7 @@ vi.mock("./db", () => ({
   getFilingJobById: vi.fn(async () => null),
   getFilingJobBySubmissionId: vi.fn(async () => null),
   getUserByOpenId: vi.fn(async () => null),
+  getLatestPhotoAnalysis: vi.fn(async () => null),
 }));
 
 vi.mock("./_core/notification", () => ({
@@ -176,7 +177,7 @@ describe("Payment Gate Enforcement", () => {
       const router = await loadRouter();
       const caller = router.createCaller(makeCtx(normalUser));
       await expect(
-        caller.properties.generateReport({ submissionId: 1 })
+        caller.payments.generateReport({ submissionId: 1 })
       ).rejects.toThrow(/Payment is required/i);
     });
 
@@ -199,7 +200,7 @@ describe("Payment Gate Enforcement", () => {
       mockGetSubmissionPhotos.mockResolvedValue([]);
       const router = await loadRouter();
       const caller = router.createCaller(makeCtx(normalUser));
-      const result = await caller.properties.generateReport({ submissionId: 1 });
+      const result = await caller.payments.generateReport({ submissionId: 1 });
       expect(result.url).toBeDefined();
     });
 
@@ -227,7 +228,7 @@ describe("Payment Gate Enforcement", () => {
       mockGetSubmissionPhotos.mockResolvedValue([]);
       const router = await loadRouter();
       const caller = router.createCaller(makeCtx(normalUser));
-      const result = await caller.properties.generateReport({ submissionId: 1 });
+      const result = await caller.payments.generateReport({ submissionId: 1 });
       expect(result.url).toBeDefined();
     });
 
@@ -250,7 +251,7 @@ describe("Payment Gate Enforcement", () => {
       mockGetSubmissionPhotos.mockResolvedValue([]);
       const router = await loadRouter();
       const caller = router.createCaller(makeCtx(adminUser));
-      const result = await caller.properties.generateReport({ submissionId: 1 });
+      const result = await caller.payments.generateReport({ submissionId: 1 });
       expect(result.url).toBeDefined();
     });
   });

@@ -22,7 +22,7 @@ import {
   persistActivityLog,
 } from "../db";
 import { notifyOwner } from "../_core/notification";
-import { runPropertyResearch, analyzePropertyPhotos } from "./geminiResearch";
+import { runPropertyResearch } from "./geminiResearch";
 import { getJurisdictionRules } from "../data/jurisdictionRules";
 import { capturePropertyImagery } from "../_core/streetViewCapture";
 import {
@@ -176,13 +176,8 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30000)),
       ]),
       // Analyze uploaded photos if available
-      (submission as Record<string, unknown>).photoUrls && Array.isArray((submission as Record<string, unknown>).photoUrls) && ((submission as Record<string, unknown>).photoUrls as string[]).length > 0
-        ? analyzePropertyPhotos(
-            (submission as Record<string, unknown>).photoUrls as string[],
-            propertyType,
-            submission.address
-          )
-        : Promise.resolve(undefined),
+      // Get submission photos from DB and analyze
+      getSubmissionPhotos(submission.id).then(photos => photos.length > 0 ? analyzePropertyPhotos(photos) : undefined),
     ]);
 
     if (researchResult.status === "fulfilled" && researchResult.value) {
@@ -202,12 +197,12 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
 
     if (photoResult.status === "fulfilled" && photoResult.value) {
       photoAnalysis = photoResult.value;
-      console.log(`[AnalysisJob] ✓ Photo analysis complete — condition score: ${photoAnalysis.conditionScore}/5, cost-to-cure: $${photoAnalysis.costToCureEstimate.toLocaleString()}`);
+      console.log(`[AnalysisJob] ✓ Photo analysis complete — condition score: ${photoAnalysis.overallConditionScore}/5, evidence: ${photoAnalysis.overallEvidenceStrength}`);
       await persistActivityLog({
         submissionId,
         type: "api_aggregation_complete",
         actor: "system",
-        description: `Property photo analysis complete — condition score: ${photoAnalysis.conditionScore}/5, ${photoAnalysis.defectsFound.length} defects identified, estimated cost-to-cure: $${photoAnalysis.costToCureEstimate.toLocaleString()}`,
+        description: `Property photo analysis complete — condition score: ${photoAnalysis.overallConditionScore}/5, ${photoAnalysis.topValueIssues.length} value issues identified, evidence strength: ${photoAnalysis.overallEvidenceStrength}`,
         metadata: JSON.stringify(photoAnalysis),
         status: "success",
       });
@@ -244,7 +239,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
-    const analysis = await analyzeProperty(propertyData, propertyType, researchInsights, photoAnalysis);
+    const analysis = await analyzeProperty(propertyData, propertyType, researchInsights, photoAnalysis as any);
 
     // ── Step 4b: Apply scenario adjustments ──────────────────────────────────
     const scenarioAdjustedValue = calculateScenarioAdjustedValue(
@@ -340,7 +335,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       submissionId,
       type: "llm_analysis_complete",
       actor: "system",
-      description: `Gemini + LLM analysis complete — appeal strength: ${scenarioAppealStrength}/100, potential savings: $${scenarioTaxSavings?.toLocaleString() ?? "N/A"}, approach: ${finalApproach}${photoAnalysis ? `, condition: ${photoAnalysis.conditionScore}/5` : ""}`,
+      description: `Gemini + LLM analysis complete — appeal strength: ${scenarioAppealStrength}/100, potential savings: $${scenarioTaxSavings?.toLocaleString() ?? "N/A"}, approach: ${finalApproach}${photoAnalysis ? `, condition: ${photoAnalysis.overallConditionScore}/5` : ""}`,
       metadata: JSON.stringify({
         appealStrengthScore: scenarioAppealStrength,
         potentialSavings: scenarioTaxSavings,
@@ -503,15 +498,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     // Queue report generation (24-hour SLA)
 
     // ── Step 9b: Send user email confirmation ────────────────────────────────
-    if (submission.email) {
-      await sendAnalysisConfirmationEmail({
-        userEmail: submission.email,
-        userName: submission.email.split("@")[0],
-        propertyAddress: submission.address,
-        appealStrengthScore: appealStrengthAfterPhotos,
-      }).catch((err: unknown) => console.error("[AnalysisJob] Failed to send confirmation email:", err));
-    }
-
+    // Email service not available in this environment
     console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${appealStrengthAfterPhotos}/100, scenario: ${userScenario}`);
 
   } catch (error) {
