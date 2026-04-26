@@ -563,8 +563,6 @@
     background: rgba(124, 58, 237, 0.3);
     color: #F1F5F9;
   }
-    transform: translateY(-2px);
-  }
 
   /* Success indicator */
   .success-indicator {
