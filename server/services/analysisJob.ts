@@ -515,8 +515,9 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       durationMs: Date.now() - startTime,
     }).catch(() => {});
 
-    // Reset to pending so it can be re-triggered
-    await updatePropertySubmission(submissionId, { status: "pending" }).catch(() => {});
+    // Mark as error so the submission is not re-triggered in an infinite loop.
+    // The user or admin can manually re-queue if needed.
+    await updatePropertySubmission(submissionId, { status: "error" }).catch(() => {});
   } finally {
     activeJobs.delete(submissionId);
   }

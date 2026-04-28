@@ -245,11 +245,42 @@ export async function processOnePendingJob(): Promise<boolean> {
     return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await updateFilingJob(row.id, {
-      status: "failed",
-      completedAt: new Date(),
-      errorMessage: message,
-    });
+    const currentRetry = (row.retryCount ?? 0) + 1;
+    const maxRetries = row.maxRetries ?? 2;
+
+    if (currentRetry <= maxRetries) {
+      // Retryable: reset to pending so the next poll picks it up
+      await updateFilingJob(row.id, {
+        status: "pending",
+        retryCount: currentRetry,
+        startedAt: null,
+        errorMessage: `Attempt ${currentRetry}/${maxRetries + 1} failed: ${message}`,
+      });
+      await persistActivityLog({
+        submissionId: row.submissionId,
+        type: "filing_retry",
+        actor: "system",
+        description: `Filing #${row.id} will retry (attempt ${currentRetry}/${maxRetries + 1}): ${message}`,
+        metadata: JSON.stringify({ jobId: row.id, retryCount: currentRetry, maxRetries }),
+        status: "error",
+      });
+    } else {
+      // Exhausted all retries — permanently failed
+      await updateFilingJob(row.id, {
+        status: "failed",
+        completedAt: new Date(),
+        retryCount: currentRetry,
+        errorMessage: `All ${maxRetries + 1} attempts failed. Last error: ${message}`,
+      });
+      await persistActivityLog({
+        submissionId: row.submissionId,
+        type: "filing_failed",
+        actor: "system",
+        description: `Filing #${row.id} permanently failed after ${maxRetries + 1} attempts: ${message}`,
+        metadata: JSON.stringify({ jobId: row.id, retryCount: currentRetry, maxRetries }),
+        status: "error",
+      });
+    }
     return true;
   }
 }

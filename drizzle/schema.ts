@@ -77,7 +77,7 @@ export const propertySubmissions = mysqlTable("property_submissions", {
   lng: varchar("lng", { length: 20 }),
 
   // Status tracking
-  status: mysqlEnum("status", ["pending", "analyzing", "analyzed", "contacted", "appeal-filed", "hearing-scheduled", "won", "lost", "withdrawn", "archived"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "analyzing", "analyzed", "error", "contacted", "appeal-filed", "hearing-scheduled", "won", "lost", "withdrawn", "archived"]).default("pending").notNull(),
   filingMethod: mysqlEnum("filingMethod", ["poa", "pro-se", "none"]),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),

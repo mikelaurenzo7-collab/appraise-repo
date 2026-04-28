@@ -34,6 +34,7 @@ import { AnalyticsEvent, track } from "@/lib/analytics";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { Lock, CreditCard } from "lucide-react";
+import { toast } from "sonner";
 
 function ScoreGauge({ score }: { score: number }) {
   const color =
@@ -105,6 +106,23 @@ export default function AnalysisResults() {
 
   // Checkout session mutation for inline payment
   const createCheckoutMutation = trpc.payments.createCheckoutSession.useMutation();
+
+  // Detect the ?payment=success redirect-back from Stripe and unlock the gate
+  // without requiring a manual page refresh.
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("payment") === "success") {
+      // Refetch payment status so the gate unlocks immediately
+      paymentStatusQuery.refetch();
+      toast.success("Payment confirmed! Your full report is ready to download.");
+      // Clean the query param from the URL without a page reload
+      const cleanUrl =
+        window.location.pathname + (submissionId ? `?id=${submissionId}` : "");
+      window.history.replaceState({}, "", cleanUrl);
+    }
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data, isLoading, error } = trpc.properties.getAnalysis.useQuery(
     { submissionId: submissionId! },

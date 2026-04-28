@@ -1,0 +1,1 @@
+ALTER TABLE `property_submissions` MODIFY COLUMN `status` enum('pending','analyzing','analyzed','error','contacted','appeal-filed','hearing-scheduled','won','lost','withdrawn','archived') NOT NULL DEFAULT 'pending';
