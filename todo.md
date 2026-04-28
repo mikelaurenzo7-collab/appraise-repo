@@ -620,3 +620,18 @@
 - [x] E2E: verify Stripe test card 4242 4242 4242 4242 works on deployed domain (test on deployed domain)
 - [x] E2E: verify free tier bypasses payment gate
 - [x] E2E: verify owner/admin bypass on deployed site
+
+## Perfection Pass — County Expansion & Pipeline Fixes (Phase 24)
+- [x] Fix success_url: Pro Se → /analysis?id=X&payment=success, Automated → /appeal-workflow/X?payment=success
+- [x] Add payment=success handler to UserDashboard (toast + invalidate submissions)
+- [x] Expand county seed to 88 counties with verified online portals
+- [x] Verify all three tiers (Free, Pro Se, Automated) route correctly end-to-end
+- [x] Run full test suite and confirm 0 TypeScript errors
+
+## Perfection Pass — County Expansion & Pipeline Fixes (Apr 28 2026)
+- [x] Fix success_url routing: automated tier → /appeal-workflow/:id?payment=success, pro_se → /analysis?id=X&payment=success
+- [x] Add payment=success handler and 'error' status badge to UserDashboard
+- [x] Expand COUNTY_SEED from ~28 to 88 counties (GA, CO, MN, MI, NC, VA, MD, WA, CA, NY, PA, TX, FL, IL, AZ, NJ additions)
+- [x] All 88 counties have verified portal URLs, mailing addresses, filing windows, and preferred/fallback channels
+- [x] TypeScript: 0 errors
+- [x] Test suite: 40 files, 356 passed, 1 skipped (357 total)

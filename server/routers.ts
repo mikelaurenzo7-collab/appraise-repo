@@ -721,7 +721,12 @@ export const appRouter = router({
                 quantity: 1,
               },
             ],
-            success_url: `${ctx.req.headers.origin}/dashboard?payment=success&submissionId=${input.submissionId}`,
+            // Route back to the correct page depending on tier:
+            //   automated (poa) → AppealFilingWorkflow, which has its own payment=success handler
+            //   pro_se / free   → AnalysisResults, which has its own payment=success handler
+            success_url: tier.filingMethod === "poa"
+              ? `${ctx.req.headers.origin}/appeal-workflow/${input.submissionId}?payment=success`
+              : `${ctx.req.headers.origin}/analysis?id=${input.submissionId}&payment=success`,
             cancel_url: `${ctx.req.headers.origin}/analysis?id=${input.submissionId}`,
             metadata: {
               submissionId: input.submissionId.toString(),

@@ -2,7 +2,7 @@
  * UserDashboard — Live data from trpc.user.getSubmissions
  * Shows real submissions, real report job status, and working PDF download/generate buttons.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -39,6 +39,7 @@ type SubmissionStatus =
   | "pending"
   | "analyzing"
   | "analyzed"
+  | "error"
   | "contacted"
   | "appeal-filed"
   | "hearing-scheduled"
@@ -52,6 +53,7 @@ function StatusBadge({ status }: { status: SubmissionStatus }) {
     pending: { label: "Pending", cls: "text-slate-500", Icon: Clock },
     analyzing: { label: "Analyzing", cls: "text-purple-600", Icon: Loader2 },
     analyzed: { label: "Report Ready", cls: "text-green-600", Icon: CheckCircle2 },
+    error: { label: "Analysis Error", cls: "text-red-500", Icon: AlertCircle },
     contacted: { label: "Contacted", cls: "text-blue-600", Icon: CheckCircle2 },
     "appeal-filed": { label: "Appeal Filed", cls: "text-amber-600", Icon: FilePlus2 },
     "hearing-scheduled": { label: "Hearing Scheduled", cls: "text-amber-700", Icon: Gavel },
@@ -164,6 +166,19 @@ export default function UserDashboard() {
     enabled: isAuthenticated,
     refetchInterval: 30_000, // auto-refresh every 30s to catch status changes
   });
+
+  // Handle Stripe redirect-back with ?payment=success (fallback for any tier)
+  // Primary handlers live in AnalysisResults and AppealFilingWorkflow;
+  // this catches any edge-case where the user lands on the dashboard instead.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") === "success") {
+      toast.success("Payment confirmed! Your report is being prepared.");
+      refetch();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filter and search — all hooks MUST be before any early returns
   const filteredSubmissions = useMemo(() => {
