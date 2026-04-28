@@ -588,7 +588,7 @@
 - [x] GetStarted FAQ — replaced "Power of Attorney" with "Scrivener Authorization" language
 - [x] Home page county count — update "3" to accurate seeded count (14+)
 - [ ] Home page hero — inline address input in hero (skip /get-started click)
-- [ ] GetStarted Step 2 button label — rename "Add Photos" to "Continue →" (photos optional)
+- [x] GetStarted Step 2 button label — rename "Add Photos" to "Continue →" (photos optional)
 - [x] Twitter/X meta tag — add twitter:site @AppraiseAI to index.html (already present)
 - [x] Remove dead PortfolioDashboard.tsx file (unrouted, 100% mock data)
 

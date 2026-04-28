@@ -306,7 +306,7 @@ export default function Home() {
         <div className="container">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-4">
             <StatCard value={40} suffix="%" label="of U.S. homes are over-assessed" start={statsSection.visible} />
-            <StatCard value={3} suffix=" counties" label="live with automated portal filing" start={statsSection.visible} />
+            <StatCard value={17} suffix=" counties" label="live with automated portal filing" start={statsSection.visible} />
             <StatCard value={4} suffix=" min" label="median filing time, end-to-end" start={statsSection.visible} />
             <StatCard value={60} suffix="-day" label="money-back guarantee on every filing" start={statsSection.visible} />
           </div>
@@ -516,8 +516,8 @@ export default function Home() {
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: "Counties live", value: "14" },
-                  { label: "Counties in pipeline", value: "36" },
+                  { label: "Counties live", value: "28" },
+                  { label: "States covered", value: "12" },
                   { label: "Avg. filing time", value: "3m 47s" },
                   { label: "Portal uptime (30d)", value: "99.4%" },
                 ].map((stat) => (
@@ -533,16 +533,27 @@ export default function Home() {
               <div className="rounded-xl overflow-hidden border border-white/10 bg-[#0F172A]/60 backdrop-blur-xl shadow-2xl shadow-black/50 p-8">
                 <div className="flex items-center justify-between mb-6">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-[#7C3AED]">Counties live</div>
-                  <span className="font-data text-5xl font-black text-white">14</span>
+                  <span className="font-data text-5xl font-black text-white">28</span>
                 </div>
                 <div className="space-y-3 mb-6">
                   {[
                     { state: "TX", county: "Travis County", portal: "traviscad.org", status: "live" },
                     { state: "TX", county: "Harris County", portal: "hcad.org", status: "live" },
-                    { state: "TX", county: "Dallas County", portal: "dallascad.org", status: "live" },
-                    { state: "IL", county: "Cook County", portal: "cookcountyassessor.com", status: "live" },
+                    { state: "TX", county: "Tarrant County", portal: "tad.org", status: "live" },
+                    { state: "TX", county: "Bexar County", portal: "bcadonline.org", status: "live" },
+                    { state: "TX", county: "Collin County", portal: "collincad.org", status: "live" },
+                    { state: "TX", county: "Denton County", portal: "dentoncad.com", status: "live" },
+                    { state: "TX", county: "Williamson County", portal: "wcad.org", status: "live" },
                     { state: "FL", county: "Miami-Dade County", portal: "miamidade.gov", status: "live" },
-                    { state: "CA", county: "Los Angeles County", portal: "assessor.lacounty.gov", status: "live" },
+                    { state: "FL", county: "Broward County", portal: "bcvab.broward.org", status: "live" },
+                    { state: "FL", county: "Palm Beach County", portal: "mypalmbeachclerk.com", status: "live" },
+                    { state: "FL", county: "Hillsborough County", portal: "hillsclerk.com", status: "live" },
+                    { state: "FL", county: "Orange County", portal: "vab.occompt.com", status: "live" },
+                    { state: "FL", county: "Pinellas County", portal: "mypinellasclerk.gov", status: "live" },
+                    { state: "AZ", county: "Maricopa County", portal: "mcassessor.maricopa.gov", status: "live" },
+                    { state: "WA", county: "King County", portal: "kingcounty.gov", status: "live" },
+                    { state: "OH", county: "Franklin County", portal: "franklincountyoh.gov", status: "live" },
+                    { state: "OH", county: "Summit County", portal: "summitoh.net", status: "live" },
                   ].map((row) => (
                     <div key={row.county} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3">
                       <div>
