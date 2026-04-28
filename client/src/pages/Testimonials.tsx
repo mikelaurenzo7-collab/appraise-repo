@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 interface CaseStudy {
   id: string;
@@ -58,7 +59,7 @@ const fallbackCaseStudies: CaseStudy[] = [
     assessedValue: 425000,
     newAssessment: 350000,
     annualSavings: 1900,
-    quote: "Simple process. Entered my address, got the appraisal, signed the POA form, and they did the rest. Best ROI I've ever seen.",
+    quote: "Simple process. Entered my address, got the appraisal, signed the authorization form, and they did the rest. Best ROI I've ever seen.",
     result: "won",
     date: "2026-03-05",
     stars: 5,
@@ -108,6 +109,11 @@ const fallbackCaseStudies: CaseStudy[] = [
 ];
 
 export default function Testimonials() {
+  usePageMeta({
+    title: "Customer Success Stories — AppraiseAI",
+    description: "Real homeowners share how AppraiseAI helped them reduce their property tax assessments and save thousands per year.",
+    canonicalPath: "/testimonials",
+  });
   const [displayCaseStudies, setDisplayCaseStudies] = useState<CaseStudy[]>(fallbackCaseStudies);
   const { data: dashboard, isLoading } = trpc.admin.getDashboard.useQuery();
 

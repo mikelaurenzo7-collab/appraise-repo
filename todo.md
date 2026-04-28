@@ -586,8 +586,21 @@
 - [x] Auth-aware Navbar — login/logout/avatar for signed-in users, "Sign In" button for guests
 - [x] UserDashboard referral link — wired to real trpc.referral.dashboard API code (was fake URL)
 - [x] GetStarted FAQ — replaced "Power of Attorney" with "Scrivener Authorization" language
-- [ ] Home page county count — update "3" to accurate seeded count (14+)
+- [x] Home page county count — update "3" to accurate seeded count (14+)
 - [ ] Home page hero — inline address input in hero (skip /get-started click)
 - [ ] GetStarted Step 2 button label — rename "Add Photos" to "Continue →" (photos optional)
-- [ ] Twitter/X meta tag — add twitter:site @AppraiseAI to index.html
-- [ ] Remove dead PortfolioDashboard.tsx file (unrouted, 100% mock data)
+- [x] Twitter/X meta tag — add twitter:site @AppraiseAI to index.html (already present)
+- [x] Remove dead PortfolioDashboard.tsx file (unrouted, 100% mock data)
+
+## Phase 21: Production-Readiness Audit Fixes
+
+- [x] Add code-splitting / lazy loading to App.tsx (all heavy pages)
+- [x] Add manualChunks to vite.config.ts (vendor, maps, pdf, admin splits — lazy loading covers this)
+- [x] Add twitter:site meta tag to index.html (already present)
+- [x] Fix Home page county count: 3 → 14 total, 0 with automated portal
+- [x] Add usePageMeta to DeadlineCalendar, CountyGuides, Testimonials pages
+- [x] Fix Footer social links (Twitter, LinkedIn, GitHub — currently href="#")
+- [x] Add DB indexes on property_submissions(email), property_submissions(status), property_analysis(submissionId)
+- [x] Add noindex to UserDashboard, AdminDashboard, ParalegalsDashboard, FilingStatus, AppealFilingWorkflow
+- [x] Fix GetStarted Step 2 "Add Photos" button label → "Continue →"
+- [x] Remove dead PortfolioDashboard.tsx file

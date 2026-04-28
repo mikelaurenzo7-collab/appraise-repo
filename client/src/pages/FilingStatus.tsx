@@ -21,6 +21,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 type SubmissionStatus =
   | "pending"
@@ -135,6 +136,11 @@ function formatDate(value: Date | null | undefined) {
 }
 
 export default function FilingStatus() {
+  usePageMeta({
+    title: "Filing Status",
+    description: "Track your property tax appeal filing status.",
+    noindex: true,
+  });
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
   const [selectedFiling, setSelectedFiling] = useState<FilingRow | null>(null);

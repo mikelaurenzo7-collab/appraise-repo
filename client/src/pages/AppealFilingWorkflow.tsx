@@ -32,6 +32,7 @@ import Footer from "@/components/Footer";
 import { ScrivenerAuthorization } from "@/components/ScrivenerAuthorization";
 import { WaitlistCapture } from "@/components/WaitlistCapture";
 import { toast } from "sonner";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 interface WorkflowStep {
   id: number;
@@ -52,6 +53,11 @@ interface AppealFilingWorkflowProps {
 }
 
 export default function AppealFilingWorkflow({ submissionId }: AppealFilingWorkflowProps) {
+  usePageMeta({
+    title: "File Your Appeal",
+    description: "Complete your property tax appeal filing.",
+    noindex: true,
+  });
   const { isAuthenticated, loading: authLoading } = useAuth();
   const parsedSubmissionId = parseInt(submissionId, 10);
   const valid = Number.isFinite(parsedSubmissionId) && parsedSubmissionId > 0;

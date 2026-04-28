@@ -682,7 +682,7 @@ export default function GetStarted() {
                   {preMutation.isPending ? (
                     <><div className="w-4 h-4 border-2 border-[#020617] border-t-transparent rounded-full animate-spin" />Saving...</>
                   ) : (
-                    <>Add Photos <ArrowRight size={18} /></>
+                    <>Continue <ArrowRight size={18} /></>
                   )}
                 </button>
               </div>

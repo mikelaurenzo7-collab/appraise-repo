@@ -33,6 +33,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Copy, CheckCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 type SubmissionStatus =
   | "pending"
@@ -146,6 +147,11 @@ function ReportButton({ submissionId, status }: { submissionId: number; status: 
 }
 
 export default function UserDashboard() {
+  usePageMeta({
+    title: "My Dashboard",
+    description: "Your property tax appeal submissions and reports.",
+    noindex: true,
+  });
   const { user, isAuthenticated, loading } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "all">("all");

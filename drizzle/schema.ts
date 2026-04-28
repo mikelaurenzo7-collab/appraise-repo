@@ -1,4 +1,4 @@
-import { boolean, decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -82,7 +82,11 @@ export const propertySubmissions = mysqlTable("property_submissions", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  emailIdx: index("idx_ps_email").on(t.email),
+  statusIdx: index("idx_ps_status").on(t.status),
+  createdAtIdx: index("idx_ps_created_at").on(t.createdAt),
+}));
 
 export type PropertySubmission = typeof propertySubmissions.$inferSelect;
 export type InsertPropertySubmission = typeof propertySubmissions.$inferInsert;
@@ -123,7 +127,9 @@ export const propertyAnalysis = mysqlTable("property_analysis", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  submissionIdIdx: index("idx_pa_submission_id").on(t.submissionId),
+}));
 
 export type PropertyAnalysis = typeof propertyAnalysis.$inferSelect;
 export type InsertPropertyAnalysis = typeof propertyAnalysis.$inferInsert;

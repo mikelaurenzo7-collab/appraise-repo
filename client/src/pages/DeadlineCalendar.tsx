@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { Link } from "wouter";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   Calendar, Clock, MapPin, TrendingDown, ChevronRight, Search,
   AlertTriangle, CheckCircle2, ArrowRight, Building2, Scale, Info,
@@ -92,6 +93,11 @@ function UrgencyBadge({ urgency }: { urgency: "high" | "medium" | "low" }) {
 }
 
 export default function DeadlineCalendar() {
+  usePageMeta({
+    title: "Property Tax Appeal Deadlines by State — AppraiseAI",
+    description: "Find your state's property tax appeal deadline. Miss it and you lose your right to appeal for a year. AppraiseAI tracks every jurisdiction's calendar.",
+    canonicalPath: "/deadlines",
+  });
   const [search, setSearch] = useState("");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [sortBy, setSortBy] = useState<"name" | "successRate" | "avgSavings" | "deadlineDays">("name");

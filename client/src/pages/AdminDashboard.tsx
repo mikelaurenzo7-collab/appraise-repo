@@ -10,6 +10,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; classes: string }> = {
@@ -57,6 +58,11 @@ function formatTimeAgo(d: Date | string | null | undefined) {
 type TabKey = "submissions" | "outcomes" | "activity" | "filings" | "waitlist" | "referrals";
 
 export default function AdminDashboard() {
+  usePageMeta({
+    title: "Admin Dashboard",
+    description: "AppraiseAI internal admin panel.",
+    noindex: true,
+  });
   const { user, isAuthenticated, loading } = useAuth();
   const [page, setPage] = useState(0);
   const [tab, setTab] = useState<TabKey>("submissions");

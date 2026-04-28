@@ -24,6 +24,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 type QueueStatus = "queued" | "in-progress" | "completed" | "blocked";
 
@@ -86,6 +87,11 @@ function getStatusIcon(status: QueueStatus | string) {
 }
 
 export default function ParalegalsDashboard() {
+  usePageMeta({
+    title: "Paralegals Dashboard",
+    description: "AppraiseAI paralegal filing queue.",
+    noindex: true,
+  });
   const { user, loading } = useAuth();
   const [selectedTab, setSelectedTab] = useState("queue");
 
