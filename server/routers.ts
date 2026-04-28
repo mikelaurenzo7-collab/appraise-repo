@@ -683,6 +683,11 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        enforceRateLimit(ctx, {
+          scope: "payments.createCheckout",
+          max: 10,
+          windowMs: 60_000,
+        });
         const submission = await getPropertySubmissionById(input.submissionId);
         if (!submission) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
@@ -1156,18 +1161,18 @@ export const appRouter = router({
         z.object({
           properties: z.array(
             z.object({
-              address: z.string(),
-              city: z.string(),
-              state: z.string(),
-              zipCode: z.string(),
-              county: z.string().optional(),
-              propertyType: z.string().optional(),
-              assessedValue: z.number().optional(),
+              address: z.string().trim().min(5, "Address too short").max(500),
+              city: z.string().trim().min(1).max(100),
+              state: z.string().trim().min(2).max(2).toUpperCase(),
+              zipCode: z.string().trim().regex(/^\d{5}(-\d{4})?$/, "Invalid ZIP code"),
+              county: z.string().trim().max(100).optional(),
+              propertyType: z.string().trim().max(50).optional(),
+              assessedValue: z.number().min(0).max(1_000_000_000).optional(),
             })
-          ),
+          ).min(1, "At least one property required").max(100, "Batch limit is 100 properties"),
           filingMethod: z.enum(["poa", "pro-se"]),
-          contactEmail: z.string().email(),
-          contactPhone: z.string().optional(),
+          contactEmail: z.string().email().max(255),
+          contactPhone: z.string().trim().max(20).optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -1292,14 +1297,8 @@ export const appRouter = router({
   }),
   // ─── ADMIN COMMAND CENTER ────────────────────────────────────────────────
   admin: router({
-    // Seed counties (one-time setup)
-    seedCounties: protectedProcedure.mutation(async ({ ctx }) => {
-      if (ctx.user?.role !== "admin") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Admin access required",
-        });
-      }
+    // Seed counties (one-time setup — admin only)
+    seedCounties: adminProcedure.mutation(async () => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
       // Seeding logic handled by adminRouter

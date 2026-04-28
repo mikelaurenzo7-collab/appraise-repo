@@ -356,7 +356,7 @@ export default function AdminDashboard() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-[#E2E8F0] bg-[#F1F5F9]">
-                        {["ID", "Submission", "Outcome", "Original", "Final", "Reduction", "Annual Savings", "Fee Earned", "Days", "Filed"].map((h) => (
+                        {["ID", "Submission", "Outcome", "Original", "Final", "Reduction", "Annual Savings", "Flat Fee Rev.", "Days", "Filed"].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#64748B] uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -377,6 +377,7 @@ export default function AdminDashboard() {
                           <td className="px-4 py-3 font-data text-xs text-emerald-600 font-semibold">{formatCurrency(o.annualTaxSavings)}</td>
                           <td className="px-4 py-3 font-data text-xs text-[#7C3AED] font-semibold">
                             {o.contingencyFeeEarned ? `$${Number(o.contingencyFeeEarned).toLocaleString()}` : "—"}
+                            {/* contingencyFeeEarned repurposed as flat-fee revenue tracker */}
                           </td>
                           <td className="px-4 py-3 text-xs text-[#64748B]">{o.resolutionDays ?? "—"}</td>
                           <td className="px-4 py-3 text-xs text-[#64748B]">{formatDate(o.filedAt)}</td>

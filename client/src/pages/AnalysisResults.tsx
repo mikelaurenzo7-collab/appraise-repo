@@ -444,7 +444,7 @@ export default function AnalysisResults() {
               <div className="mt-4 text-center">
                 <div className="text-xs text-[#64748B]">
                   {analysis?.recommendedApproach === "poa"
-                    ? "We recommend filing via Power of Attorney"
+                    ? "We recommend Automated Filing (portal submission)"
                     : analysis?.recommendedApproach === "pro-se"
                     ? "We recommend a Pro Se filing"
                     : "Appeal may not be recommended"}

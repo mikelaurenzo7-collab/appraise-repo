@@ -200,17 +200,17 @@ describe("appeal outcome recording pipeline", () => {
     expect(routerSource).toMatch(/outcome.*z\.enum|z\.enum.*outcome/);
   });
 
-  it("RecordOutcomeModal calculates 25% contingency fee", async () => {
+  it("RecordOutcomeModal shows flat-fee revenue and calls admin.recordOutcome", async () => {
     const modalSource = await import("fs").then((fs) =>
       fs.readFileSync("client/src/components/RecordOutcomeModal.tsx", "utf-8")
     );
     expect(modalSource).toContain("RecordOutcomeModal");
-    // Must calculate contingency as 25% of savings
-    expect(modalSource).toContain("0.25");
     // Must call admin.recordOutcome mutation
     expect(modalSource).toContain("admin.recordOutcome");
-    // Must show fee calculation to admin
-    expect(modalSource).toMatch(/contingency|fee/i);
+    // Must NOT use contingency-based fee calculation (flat-fee model)
+    expect(modalSource).not.toContain("0.25");
+    // Must show fee / revenue info to admin
+    expect(modalSource).toMatch(/fee|revenue|savings/i);
   });
 
   it("db.ts has createAppealOutcome helper", async () => {

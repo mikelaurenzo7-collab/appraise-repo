@@ -127,7 +127,7 @@ export default function Pricing() {
               },
               {
                 q: "Which counties are supported for automated filing?",
-                a: "We support counties that offer online filing portals with PIN-based access for taxpayers. Check your county at eligibility time — if your county isn't supported yet, we'll still generate a ready-to-file pro-se packet for you.",
+                a: "We currently support 22 counties across TX, FL, AZ, WA, and OH with automated online portal filing. We cover 88 counties total across 18 states — if your county doesn't have a portal, we generate a certified-mail or email-ready pro-se packet for you.",
               },
               {
                 q: "Are there any hidden fees?",

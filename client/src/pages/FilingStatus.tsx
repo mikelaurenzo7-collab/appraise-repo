@@ -1,5 +1,5 @@
 /**
- * Filing Status — track POA filings, hearing dates, and appeal outcomes.
+ * Filing Status — track automated filings, hearing dates, and appeal outcomes.
  * Sources everything from trpc.user.getFilings so the view stays in sync
  * with whatever an admin records or a webhook posts.
  */
@@ -253,7 +253,7 @@ export default function FilingStatus() {
                         {filing.filingMethod && filing.filingMethod !== "none" && (
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#EDE9FE] text-[#6D28D9]">
                             {filing.filingMethod === "poa"
-                              ? "Power of Attorney"
+                              ? "Automated Filing"
                               : "Pro Se"}
                           </span>
                         )}

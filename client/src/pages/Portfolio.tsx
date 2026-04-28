@@ -362,7 +362,7 @@ export default function Portfolio() {
               {[
                 { icon: <Zap size={20} />, title: "Bulk Analysis", desc: "Submit multiple properties at once. Each gets its own AI appraisal and appeal strength score." },
                 { icon: <BarChart3 size={20} />, title: "Aggregate Savings", desc: "See your total potential and confirmed savings across all properties in one view." },
-                { icon: <FileText size={20} />, title: "Unified Filing", desc: "One POA covers all your properties. We track deadlines and file appeals for every eligible property." },
+                { icon: <FileText size={20} />, title: "Unified Filing", desc: "Each property gets its own scrivener authorization and filing packet. We track deadlines and file appeals for every eligible property." },
               ].map((f) => (
                 <div key={f.title} className="p-6 rounded-xl bg-white border border-[#E2E8F0]">
                   <div className="w-10 h-10 rounded bg-[#0F172A] text-[#7C3AED] flex items-center justify-center mb-4">

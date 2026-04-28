@@ -111,12 +111,12 @@ export default function CountyFilingGuide({ county, userState }: CountyFilingGui
         </div>
 
         <div className="space-y-4">
-          {/* POA Deadline */}
+          {/* Automated Filing Deadline */}
           <div className={`p-4 rounded-lg ${poaStatus.bg}`}>
             <div className="flex justify-between items-start mb-2">
               <div>
-                <div className="font-semibold text-slate-900">Power of Attorney (POA) Appeal</div>
-                <div className="text-sm text-slate-600">Professional representation</div>
+                <div className="font-semibold text-slate-900">Automated Filing Appeal</div>
+                <div className="text-sm text-slate-600">Software-assisted portal or mail filing</div>
               </div>
               <span className={`text-xs font-bold px-3 py-1 rounded-full ${poaStatus.color}`}>
                 {poaStatus.status}
@@ -267,7 +267,7 @@ export default function CountyFilingGuide({ county, userState }: CountyFilingGui
           <div>
             <div className="font-semibold text-amber-900">Pro Se Not Available</div>
             <div className="text-sm text-amber-800">
-              This county requires professional representation. Use POA filing method.
+              Pro se filing is not available in this county. Use the Automated Filing tier for portal submission.
             </div>
           </div>
         </div>

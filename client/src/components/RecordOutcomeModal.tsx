@@ -1,6 +1,6 @@
 /**
  * RecordOutcomeModal — Admin modal to record appeal outcomes
- * Features: Win/loss/settled/withdrawn, original vs final assessment, auto-calculated 25% contingency fee
+ * Features: Win/loss/settled/withdrawn, original vs final assessment, annual tax savings tracking
  */
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -54,7 +54,7 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
   const origNum = parseFloat(originalValue.replace(/[^0-9.]/g, "")) || 0;
   const finalNum = parseFloat(finalValue.replace(/[^0-9.]/g, "")) || 0;
   const reduction = origNum > 0 && finalNum > 0 ? origNum - finalNum : 0;
-  const contingencyFee = annualSavings ? parseFloat(annualSavings.replace(/[^0-9.]/g, "")) * 0.25 : 0;
+  // Flat-fee model: no contingency. Annual savings is tracked for reporting only.
 
   const handleSubmit = () => {
     if (!outcome) { toast.error("Please select an outcome"); return; }
@@ -167,10 +167,10 @@ export default function RecordOutcomeModal({ submissionId, address, assessedValu
                 className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
               />
             </div>
-            {contingencyFee > 0 && (
-              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[#7C3AED] font-semibold">
+            {annualSavings && parseFloat(annualSavings.replace(/[^0-9.]/g, "")) > 0 && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[#10B981] font-semibold">
                 <CheckCircle2 size={12} />
-                25% contingency fee: {formatCurrency(contingencyFee)} (auto-calculated)
+                Est. annual savings: {formatCurrency(parseFloat(annualSavings.replace(/[^0-9.]/g, "")))} (recorded for reporting)
               </div>
             )}
           </div>

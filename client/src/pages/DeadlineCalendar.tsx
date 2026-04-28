@@ -311,7 +311,7 @@ export default function DeadlineCalendar() {
           >
             Get My Free Analysis <ArrowRight size={18} />
           </Link>
-          <p className="text-white/40 text-xs mt-4">No credit card · Results in seconds · Licensed in all 50 states</p>
+          <p className="text-white/40 text-xs mt-4">No credit card · Results in seconds · 88 counties covered, 22 with portal filing</p>
         </div>
       </section>
 
