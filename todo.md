@@ -587,7 +587,7 @@
 - [x] UserDashboard referral link — wired to real trpc.referral.dashboard API code (was fake URL)
 - [x] GetStarted FAQ — replaced "Power of Attorney" with "Scrivener Authorization" language
 - [x] Home page county count — update "3" to accurate seeded count (14+)
-- [ ] Home page hero — inline address input in hero (skip /get-started click)
+- [x] Home page hero — inline address input in hero (skip /get-started click)
 - [x] GetStarted Step 2 button label — rename "Add Photos" to "Continue →" (photos optional)
 - [x] Twitter/X meta tag — add twitter:site @AppraiseAI to index.html (already present)
 - [x] Remove dead PortfolioDashboard.tsx file (unrouted, 100% mock data)
@@ -604,3 +604,19 @@
 - [x] Add noindex to UserDashboard, AdminDashboard, ParalegalsDashboard, FilingStatus, AppealFilingWorkflow
 - [x] Fix GetStarted Step 2 "Add Photos" button label → "Continue →"
 - [x] Remove dead PortfolioDashboard.tsx file
+
+## Phase 22: County Expansion + Final Launch Pass
+
+- [x] Expand county seed from 14 to 28 counties (17 portal, 12 states)
+- [x] Add TX: Tarrant, Collin, Bexar, Williamson, Denton
+- [x] Add FL: Broward, Palm Beach, Hillsborough, Orange, Pinellas
+- [x] Add AZ: Maricopa
+- [x] Add WA: King
+- [x] Add OH: Franklin, Summit
+- [x] Update Home page stats: 17 portal counties, 28 total, 12 states
+- [x] Inline hero address input (navigates to /get-started?address=...)
+- [x] GetStarted pre-fills address from ?address= query param
+- [ ] E2E: verify full flow on deployed site (address → analysis → payment → report)
+- [ ] E2E: verify Stripe test card 4242 4242 4242 4242 works on deployed domain
+- [ ] E2E: verify free tier bypasses payment gate
+- [ ] E2E: verify owner/admin bypass on deployed site

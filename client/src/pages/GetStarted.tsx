@@ -146,7 +146,14 @@ export default function GetStarted() {
     canonicalPath: "/get-started",
   });
   const [step, setStep] = useState(1);
-  const [address, setAddress] = useState("");
+  // Pre-fill address from hero inline input (?address=...)
+  const [address, setAddress] = useState(() => {
+    try {
+      return decodeURIComponent(new URLSearchParams(window.location.search).get("address") ?? "");
+    } catch {
+      return "";
+    }
+  });
   const [propertyType, setPropertyType] = useState("residential");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");

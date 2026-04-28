@@ -4,11 +4,12 @@
  * Sections: Hero → Stats → How It Works → Tax Appeals Feature → Nationwide → Pricing Preview → Testimonials → CTA
  */
 import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowRight, CheckCircle2, Clock, FileText, Shield, TrendingDown, Star, ChevronRight, MapPin, Zap, Scale, Building2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 // Animated counter hook
 function useCounter(target: number, duration: number = 2000, start: boolean = false) {
@@ -124,6 +125,47 @@ const testimonials = [
   },
 ];
 
+function HeroAddressInput() {
+  const [address, setAddress] = useState("");
+  const [, navigate] = useLocation();
+
+  const handleSubmit = (addr: string) => {
+    const target = addr || address;
+    if (!target.trim()) return;
+    navigate(`/get-started?address=${encodeURIComponent(target)}`);
+  };
+
+  return (
+    <div className="mb-10">
+      <div className="flex flex-col sm:flex-row gap-3 max-w-xl">
+        <div className="flex-1 relative">
+          <AddressAutocomplete
+            value={address}
+            onChange={setAddress}
+            onAddressSelected={handleSubmit}
+            placeholder="Enter your property address…"
+          />
+        </div>
+        <button
+          onClick={() => handleSubmit(address)}
+          disabled={!address.trim()}
+          className="group relative inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl text-base font-bold text-[#020617] bg-gradient-to-r from-[#FBBF24] via-[#F59E0B] to-[#FBBF24] hover:scale-[1.02] transition-transform shadow-[0_20px_60px_-15px_rgba(251,191,36,0.5)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 whitespace-nowrap"
+        >
+          Analyze Free
+          <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
+      <p className="mt-2.5 text-xs text-white/40">
+        Or{" "}
+        <Link href="/how-it-works" className="text-white/60 underline underline-offset-2 hover:text-white transition-colors">
+          see a live filing demo
+        </Link>
+        {" "}first.
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   usePageMeta({
     title: "AppraiseAI — Property Tax Appeal Software",
@@ -179,21 +221,7 @@ export default function Home() {
                 <span className="text-white">Flat fee. Refunded if your assessment isn&apos;t reduced.</span>
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-10">
-                <Link
-                  href="/get-started"
-                  className="group relative inline-flex items-center justify-center gap-2 px-8 py-5 rounded-xl text-base font-bold text-[#020617] bg-gradient-to-r from-[#FBBF24] via-[#F59E0B] to-[#FBBF24] hover:scale-[1.02] transition-transform shadow-[0_20px_60px_-15px_rgba(251,191,36,0.5)]"
-                >
-                  Get My Free Analysis
-                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <Link
-                  href="/how-it-works"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-5 rounded-xl text-base font-semibold border border-white/20 bg-white/5 backdrop-blur-sm text-white hover:bg-white/10 transition-colors"
-                >
-                  See a live filing
-                </Link>
-              </div>
+              <HeroAddressInput />
 
               <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/55">
                 {[
