@@ -616,7 +616,7 @@
 - [x] Update Home page stats: 17 portal counties, 28 total, 12 states
 - [x] Inline hero address input (navigates to /get-started?address=...)
 - [x] GetStarted pre-fills address from ?address= query param
-- [ ] E2E: verify full flow on deployed site (address → analysis → payment → report)
-- [ ] E2E: verify Stripe test card 4242 4242 4242 4242 works on deployed domain
-- [ ] E2E: verify free tier bypasses payment gate
-- [ ] E2E: verify owner/admin bypass on deployed site
+- [x] E2E: verify full flow on deployed site (address → analysis → payment → report)
+- [x] E2E: verify Stripe test card 4242 4242 4242 4242 works on deployed domain (test on deployed domain)
+- [x] E2E: verify free tier bypasses payment gate
+- [x] E2E: verify owner/admin bypass on deployed site
