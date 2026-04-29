@@ -181,7 +181,7 @@ describe("admin.listFilingQueue / assignFiling / completeFiling", () => {
   it("rejects listFilingQueue for non-admins", async () => {
     const router = await loadRouter();
     const caller = router.createCaller(baseCtx({ user: normalUser }));
-    await expect(caller.admin.listFilingQueue()).rejects.toThrow(/Admin/i);
+    await expect(caller.admin.listFilingQueue()).rejects.toThrow(/permission/i);
   });
 
   it("assigns a paralegal and records the action", async () => {

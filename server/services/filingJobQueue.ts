@@ -272,8 +272,8 @@ async function resolveCountyIdForJob(row: { id: number; submissionId: number; re
         .from(filingRecipes)
         .where(eq(filingRecipes.id, row.recipeId))
         .limit(1)
-        .then((r: any) => r[0]);
-      if (recipe?.countyId) return recipe.countyId as number;
+        .then((r: Array<{ countyId: number | null }>) => r[0]);
+      if (recipe?.countyId) return recipe.countyId;
     }
   }
 
@@ -290,8 +290,8 @@ async function resolveCountyIdForJob(row: { id: number; submissionId: number; re
         .from(counties)
         .where(and(eq(counties.state, submission.state), eq(counties.countyName, submission.county)))
         .limit(1)
-        .then((r: any) => r[0]);
-      if (match?.id) return match.id as number;
+        .then((r: Array<{ id: number }>) => r[0]);
+      if (match?.id) return match.id;
     }
   }
 

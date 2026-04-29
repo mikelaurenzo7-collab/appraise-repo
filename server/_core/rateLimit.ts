@@ -53,6 +53,39 @@ export function getClientIp(ctx: TrpcContext): string {
 }
 
 /**
+ * Rate-limit check for raw Express requests (non-tRPC handlers such as SSE
+ * and webhooks). Returns false when the caller is within budget, true when
+ * they have exceeded the limit and the handler should return 429.
+ */
+export function checkRateLimit(
+  req: { headers?: Record<string, string | string[] | undefined>; ip?: string; socket?: { remoteAddress?: string }; userId?: string | number },
+  opts: RateLimitOptions
+): boolean {
+  const ip = (() => {
+    const forwarded = req.headers?.["x-forwarded-for"];
+    if (typeof forwarded === "string" && forwarded.length > 0) return forwarded.split(",")[0].trim();
+    if (Array.isArray(forwarded) && forwarded.length > 0) return forwarded[0];
+    if (typeof req.ip === "string" && req.ip.length > 0) return req.ip;
+    return req.socket?.remoteAddress || "unknown";
+  })();
+  const clientKey = req.userId !== undefined && req.userId !== null && req.userId !== ""
+    ? `u:${req.userId}`
+    : `ip:${ip}`;
+  const key = `${opts.scope}:${clientKey}`;
+  const now = Date.now();
+  const bucket = buckets.get(key);
+
+  if (!bucket || now - bucket.windowStart >= opts.windowMs) {
+    buckets.set(key, { count: 1, windowStart: now });
+    pruneIfTooLarge();
+    return false;
+  }
+  if (bucket.count >= opts.max) return true;
+  bucket.count += 1;
+  return false;
+}
+
+/**
  * Preferred client identifier for rate limiting.
  *
  * Behind the Manus reverse proxy, all traffic typically arrives from one or
