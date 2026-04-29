@@ -1,93 +1,108 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import type { Request, Response } from 'express';
 
-// IPv6-safe IP normalizer: collapses IPv4-mapped IPv6 addresses (::ffff:1.2.3.4 → 1.2.3.4)
-function normalizeIp(ip: string | undefined): string {
-  if (!ip) return 'unknown';
-  if (ip.startsWith('::ffff:')) return ip.slice(7);
-  return ip;
+/**
+ * JSON-formatted rate limit handler — ensures tRPC clients always receive
+ * a parseable response instead of a raw text string that crashes JSON.parse.
+ */
+function jsonHandler(message: string) {
+  return (_req: Request, res: Response) => {
+    res.status(429).json({ error: message, code: 'RATE_LIMITED' });
+  };
 }
 
 /**
- * Global rate limiter: 100 requests per 15 minutes
- * Applies to all routes
+ * Build a key generator that uses user ID when authenticated, falling back
+ * to the IPv6-safe ipKeyGenerator helper for unauthenticated requests.
+ * Passing ipKeyGenerator as the `keyGenerator` directly avoids the library's
+ * IPv6 validation warning while still supporting user-level bucketing.
+ */
+function userAwareKeyGen(req: Request): string {
+  const userId = (req as any).user?.id;
+  if (userId) return `u:${userId}`;
+  // Delegate to the library's official IPv6-safe helper
+  return ipKeyGenerator(req.ip ?? '');
+}
+
+/**
+ * Global rate limiter: 500 requests per 15 minutes.
+ * Generous ceiling — only blocks genuine abuse, not normal usage.
+ * Authenticated users are keyed by user ID so shared IPs (offices, NAT)
+ * don't collide.
  */
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  skip: (req) => {
-    // Skip rate limiting for health checks
-    return req.path === '/health';
-  },
+  max: 500,
+  handler: jsonHandler('Too many requests. Please try again in a few minutes.'),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health',
+  keyGenerator: userAwareKeyGen,
 });
 
 /**
- * Strict rate limiter for auth endpoints: 5 requests per 15 minutes
- * Prevents brute force attacks
+ * Strict rate limiter for auth endpoints: 20 requests per 15 minutes.
+ * Prevents brute force while allowing normal OAuth retry flows.
+ * No custom keyGenerator — uses default IP keying (correct for auth).
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: 'Too many login attempts, please try again later.',
+  max: 20,
+  handler: jsonHandler('Too many login attempts. Please try again later.'),
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true, // Don't count successful requests
+  skipSuccessfulRequests: true,
 });
 
 /**
- * API rate limiter: 50 requests per minute
- * Applies to tRPC and REST endpoints
+ * API rate limiter for tRPC endpoints: 300 requests per minute.
+ * Keyed by authenticated user ID so each user has their own budget.
+ * 300/min is generous enough for normal UI usage (page loads fire 5–10
+ * parallel queries) while still blocking runaway polling loops.
  */
 export const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 50,
-  message: 'Too many API requests, please try again later.',
+  max: 300,
+  handler: jsonHandler('Too many API requests. Please slow down and try again.'),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    // Use user ID if authenticated, otherwise fall back to IPv6-safe IP
-    return (req as any).user?.id?.toString() || normalizeIp(req.ip);
-  },
+  keyGenerator: userAwareKeyGen,
 });
 
 /**
- * Payment rate limiter: 10 requests per hour
- * Prevents payment abuse
+ * Payment rate limiter: 20 requests per hour.
+ * Prevents payment abuse while allowing legitimate retries.
  */
 export const paymentLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10,
-  message: 'Too many payment requests, please try again later.',
+  max: 20,
+  handler: jsonHandler('Too many payment requests. Please try again later.'),
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userAwareKeyGen,
 });
 
 /**
- * File upload rate limiter: 5 uploads per hour
- * Prevents storage abuse
+ * File upload rate limiter: 20 uploads per hour.
  */
 export const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
-  message: 'Too many uploads, please try again later.',
+  max: 20,
+  handler: jsonHandler('Too many uploads. Please try again later.'),
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userAwareKeyGen,
 });
 
 /**
- * Analysis submission rate limiter: 3 submissions per day
- * Prevents spam submissions
+ * Analysis submission rate limiter: 10 submissions per day per user.
+ * Prevents spam while allowing legitimate re-submissions.
  */
 export const submissionLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: 3,
-  message: 'Too many submissions, please try again tomorrow.',
+  max: 10,
+  handler: jsonHandler('Too many submissions today. Please try again tomorrow.'),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    // Use user ID if authenticated, otherwise fall back to IPv6-safe IP
-    return (req as any).user?.id?.toString() || normalizeIp(req.ip);
-  },
+  keyGenerator: userAwareKeyGen,
 });
