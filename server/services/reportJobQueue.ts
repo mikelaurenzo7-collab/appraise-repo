@@ -150,6 +150,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       lotSize: submission.lotSize ?? undefined,
       streetViewUrl: submission.streetViewUrl ?? undefined,
       satelliteImageUrl: submission.satelliteUrl ?? undefined,
+      roadmapUrl: submission.roadmapUrl ?? undefined,
       photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
       photoFindings: photoAnalysis
         ? {

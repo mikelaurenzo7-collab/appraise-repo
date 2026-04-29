@@ -975,6 +975,7 @@ export const appRouter = router({
           parcelNumber: undefined,
           streetViewUrl: submission.streetViewUrl ?? undefined,
           satelliteImageUrl: submission.satelliteUrl ?? undefined,
+          roadmapUrl: submission.roadmapUrl ?? undefined,
           photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
           photoFindings: photoAnalysis
             ? {

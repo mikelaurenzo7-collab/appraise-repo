@@ -287,9 +287,20 @@ const sampleData = {
       "Dated interior finishes place the property below market expectations for the price range — functional obsolescence adjustment warranted",
     ],
   },
-  photos: [],
-  streetViewUrl: "",
-  satelliteImageUrl: "",
+  photos: [
+    { url: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800", category: "exterior", caption: "Front elevation of subject property showing facade condition, driveway, and landscaping" },
+    { url: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800", category: "exterior", caption: "Side elevation showing south-facing wall with visible paint deterioration" },
+    { url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800", category: "exterior", caption: "Rear elevation and backyard area showing mature landscaping" },
+    { url: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800", category: "interior", caption: "Kitchen showing original laminate countertops and dated cabinetry" },
+    { url: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800", category: "interior", caption: "Primary bedroom with original flooring and window treatments" },
+    { url: "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=800", category: "interior", caption: "Living room showing general interior condition and natural lighting" },
+    { url: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800", category: "interior", caption: "Bathroom with original fixtures showing functional but dated finishes" },
+    { url: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800", category: "roof", caption: "Roof view showing composition shingles with visible granule loss and aging" },
+    { url: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=800", category: "foundation", caption: "Foundation and lower structure showing no visible cracking or settlement" },
+  ],
+  streetViewUrl: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200",
+  satelliteImageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200",
+  roadmapUrl: "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1200",
 };
 
 console.log("Generating sample paid-tier report...");
