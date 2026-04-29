@@ -1,5 +1,12 @@
 import rateLimit from 'express-rate-limit';
 
+// IPv6-safe IP normalizer: collapses IPv4-mapped IPv6 addresses (::ffff:1.2.3.4 → 1.2.3.4)
+function normalizeIp(ip: string | undefined): string {
+  if (!ip) return 'unknown';
+  if (ip.startsWith('::ffff:')) return ip.slice(7);
+  return ip;
+}
+
 /**
  * Global rate limiter: 100 requests per 15 minutes
  * Applies to all routes
@@ -40,8 +47,8 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    // Use user ID if authenticated, otherwise use IP
-    return (req as any).user?.id || req.ip || 'unknown';
+    // Use user ID if authenticated, otherwise fall back to IPv6-safe IP
+    return (req as any).user?.id?.toString() || normalizeIp(req.ip);
   },
 });
 
@@ -80,7 +87,7 @@ export const submissionLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    // Use user ID if authenticated, otherwise use IP
-    return (req as any).user?.id || req.ip || 'unknown';
+    // Use user ID if authenticated, otherwise fall back to IPv6-safe IP
+    return (req as any).user?.id?.toString() || normalizeIp(req.ip);
   },
 });

@@ -74,6 +74,9 @@ async function startServer() {
   validateEnvOrExit();
 
   const app = express();
+  // Trust the first proxy in the chain (Manus reverse proxy / Cloud Run ingress)
+  // Required for express-rate-limit to correctly read X-Forwarded-For headers
+  app.set('trust proxy', 1);
   const server = createServer(app);
 
   // Stripe + Lob webhooks must be registered before the JSON body parser so
