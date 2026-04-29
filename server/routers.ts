@@ -37,6 +37,7 @@ import {
   getBatchSubmissionIds,
   listRecentFilingJobs,
   listFilingJobsByStatus,
+  listFailedReportJobs,
   updateFilingJob,
   addWaitlistEntry,
   listWaitlistEntries,
@@ -1564,6 +1565,20 @@ export const appRouter = router({
       const evicted = await evictExpiredCache();
       return { evicted, message: `Evicted ${evicted} expired cache entries` };
     }),
+
+    // Failed jobs at a glance — pulls the latest failed report-jobs and
+    // filing-jobs side by side. Saves admins from running raw SQL when
+    // chasing a stuck pipeline.
+    listFailedJobs: adminProcedure
+      .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+      .query(async ({ input }) => {
+        const limit = input?.limit ?? 50;
+        const [reports, filings] = await Promise.all([
+          listFailedReportJobs(limit),
+          listFilingJobsByStatus(["failed"], limit),
+        ]);
+        return { reports, filings };
+      }),
 
     // Re-trigger analysis for a submission
     retriggerAnalysis: adminProcedure

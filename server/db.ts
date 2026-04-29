@@ -138,6 +138,27 @@ export async function getUserSubmissions(userEmail: string) {
   }
 }
 
+/**
+ * Find submissions stuck in "analyzing" — last updated more than
+ * `thresholdMs` ago. Used by the startup recovery sweep so a process crash
+ * during analysis doesn't leave a submission permanently stuck.
+ */
+export async function findStuckAnalysisSubmissions(thresholdMs = 10 * 60 * 1000) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const cutoff = new Date(Date.now() - thresholdMs);
+    return await db
+      .select()
+      .from(propertySubmissions)
+      .where(and(eq(propertySubmissions.status, "analyzing"), lt(propertySubmissions.updatedAt, cutoff)))
+      .limit(100);
+  } catch (error) {
+    console.error("[Database] Failed to find stuck submissions:", error);
+    return [];
+  }
+}
+
 export async function listAllSubmissions(limit: number, offset: number) {
   const db = await getDb();
   if (!db) return { submissions: [], total: 0 };
@@ -856,9 +877,11 @@ export type FilingQueueRow = {
   notes: string | null;
 };
 
-export async function listFilingQueue(): Promise<FilingQueueRow[]> {
+export async function listFilingQueue(limit = 200): Promise<FilingQueueRow[]> {
   const db = await getDb();
   if (!db) return [];
+  // Cap defensively — even an admin call shouldn't pull unbounded rows.
+  const safeLimit = Math.min(Math.max(1, limit), 500);
   try {
     const rows = await db
       .select({
@@ -883,7 +906,8 @@ export async function listFilingQueue(): Promise<FilingQueueRow[]> {
       .leftJoin(poaFilings, eq(paralegalsQueue.poaFilingId, poaFilings.id))
       .leftJoin(counties, eq(poaFilings.countyId, counties.id))
       .leftJoin(propertySubmissions, eq(poaFilings.submissionId, propertySubmissions.id))
-      .orderBy(paralegalsQueue.priority, paralegalsQueue.queuedAt);
+      .orderBy(paralegalsQueue.priority, paralegalsQueue.queuedAt)
+      .limit(safeLimit);
 
     return rows.map((r) => ({
       queueId: r.queueId,
@@ -1225,6 +1249,43 @@ export async function updateFilingJob(id: number, updates: Partial<InsertFilingJ
   }
 }
 
+/**
+ * Lightweight health-probe helpers used by /readyz to detect a stalled
+ * filing pipeline (DB ping is necessary but not sufficient — the queue
+ * worker can be wedged while the DB is still reachable).
+ */
+export async function countPendingFilingJobs(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(filingJobs)
+      .where(eq(filingJobs.status, "pending"));
+    return Number(result[0]?.count ?? 0);
+  } catch (error) {
+    console.error("[FilingJob] Failed to count pending:", error);
+    return 0;
+  }
+}
+
+export async function getLastFilingJobCompletedAt(): Promise<Date | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db
+      .select({ completedAt: filingJobs.completedAt })
+      .from(filingJobs)
+      .where(eq(filingJobs.status, "completed"))
+      .orderBy(desc(filingJobs.completedAt))
+      .limit(1);
+    return result[0]?.completedAt ?? null;
+  } catch (error) {
+    console.error("[FilingJob] Failed to fetch last completed:", error);
+    return null;
+  }
+}
+
 export async function listPendingFilingJobs(limit = 5): Promise<FilingJob[]> {
   const db = await getDb();
   if (!db) return [];
@@ -1309,13 +1370,15 @@ export async function getRefundRequestBySubmissionId(submissionId: number): Prom
   }
 }
 
-export async function listPendingRefundRequests(): Promise<RefundRequest[]> {
+export async function listPendingRefundRequests(limit = 200): Promise<RefundRequest[]> {
   const db = await getDb();
   if (!db) return [];
+  const safeLimit = Math.min(Math.max(1, limit), 500);
   try {
     return await db.select().from(refundRequests)
       .where(eq(refundRequests.status, "pending"))
-      .orderBy(refundRequests.requestedAt);
+      .orderBy(refundRequests.requestedAt)
+      .limit(safeLimit);
   } catch (error) {
     console.error("[RefundRequest] Failed to list pending:", error);
     return [];

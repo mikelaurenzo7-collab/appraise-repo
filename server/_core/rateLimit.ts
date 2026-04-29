@@ -52,6 +52,22 @@ export function getClientIp(ctx: TrpcContext): string {
   return req.socket?.remoteAddress || "unknown";
 }
 
+/**
+ * Preferred client identifier for rate limiting.
+ *
+ * Behind the Manus reverse proxy, all traffic typically arrives from one or
+ * two source IPs, so per-IP keying effectively means every authenticated
+ * user shares a single bucket — defeating the limit. Use the authenticated
+ * user id when present, fall back to IP only for anonymous / public routes.
+ */
+export function getClientKey(ctx: TrpcContext): string {
+  const userId = (ctx as { user?: { id?: number | string } } | undefined)?.user?.id;
+  if (userId !== undefined && userId !== null && userId !== "") {
+    return `u:${userId}`;
+  }
+  return `ip:${getClientIp(ctx)}`;
+}
+
 export interface RateLimitOptions {
   /** Max requests allowed inside the window. */
   max: number;
@@ -65,8 +81,10 @@ export function enforceRateLimit(
   ctx: TrpcContext,
   opts: RateLimitOptions
 ): void {
-  const ip = getClientIp(ctx);
-  const key = `${opts.scope}:${ip}`;
+  // Prefer user-id keying so authenticated users get their own bucket
+  // even when Manus's proxy collapses everyone to one source IP.
+  const clientKey = getClientKey(ctx);
+  const key = `${opts.scope}:${clientKey}`;
   const now = Date.now();
   const bucket = buckets.get(key);
 

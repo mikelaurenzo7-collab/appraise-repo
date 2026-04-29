@@ -1,14 +1,26 @@
 /**
  * Batch Processing Service
- * 
- * Handles bulk property submissions for portfolios and commercial clients
- * Provides CSV import, batch analysis, and bulk filing workflows
+ *
+ * Handles bulk property submissions for portfolios and commercial clients.
+ * Two processing modes:
+ *  - `processBatch`             — sequential, real-time, Forge/Gemini path
+ *  - `processBatchViaClaudeAPI` — async, ~50% cheaper via Anthropic Batch API
+ *
+ * Use `processBatchViaClaudeAPI` for portfolios of 10+ properties when the
+ * caller can tolerate async results (returns a batchId to poll).
  */
 
 // import { PropertySubmission } from "../../drizzle/schema";
 import { analyzeProperty } from "./appraisalAnalyzer";
 import { classifyPropertyType } from "./propertyClassifier";
 import { aggregatePropertyData } from "./propertyDataAggregator";
+import {
+  isClaudeAvailable,
+  submitClaudeBatch,
+  pollClaudeBatch,
+  type ClaudeBatchRequest,
+} from "../_core/claude";
+import { APPRAISAL_SYSTEM_PROMPT_EXPORT } from "./appraisalAnalyzer";
 
 export interface BatchSubmissionRequest {
   clientId: string;
@@ -161,6 +173,87 @@ export function generateBatchSummary(result: BatchProcessingResult) {
       error: p.error,
     })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Anthropic Message Batches API — portfolio analysis at ~50% cost
+// ---------------------------------------------------------------------------
+
+export interface ClaudeBatchPortfolioResult {
+  batchId: string;
+  status: "submitted" | "completed" | "unavailable";
+  /** Set once polling completes. */
+  properties?: Array<{
+    address: string;
+    rawJson: string;
+    error?: string;
+  }>;
+}
+
+/**
+ * Submit a portfolio of properties to the Anthropic Batch API for analysis.
+ * ~50% cheaper than real-time calls; results arrive asynchronously.
+ *
+ * Pass `await: true` to block until the batch completes (up to 10 min).
+ * Pass `await: false` (default) to return immediately with the batchId for
+ * later polling via `pollClaudeBatch(batchId)` from `_core/claude`.
+ *
+ * Falls back to `{ status: "unavailable" }` when ANTHROPIC_API_KEY is not set.
+ */
+export async function processBatchViaClaudeAPI(
+  request: BatchSubmissionRequest,
+  options: { await?: boolean; pollTimeoutMs?: number } = {}
+): Promise<ClaudeBatchPortfolioResult> {
+  if (!isClaudeAvailable()) {
+    return { batchId: "", status: "unavailable" };
+  }
+
+  const { await: shouldAwait = false, pollTimeoutMs = 600_000 } = options;
+
+  // Build one batch request per property using the same prompt structure as
+  // analyzeProperty(), so results parse identically.
+  const requests: ClaudeBatchRequest[] = request.properties.map((prop, i) => {
+    const dataSummary =
+      `Property Address: ${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}\n` +
+      `Property Type: ${(prop.propertyType ?? "Residential").charAt(0).toUpperCase() + (prop.propertyType ?? "residential").slice(1)}\n` +
+      `County: ${prop.county ?? "Unknown"}\n` +
+      `Current Assessment: $${(prop.assessedValue ?? 0).toLocaleString()}\n`;
+
+    return {
+      customId: `prop_${i}_${prop.address.replace(/\s+/g, "_").slice(0, 40)}`,
+      systemPrompt: APPRAISAL_SYSTEM_PROMPT_EXPORT,
+      userMessage:
+        `Analyze the following property for a potential property-tax appeal.\n\n` +
+        dataSummary +
+        `\nRespond ONLY with valid JSON matching the appraisal_analysis schema ` +
+        `(marketValueEstimate, assessmentGap, assessmentGapPercent, appealStrengthScore, ` +
+        `appealStrengthFactors, recommendedApproach, executiveSummary, valuationJustification, ` +
+        `potentialSavings, nextSteps).`,
+      maxTokens: 4096,
+    };
+  });
+
+  const batchId = await submitClaudeBatch(requests);
+  console.log(`[Batch] Claude Batch API submitted: ${batchId} (${requests.length} properties)`);
+
+  if (!shouldAwait) {
+    return { batchId, status: "submitted" };
+  }
+
+  // Block until the batch finishes, then map results back to addresses.
+  const results = await pollClaudeBatch(batchId, { timeoutMs: pollTimeoutMs });
+  const properties = requests.map((req) => {
+    const hit = results.find((r) => r.customId === req.customId);
+    return {
+      address: req.userMessage.split("\n")[2]?.replace("Property Address: ", "") ?? req.customId,
+      rawJson: hit?.text ?? "",
+      error: hit?.error,
+    };
+  });
+
+  console.log(`[Batch] Claude Batch API completed: ${batchId} (${results.length} results)`);
+
+  return { batchId, status: "completed", properties };
 }
 
 /**

@@ -9,7 +9,14 @@ import { registerLobWebhook } from "./lobWebhook";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { getActivityLogsBySubmission, getDb } from "../db";
+import {
+  getActivityLogsBySubmission,
+  getDb,
+  findStuckAnalysisSubmissions,
+  updatePropertySubmission,
+  countPendingFilingJobs,
+  getLastFilingJobCompletedAt,
+} from "../db";
 import { cleanupOldQueues } from "./sseBroadcaster";
 
 // In-memory SSE clients for real-time analysis streaming
@@ -94,7 +101,27 @@ async function startServer() {
       if (!db) {
         return res.status(503).json({ ok: false, reason: "db_unavailable" });
       }
-      res.json({ ok: true });
+
+      // Pipeline staleness: if there are pending filing jobs but nothing
+      // has completed in the last 15 minutes, the queue worker is wedged
+      // (Playwright crashed, Lob outage, etc.). Fail readiness so the
+      // platform pulls us out of rotation and restarts.
+      const pendingFiling = await countPendingFilingJobs();
+      if (pendingFiling > 0) {
+        const lastCompleted = await getLastFilingJobCompletedAt();
+        const stalledMs = Date.now() - (lastCompleted?.getTime() ?? 0);
+        if (stalledMs > 15 * 60 * 1000) {
+          return res.status(503).json({
+            ok: false,
+            reason: "filing_queue_stalled",
+            pendingFilingJobs: pendingFiling,
+            lastCompletedAt: lastCompleted?.toISOString() ?? null,
+            stalledMs,
+          });
+        }
+      }
+
+      res.json({ ok: true, pendingFilingJobs: pendingFiling });
     } catch (err) {
       res.status(503).json({
         ok: false,
@@ -265,6 +292,24 @@ async function startServer() {
     buildReconciliationInterval({ intervalMs: 30 * 60 * 1000, batchSize: 25 })();
   } catch (err) {
     console.warn("[LobReconcile] Failed to initialize", err);
+  }
+
+  // Recovery sweep: any submission stuck in "analyzing" for >10 min is the
+  // residue of a crash mid-pipeline. Reset it to "pending" and re-queue so
+  // the analysis pipeline picks it back up. The activeJobs in-memory Set
+  // is also lost on crash, so we don't need to worry about double-running.
+  try {
+    const stuck = await findStuckAnalysisSubmissions(10 * 60 * 1000);
+    if (stuck.length > 0) {
+      console.log(`[Startup] Recovering ${stuck.length} stuck analysis submission(s)`);
+      const { queueAnalysisJob } = await import("../services/analysisJob");
+      for (const s of stuck) {
+        await updatePropertySubmission(s.id, { status: "pending" });
+        queueAnalysisJob(s.id);
+      }
+    }
+  } catch (err) {
+    console.warn("[Startup] Stuck-job recovery sweep failed:", err);
   }
 
   // Start filing job processor (Playwright / mail dispatcher)

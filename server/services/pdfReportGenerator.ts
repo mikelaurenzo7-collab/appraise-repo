@@ -1,10 +1,13 @@
 /**
  * PDF Report Generator Service
- * 
- * Generates professional USPAP-compliant appraisal reports in PDF format
+ *
+ * Generates professional USPAP-compliant appraisal reports in PDF format.
+ * `generateEnhancedReportNarrative` uses Claude Opus 4.7 with streaming +
+ * prompt caching to produce richer multi-section narratives for the PDF.
  */
 
 import { PropertyAnalysis, PropertySubmission } from "../../drizzle/schema";
+import { generateNarrativeWithClaude, isClaudeAvailable } from "../_core/claude";
 
 export interface AppraisalReportData {
   submission: PropertySubmission;
@@ -381,6 +384,100 @@ export function generateAppraisalReportHTML(data: AppraisalReportData): string {
 </body>
 </html>
   `;
+}
+
+// ---------------------------------------------------------------------------
+// Claude-powered enhanced narrative sections
+// ---------------------------------------------------------------------------
+
+// Stable template prompt — cached on repeated calls so only the property-
+// specific user content is billed as input tokens each time.
+const NARRATIVE_SYSTEM_PROMPT =
+  "You are a senior property valuation analyst drafting the written narrative sections " +
+  "of a USPAP-aligned property tax appeal report. Your writing is professional, precise, " +
+  "and quantitative — every claim is traceable to a comp, public record, or calculation. " +
+  "You are not an attorney and never give legal advice. Avoid editorializing about the " +
+  "assessor. Structure your response as distinct labelled sections separated by '###'.";
+
+export interface EnhancedNarrative {
+  valuationMethodology: string;
+  comparableSalesNarrative: string;
+  conditionAdjustmentNarrative: string;
+  conclusionAndRecommendation: string;
+}
+
+/**
+ * Generate richer, multi-section written narratives using Claude Opus 4.7
+ * with adaptive thinking + streaming.  The stable USPAP system prompt is
+ * prompt-cached, so only the property-specific data counts as new tokens.
+ *
+ * Falls back to `null` when ANTHROPIC_API_KEY is not set, so callers can
+ * gracefully omit the enhanced sections and use the HTML template alone.
+ */
+export async function generateEnhancedReportNarrative(
+  data: AppraisalReportData
+): Promise<EnhancedNarrative | null> {
+  if (!isClaudeAvailable()) return null;
+
+  const { submission, analysis, comparableSales, appealStrengthFactors } = data;
+
+  const overassessment = (submission.assessedValue ?? 0) - (submission.marketValue ?? 0);
+
+  const userContent =
+    `Generate four narrative sections for a property tax appeal report.\n\n` +
+    `PROPERTY:\n` +
+    `  Address: ${submission.address}, ${submission.city}, ${submission.state} ${submission.zipCode}\n` +
+    `  County: ${submission.county ?? "Unknown"}\n` +
+    `  Type: ${submission.propertyType ?? "Residential"}\n` +
+    `  Built: ${submission.yearBuilt ?? "Unknown"}  |  ${submission.squareFeet?.toLocaleString() ?? "?"} sqft\n` +
+    `  Bedrooms/Bathrooms: ${submission.bedrooms ?? "?"}/${submission.bathrooms ?? "?"}\n\n` +
+    `VALUATION:\n` +
+    `  Assessed value:    $${(submission.assessedValue ?? 0).toLocaleString()}\n` +
+    `  Market value est.: $${(submission.marketValue ?? 0).toLocaleString()}\n` +
+    `  Overassessment:    $${overassessment.toLocaleString()}\n` +
+    `  Executive summary: ${analysis.executiveSummary ?? ""}\n` +
+    `  Justification:     ${analysis.valuationJustification ?? ""}\n\n` +
+    `COMPARABLE SALES (up to 5):\n` +
+    comparableSales
+      .slice(0, 5)
+      .map(
+        (c) =>
+          `  ${c.address} — sold $${c.salePrice.toLocaleString()} (${c.saleDate}), ` +
+          `${c.sqft.toLocaleString()} sqft @ $${c.pricePerSqft}/sqft`
+      )
+      .join("\n") +
+    `\n\nAPPEAL STRENGTH FACTORS:\n` +
+    appealStrengthFactors.map((f) => `  • ${f}`).join("\n") +
+    `\n\n` +
+    `Return exactly four sections with these headings (do NOT change the headings):\n` +
+    `### Valuation Methodology\n` +
+    `### Comparable Sales Narrative\n` +
+    `### Condition Adjustment Narrative\n` +
+    `### Conclusion and Recommendation\n` +
+    `Each section: 3–6 sentences, professional tone, evidence-based.`;
+
+  try {
+    const raw = await generateNarrativeWithClaude({
+      systemPrompt: NARRATIVE_SYSTEM_PROMPT,
+      userContent,
+      maxTokens: 4096,
+    });
+
+    const extract = (heading: string): string => {
+      const re = new RegExp(`###\\s*${heading}\\s*\\n([\\s\\S]*?)(?=###|$)`, "i");
+      return raw.match(re)?.[1]?.trim() ?? "";
+    };
+
+    return {
+      valuationMethodology: extract("Valuation Methodology"),
+      comparableSalesNarrative: extract("Comparable Sales Narrative"),
+      conditionAdjustmentNarrative: extract("Condition Adjustment Narrative"),
+      conclusionAndRecommendation: extract("Conclusion and Recommendation"),
+    };
+  } catch (err) {
+    console.error("[PDFReport] Claude narrative generation failed:", (err as Error).message);
+    return null;
+  }
 }
 
 /**

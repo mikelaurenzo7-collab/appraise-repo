@@ -12,4 +12,8 @@ export const ENV = {
   googleCseCx: process.env.GOOGLE_CSE_CX ?? "",
   realieApiKey: process.env.REALIE_API_KEY ?? "",
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+  // Optional: set ANTHROPIC_API_KEY to unlock Claude Opus 4.7 features
+  // (adaptive thinking, vision with prompt caching, Batch API).
+  // When absent, all services fall back to the Forge/Gemini path.
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
 };

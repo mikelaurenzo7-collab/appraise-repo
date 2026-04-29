@@ -1,10 +1,15 @@
 import { invokeLLM } from "../_core/llm";
+import { hashLLMInput, withLLMCache } from "../_core/lcache";
 
 export type PropertyType = "residential" | "multi-family" | "commercial" | "agricultural" | "industrial" | "land" | "unknown";
 
 /**
  * Classify property type based on address and optional details
- * Uses LLM to infer from address patterns and user-provided info
+ * Uses LLM to infer from address patterns and user-provided info.
+ *
+ * Result is cached for 30 days keyed by the input tuple — the same
+ * (address, sqft, beds, baths) always classifies the same way, so we never
+ * re-call the LLM for it.
  */
 export async function classifyPropertyType(
   address: string,
@@ -12,8 +17,10 @@ export async function classifyPropertyType(
   bedrooms?: number,
   bathrooms?: number
 ): Promise<PropertyType> {
+  const cacheKey = `llm:classify:${hashLLMInput([address, squareFeet, bedrooms, bathrooms])}`;
   try {
-    const prompt = `Classify the property type based on this information:
+    return await withLLMCache<PropertyType>(cacheKey, "classify-llm", 30 * 24 * 3600, async () => {
+      const prompt = `Classify the property type based on this information:
 Address: ${address}
 Square Feet: ${squareFeet || "unknown"}
 Bedrooms: ${bedrooms || "unknown"}
@@ -28,31 +35,30 @@ Respond with ONLY one of these values (no explanation):
 - land (vacant land, development)
 - unknown (cannot determine)`;
 
-    const response = await invokeLLM({
-      messages: [
-        {
-          role: "system",
-          content: "You are a property classification expert. Classify properties based on minimal information.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+      const response = await invokeLLM({
+        // The classifier returns a single short label — no need to allocate
+        // 32K output tokens per call. This caps the response budget.
+        maxTokens: 32,
+        messages: [
+          {
+            role: "system",
+            content: "You are a property classification expert. Classify properties based on minimal information.",
+          },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      const content = response.choices[0]?.message.content;
+      const contentStr = typeof content === "string" ? content : "unknown";
+      const classification = contentStr.toLowerCase().trim() || "unknown";
+
+      const validTypes: PropertyType[] = ["residential", "multi-family", "commercial", "agricultural", "industrial", "land", "unknown"];
+      const cleanedClassification = classification.replace(/[^a-z-]/g, "");
+      if (validTypes.includes(cleanedClassification as PropertyType)) {
+        return cleanedClassification as PropertyType;
+      }
+      return "unknown";
     });
-
-    const content = response.choices[0]?.message.content;
-    const contentStr = typeof content === "string" ? content : "unknown";
-    const classification = contentStr.toLowerCase().trim() || "unknown";
-
-    // Validate response
-    const validTypes: PropertyType[] = ["residential", "multi-family", "commercial", "agricultural", "industrial", "land", "unknown"];
-    const cleanedClassification = classification.replace(/[^a-z-]/g, "");
-    if (validTypes.includes(cleanedClassification as PropertyType)) {
-      return cleanedClassification as PropertyType;
-    }
-
-    return "unknown";
   } catch (error) {
     console.error("[PropertyClassifier] Error classifying property:", error);
     return "unknown";
