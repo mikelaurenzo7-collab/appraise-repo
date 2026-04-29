@@ -127,6 +127,13 @@
       "when": 1777443581264,
       "tag": "0017_previous_luminals",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1777452864063,
+      "tag": "0018_slimy_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

@@ -7,25 +7,27 @@ export interface AppraisalAnalysis {
   marketValueEstimate: number;
   assessmentGap: number;
   assessmentGapPercent: number;
-  impliedMarketValueByAssessor?: number;
-  assessmentLevel?: number;
-  appealStrengthScore: number;
+  appealStrengthScore: number; // 0-100
   appealStrengthFactors: string[];
   recommendedApproach: "poa" | "pro-se" | "not-recommended";
   executiveSummary: string;
   valuationJustification: string;
   potentialSavings: number;
   nextSteps: string[];
+  // Optional extended fields (populated by local fallback or future LLM versions)
+  adjustmentGrid?: unknown[];
+  incomeApproach?: unknown;
   conditionAdjustment?: number;
   compSelectionRationale?: string;
   marketWeaknessFactors?: string[];
-  incomeApproach?: IncomeApproachResult;
-  adjustmentGrid?: AdjustmentGridEntry[];
+  assessmentLevel?: number;
+  impliedMarketValueByAssessor?: number;
   cookCountyClassCode?: string;
   triennialReassessmentYear?: number | null;
   isReassessmentYear?: boolean;
   pricePerUnit?: number;
   pricePerUnitComps?: number;
+  reconciliationNarrative?: string;
 }
 
 // Stable system prompt — prompt-cached by Claude across all analysis calls.
@@ -67,136 +69,89 @@ const APPRAISAL_JSON_SCHEMA = {
  */
 export async function analyzeProperty(propertyData: PropertyData, propertyType: string = "residential"): Promise<AppraisalAnalysis> {
   try {
-    // Pre-computations
-    const assessmentLevel = getAssessmentLevel(propertyData.county, propertyData.state);
-    const impliedMarketValueByAssessor = propertyData.assessedValue
-      ? Math.round(propertyData.assessedValue / assessmentLevel)
-      : undefined;
-
-    const isCookCounty = propertyData.county?.toLowerCase().includes("cook");
-    const cookCountyClassCode = isCookCounty
-      ? getCookCountyClassCode(propertyType, undefined)
-      : undefined;
-    const { year: triennialYear, isReassessmentYear } = checkTriennialReassessment(
-      propertyData.county,
-      propertyData.city
-    );
-
-    const { bestComps, rationale, avgCompPrice } = selectAdvocacyComps(
-      propertyData.comparableSales || [],
-      propertyData
-    );
-
-    const marketWeakness = identifyMarketWeakness(
-      propertyData.comparableSales || [],
-      propertyData
-    );
-
-    const incomeApproach = computeIncomeApproach(propertyData, propertyType);
-    const adjustmentGrid = buildAdjustmentGrid(bestComps, propertyData, propertyType, undefined);
-
-    const isMultifamily = propertyType.toLowerCase().includes("multifamily") || propertyType.toLowerCase().includes("apartment");
-    const pricePerUnit = isMultifamily && propertyData.marketValue
-      ? Math.round(propertyData.marketValue / 2)
-      : undefined;
-    const pricePerUnitComps = isMultifamily && avgCompPrice
-      ? Math.round(avgCompPrice / 2)
-      : undefined;
-
-    const methodologyGuidance = getMethodologyGuidance(propertyType);
-
-    // Build LLM data summary
+    // Prepare data summary for LLM
     const dataSummary = `
-SUBJECT PROPERTY:
-Address: ${propertyData.address}, ${propertyData.city}, ${propertyData.state} ${propertyData.zipCode || ""}
+Property Address: ${propertyData.address}, ${propertyData.city}, ${propertyData.state} ${propertyData.zipCode}
 Property Type: ${propertyType.charAt(0).toUpperCase() + propertyType.slice(1)}
 County: ${propertyData.county || "Unknown"}
-Parcel: ${propertyData.parcelNumber || "Unknown"}
-Zoning: ${propertyData.zoning || "Unknown"}
-${cookCountyClassCode ? `Cook County Property Class: ${cookCountyClassCode}` : ""}
-${triennialYear ? `Cook County Triennial Reassessment: Next year = ${triennialYear}${isReassessmentYear ? " ← THIS IS A REASSESSMENT YEAR (HIGH URGENCY)" : ""}` : ""}
 
-CURRENT ASSESSMENT:
+Current Assessment:
 - Assessed Value: $${propertyData.assessedValue?.toLocaleString() || "Unknown"}
-- Assessment Level: ${(assessmentLevel * 100).toFixed(0)}% of market value${assessmentLevel < 1 ? ` (${propertyData.county || "this county"} statutory level)` : ""}
-- Implied Market Value by Assessor: $${impliedMarketValueByAssessor?.toLocaleString() || "Unknown"}${assessmentLevel < 1 ? ` ← THIS IS THE REAL COMPARISON FIGURE (assessed value ÷ ${assessmentLevel})` : ""}
-- Annual Property Tax: $${propertyData.propertyTax?.toLocaleString() || "Unknown"}
 
-MARKET DATA:
-- Estimated Market Value (AVM): $${propertyData.marketValue?.toLocaleString() || "Unknown"}
+Market Data:
+- Estimated Market Value: $${propertyData.marketValue?.toLocaleString() || "Unknown"}
 - Last Sale Price: $${propertyData.lastSalePrice?.toLocaleString() || "Unknown"} (${propertyData.lastSaleDate || "Unknown"})
-
-
-PHYSICAL CHARACTERISTICS:
 - Square Feet: ${propertyData.squareFeet?.toLocaleString() || "Unknown"}
 - Lot Size: ${propertyData.lotSize?.toLocaleString() || "Unknown"} sq ft
-- Year Built: ${propertyData.yearBuilt || "Unknown"} (Age: ${propertyData.yearBuilt ? new Date().getFullYear() - propertyData.yearBuilt : "Unknown"} years)
+- Year Built: ${propertyData.yearBuilt || "Unknown"}
 - Bedrooms: ${propertyData.bedrooms || "Unknown"}
 - Bathrooms: ${propertyData.bathrooms || "Unknown"}
 
+Comparable Properties: ${propertyData.comparableSales?.length || 0} found
+${
+  propertyData.comparableSales
+    ?.slice(0, 3)
+    .map((comp) => `- ${comp.address}: $${comp.salePrice.toLocaleString()} (${comp.squareFeet} sqft)`)
+    .join("\n") || "None"
+}
 
-COMPARABLE SALES ANALYSIS (${bestComps.length} selected from ${propertyData.comparableSales?.length || 0} available):
-${rationale}
-$${bestComps.slice(0, 8).map((comp, i) => `  ${i + 1}. ${comp.address}: $${comp.salePrice.toLocaleString()} | ${comp.squareFeet || "?"}sqft | ${comp.bedrooms || "?"}bd/${comp.bathrooms || "?"}ba | Built ${comp.yearBuilt || "?"} | Sold: ${comp.saleDate} | DOM: ${comp.daysOnMarket ?? "?"} | Similarity: ${comp.similarity}%`).join("\n") || "  None available"}
-${avgCompPrice > 0 ? `\nAverage Comp Sale Price: $${Math.round(avgCompPrice).toLocaleString()}` : ""}
-
-${adjustmentGrid.length > 0 ? `QUANTITATIVE ADJUSTMENT GRID:\n${adjustmentGrid.map(e => `  ${e.compAddress}: $${e.salePrice.toLocaleString()} → Net Adj: ${e.netAdjustmentPct > 0 ? "+" : ""}${e.netAdjustmentPct}% → Adjusted: $${e.adjustedValue.toLocaleString()}`).join("\n")}` : ""}
-
-${incomeApproach ? `INCOME CAPITALIZATION APPROACH (MULTIFAMILY):
-- Market Rent/Unit: $${incomeApproach.marketRentPerUnit.toLocaleString()}/month (from ${incomeApproach.rentalCompsUsed} rental comps)
-- Total Units: ${incomeApproach.totalUnits}
-- Gross Potential Income: $${incomeApproach.grossPotentialIncome.toLocaleString()}/year
-- Vacancy & Collection Loss (${(incomeApproach.vacancyRate * 100).toFixed(0)}%): ($${incomeApproach.vacancyLoss.toLocaleString()})
-- Effective Gross Income: $${incomeApproach.effectiveGrossIncome.toLocaleString()}
-- Operating Expenses (${(incomeApproach.expenseRatio * 100).toFixed(1)}% of EGI): ($${incomeApproach.operatingExpenses.toLocaleString()})
-- Net Operating Income: $${incomeApproach.netOperatingIncome.toLocaleString()}
-- Capitalization Rate: ${(incomeApproach.capRate * 100).toFixed(2)}%
-- INCOME APPROACH VALUE: $${incomeApproach.incomeValue.toLocaleString()}` : ""}
-
-RENTAL COMPARABLES: ${propertyData.rentalComps?.length || 0} found
-${propertyData.rentalComps?.slice(0, 5).map((comp) => `  - ${comp.address}: $${comp.monthlyRent}/month (${comp.bedrooms}bd/${comp.bathrooms}ba, ${comp.squareFeet}sqft)`).join("\n") || "  None available"}
-
-MARKET WEAKNESS INDICATORS:
-${marketWeakness.length > 0 ? marketWeakness.map((f) => `  - ${f}`).join("\n") : "  None identified from available data"}
-
-METHODOLOGY GUIDANCE:
-${methodologyGuidance}${photoAnalysis ? `
-
-## GEMINI PHOTO ANALYSIS (Condition Evidence)
-Condition Score: ${photoAnalysis.conditionScore}/5
-Condition Notes: ${photoAnalysis.conditionNotes}
-Defects Identified: ${photoAnalysis.defectsFound.length > 0 ? photoAnalysis.defectsFound.join("; ") : "None"}
-Estimated Cost-to-Cure: $${photoAnalysis.costToCureEstimate.toLocaleString()}
-Appeal Impact: ${photoAnalysis.appealImpact}` : ""}${researchInsights ? formatInsightsForLLM(researchInsights) : ""}
+Rental Comps: ${propertyData.rentalComps?.length || 0} found
+${
+  propertyData.rentalComps
+    ?.slice(0, 3)
+    .map((comp) => `- ${comp.address}: $${comp.monthlyRent}/month (${comp.bedrooms}bd/${comp.bathrooms}ba)`)
+    .join("\n") || "None"
+}
     `;
 
-    // Get state-specific rules for LLM context
-    const stateRules = getStateRules(propertyData.state || "IL");
-    const stateContextLines = stateRules ? [
-      `${stateRules.state.toUpperCase()} SPECIFIC RULES:`,
-      `- Assessment level: ${(stateRules.assessmentLevel * 100).toFixed(0)}% of market value`,
-      `- Primary appeal body: ${stateRules.primaryAppealBody}`,
-      `- Appeal deadline: ${stateRules.typicalAppealDeadline}`,
-      `- Key strategies:`,
-      ...stateRules.keyStrategies.map(s => `  • ${s}`),
-      stateRules.uspapNotes ? `- USPAP Notes: ${stateRules.uspapNotes}` : "",
-      stateRules.multiunitStrategy ? `- Multifamily Strategy: ${stateRules.multiunitStrategy}` : "",
-      stateRules.commercialStrategy ? `- Commercial Strategy: ${stateRules.commercialStrategy}` : "",
-    ].filter(Boolean).join("\n") : "";
+    const prompt = `You are preparing the analytical narrative for a property
+owner who intends to challenge an over-assessment by their county tax authority.
+You are NOT their attorney and you do NOT provide case-specific legal advice.
+Your role is that of an independent valuation analyst whose work product will
+be entered into a property-tax appeal record.
 
-    // LLM System Prompt
-    const systemPrompt = `You are an EXPERT PROPERTY APPRAISER and TAX APPEAL ADVOCATE with deep knowledge of nationwide assessment rules, USPAP standards, and multifamily valuation methodology. Your job is to produce a rigorous, data-backed analysis that presents the STRONGEST POSSIBLE CASE for a lower assessed value.
+Tone & framing:
+- Professional, evidence-based, and quantitative — every observation must be
+  traceable to a comp, a public record, a measurement, or an arithmetic step.
+- Where the data fairly supports a lower fair market value than the current
+  assessment, say so plainly and explain WHY the data supports that conclusion.
+  This is not advocacy — it is competent valuation.
+- Avoid prescriptive legal language ("you should argue…", "demand that…").
+  Use analytical language ("the comparable evidence indicates…",
+  "the data is consistent with a fair market value of…").
+- Do not editorialize about the assessor. Stick to numbers and methodology.
 
-CORE PRINCIPLES:
-1. ALWAYS ADVOCATE for the homeowner where the data supports it.
-2. CRITICAL — ASSESSMENT LEVELS: Different states assess at different levels. ALWAYS calculate IMPLIED market value first: Assessed Value ÷ Assessment Level = Implied Market Value. THAT is what you compare to actual market value.
-3. For MULTIFAMILY properties: use Price Per Unit as the primary unit of comparison, not $/SF. Run BOTH the Sales Comparison Approach AND the Income Capitalization Approach.
-4. APPLY depreciation adjustments generously — physical deterioration, functional obsolescence, and external obsolescence all reduce value.
-5. USE market weakness indicators (declining prices, high DOM, distressed sales) as evidence that the assessment is stale or inflated.
-6. NEVER fabricate data. Every claim must be traceable to the provided data.
-7. If the Income Approach value is provided, reconcile it with the Sales Comparison Approach value — weight SCA as primary for small multifamily (2-4 units), income as primary for larger buildings.
+${dataSummary}
 
-${stateContextLines}
+Provide a JSON response with:
+1. marketValueEstimate: Independent fair-market-value conclusion derived from the
+   comparable sales and public records above. Round to the nearest $500.
+2. assessmentGap: assessedValue minus marketValueEstimate (positive = over-assessed).
+3. assessmentGapPercent: gap / assessedValue, expressed as a number.
+4. appealStrengthScore: 0-100. Reflects (a) the magnitude of the gap, (b) the
+   quantity and quality of corroborating comparable sales, and (c) the
+   consistency of the supporting public-record data.
+5. appealStrengthFactors: 3-5 concise, evidence-grade factors (e.g. "comparable
+   sales within 0.5 mi support a value of $X", "lot size discrepancy vs.
+   assessor record"). Each factor must be verifiable from the data shown.
+6. recommendedApproach: "poa" (we file on the owner's behalf), "pro-se"
+   (guided owner-filed appeal), or "not-recommended" (data does not support
+   an appeal at this time).
+7. executiveSummary: 2-3 sentences. State the assessed value, the
+   evidence-supported fair market value, and the resulting over-assessment if
+   any, in plain professional language.
+8. valuationJustification: One paragraph (4-7 sentences). Walk through the
+   methodology used: which approach (sales comparison / income / cost) was
+   weighted most, which comps drove the conclusion, and how public-record
+   data corroborates or refines the estimate.
+9. potentialSavings: Estimated annual property-tax savings if the assessment
+   were reduced to marketValueEstimate (use 1.2% as default effective rate
+   when not otherwise indicated).
+10. nextSteps: 3-4 concrete, professional next steps the owner can take
+    (e.g. "Verify assessed value on the most recent tax notice",
+    "Photograph any deferred-maintenance items prior to the hearing",
+    "Confirm appeal-filing deadline with the county assessor's office"). Do
+    not provide legal strategy or jurisdiction-specific procedural advice.
 
 Respond ONLY with valid JSON matching this schema:
 ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
@@ -262,96 +217,34 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
     });
 
     return analysis;
-  } catch (err) {
-    console.error("[appraisalAnalyzer] LLM failed, using fallback:", err);
-    return computeFallbackAnalysis(propertyData, propertyType);
+  } catch (error) {
+    console.error("[AppraisalAnalyzer] Error analyzing property:", error);
+
+    // Return default analysis if LLM fails
+    const assessed = propertyData.assessedValue || 0;
+    const market = propertyData.marketValue || assessed * 0.9;
+    const gap = assessed - market;
+    const gapPercent = assessed > 0 ? (gap / assessed) * 100 : 0;
+
+    return {
+      marketValueEstimate: market,
+      assessmentGap: gap,
+      assessmentGapPercent: gapPercent,
+      appealStrengthScore: gapPercent > 10 ? 65 : 35,
+      appealStrengthFactors: ["Assessment appears higher than market comparables", "Recent market data available"],
+      recommendedApproach: gapPercent > 10 ? "poa" : "not-recommended",
+      executiveSummary: `Property assessed at $${assessed.toLocaleString()} but estimated market value is $${market.toLocaleString()}.`,
+      valuationJustification: "Analysis based on comparable sales and market data from multiple sources.",
+      potentialSavings: (gap * 0.012) / 1, // Rough estimate: 1.2% annual tax rate
+      nextSteps: ["Review detailed comparable sales", "Consider filing appeal", "Contact our team for consultation"],
+    };
   }
 }
 
-// ─── FALLBACK (no LLM) ────────────────────────────────────────────────────────
-function computeFallbackAnalysis(
-  propertyData: PropertyData,
-  propertyType: string
-): AppraisalAnalysis {
-  const assessmentLevel = getAssessmentLevel(propertyData.county, propertyData.state);
-  const impliedMarketValueByAssessor = propertyData.assessedValue
-    ? Math.round(propertyData.assessedValue / assessmentLevel)
-    : undefined;
-
-  const assessed = impliedMarketValueByAssessor || propertyData.assessedValue || 0;
-  const comps = propertyData.comparableSales || [];
-
-  let marketEstimate: number;
-  const compsBelow = comps.filter((c) => c.salePrice < assessed);
-  if (compsBelow.length >= 3) {
-    marketEstimate = compsBelow.reduce((s, c) => s + c.salePrice, 0) / compsBelow.length;
-  } else if (comps.length >= 3) {
-    marketEstimate = comps.reduce((s, c) => s + c.salePrice, 0) / comps.length;
-  } else if (propertyData.marketValue) {
-    marketEstimate = propertyData.marketValue;
-  } else {
-    marketEstimate = assessed * 0.88;
-  }
-
-  let conditionAdj = 0;
-  if (propertyData.yearBuilt) {
-    const age = new Date().getFullYear() - propertyData.yearBuilt;
-    if (age > 30) conditionAdj = marketEstimate * 0.08;
-    else if (age > 20) conditionAdj = marketEstimate * 0.05;
-    else if (age > 10) conditionAdj = marketEstimate * 0.02;
-  }
-  marketEstimate = Math.round(marketEstimate - conditionAdj);
-
-  const gap = assessed - marketEstimate;
-  const gapPercent = assessed > 0 ? (gap / assessed) * 100 : 0;
-  const taxRate = propertyData.propertyTax && assessed > 0 ? propertyData.propertyTax / assessed : 0.012;
-
-  const factors: string[] = [];
-  if (gap > 0) factors.push(`Assessment implies market value of $${assessed.toLocaleString()}, exceeding estimated market value by $${gap.toLocaleString()} (${gapPercent.toFixed(1)}%)`);
-  if (assessmentLevel < 1) factors.push(`Cook County 10% assessment level applied: assessed value $${propertyData.assessedValue?.toLocaleString()} ÷ 0.10 = implied market value $${assessed.toLocaleString()}`);
-  if (compsBelow.length > 0) factors.push(`${compsBelow.length} comparable properties sold below the implied assessed market value`);
-  if (conditionAdj > 0) factors.push(`Property age (${new Date().getFullYear() - (propertyData.yearBuilt || 2000)} years) warrants depreciation adjustment of $${Math.round(conditionAdj).toLocaleString()}`);
-  if (factors.length === 0) factors.push("Limited data available — additional evidence may strengthen the case");
-
-  const isCookCounty = propertyData.county?.toLowerCase().includes("cook");
-  const cookCountyClassCode = isCookCounty ? getCookCountyClassCode(propertyType, undefined) : undefined;
-  const { year: triennialYear, isReassessmentYear } = checkTriennialReassessment(propertyData.county, propertyData.city);
-    const incomeApproach = computeIncomeApproach(propertyData, propertyType);
-    const { bestComps, rationale } = selectAdvocacyComps(comps, propertyData);
-    const adjustmentGrid = buildAdjustmentGrid(bestComps, propertyData, propertyType, undefined);
-
-  return {
-    marketValueEstimate: marketEstimate,
-    assessmentGap: Math.max(0, gap),
-    assessmentGapPercent: Math.max(0, gapPercent),
-    assessmentLevel,
-    impliedMarketValueByAssessor,
-    appealStrengthScore: gapPercent > 15 ? 80 : gapPercent > 10 ? 70 : gapPercent > 5 ? 60 : gapPercent > 0 ? 50 : 30,
-    appealStrengthFactors: factors,
-    recommendedApproach: gapPercent > 5 ? "poa" : gapPercent > 0 ? "pro-se" : "not-recommended",
-    executiveSummary: gap > 0
-      ? `This property is over-assessed by $${gap.toLocaleString()} (${gapPercent.toFixed(1)}%).${assessmentLevel < 1 ? ` Note: Cook County assesses at ${(assessmentLevel * 100).toFixed(0)}% of market value — the assessor's implied market value is $${assessed.toLocaleString()}, far exceeding the estimated fair market value of $${marketEstimate.toLocaleString()}.` : ""}`
-      : `Based on available data, the current assessment appears close to market value. Additional evidence may reveal grounds for appeal.`,
-    valuationJustification: `Analysis based on ${comps.length} comparable sales. ${compsBelow.length > 0 ? `${compsBelow.length} comps sold below the implied assessed market value.` : ""} ${conditionAdj > 0 ? `Depreciation adjustment of $${Math.round(conditionAdj).toLocaleString()} applied for property age.` : ""}`,
-    potentialSavings: Math.round(Math.max(0, gap) * taxRate),
-    nextSteps: [
-      "Upload property photos showing any condition issues, damage, or deferred maintenance",
-      "Review the comparable sales in your report and note any particularly similar to your property",
-      "Gather your most recent tax assessment notice and property tax bill",
-      gap > 0 ? "File your appeal before the county deadline — the data supports a strong case for reduction" : "Consider getting a professional inspection to document condition issues",
-    ],
-    conditionAdjustment: conditionAdj,
-    compSelectionRationale: rationale,
-    marketWeaknessFactors: identifyMarketWeakness(comps, propertyData),
-    incomeApproach,
-    adjustmentGrid: adjustmentGrid.length > 0 ? adjustmentGrid : undefined,
-    cookCountyClassCode,
-    triennialReassessmentYear: triennialYear,
-    isReassessmentYear,
-    pricePerUnit: propertyData.marketValue ? Math.round(propertyData.marketValue / 2) : undefined,
-  };
-}
-
+/**
+ * Calculate potential annual tax savings
+ * Assumes ~1.2% average property tax rate in US
+ */
 export function calculatePotentialSavings(assessmentGap: number, taxRate: number = 0.012): number {
-  return Math.round(Math.max(0, assessmentGap) * taxRate);
+  return Math.round(assessmentGap * taxRate);
 }

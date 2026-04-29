@@ -104,6 +104,14 @@ async function processReportJobAsync(jobId: number): Promise<void> {
     // Prepare report data
     const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
     const appealStrengthFactors = analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [];
+    const photoAnalysis = await getLatestPhotoAnalysis(job.submissionId);
+    // Parse new analysis columns (JSON stored as text)
+    const adjustmentGrid = analysis.adjustmentGrid ? JSON.parse(analysis.adjustmentGrid) : undefined;
+    const costApproachData = analysis.costApproachData ? JSON.parse(analysis.costApproachData) : undefined;
+    const incomeApproachData = analysis.incomeApproachData ? JSON.parse(analysis.incomeApproachData) : undefined;
+    const marketTrendData = analysis.marketTrendData ? JSON.parse(analysis.marketTrendData) : undefined;
+    // Determine report tier from filingMethod
+    const tier = submission.filingMethod === "none" ? "free" : (submission.filingMethod || "free");
 
     // Try to upgrade the narrative with Claude Opus 4.7 (streaming + cached
     // USPAP template). Falls back to the analysis JSON's existing narrative

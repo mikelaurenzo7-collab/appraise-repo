@@ -1,8 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock LLM before importing the module under test
+// Mock both LLM paths before importing the module under test.
+// The Claude path is taken when ANTHROPIC_API_KEY is set in the environment,
+// so we must mock it alongside invokeLLM to keep tests deterministic.
 vi.mock("./_core/llm", () => ({
   invokeLLM: vi.fn(),
+}));
+vi.mock("./_core/claude", () => ({
+  isClaudeAvailable: vi.fn(() => false),
+  analyzePhotoWithClaude: vi.fn(),
+  getClaudeClient: vi.fn(() => null),
+}));
+// Bypass DB-backed LLM cache so each test gets a fresh LLM call
+vi.mock("./_core/lcache", () => ({
+  hashLLMInput: (parts: unknown[]) => JSON.stringify(parts).slice(0, 32),
+  withLLMCache: async (_key: string, _source: string, _ttl: number, compute: () => Promise<unknown>) => compute(),
 }));
 
 import { invokeLLM } from "./_core/llm";
