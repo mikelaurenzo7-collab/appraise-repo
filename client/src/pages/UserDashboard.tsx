@@ -465,7 +465,7 @@ export default function UserDashboard() {
                       {/* Filing method + deadline */}
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
                         <span className="capitalize">
-                          {sub.filingMethod === "automated_express" ? "Automated Express" : sub.filingMethod === "automated_standard" ? "Automated Standard" : sub.filingMethod === "poa" ? "Automated Filing" : sub.filingMethod === "pro-se" ? "Pro Se Guided" : "Free Analysis"}
+                          {sub.filingMethod === "automated_express" ? "Automated Express" : (sub.filingMethod === "automated_standard" || sub.filingMethod === "poa") ? "Automated Standard" : sub.filingMethod === "pro-se" ? "Pro Se Guided" : "Free Analysis"}
                         </span>
                         {sub.appealDeadline && (
                           <span className="text-amber-500 font-medium">

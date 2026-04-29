@@ -15,6 +15,7 @@ const navLinks = [
   { label: "Tax Appeals", href: "/tax-appeals" },
   { label: "Deadlines", href: "/deadlines" },
   { label: "Pricing", href: "/pricing" },
+  { label: "Blog", href: "/blog" },
   { label: "About", href: "/about" },
 ];
 

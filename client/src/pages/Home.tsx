@@ -319,7 +319,7 @@ export default function Home() {
               You file. <span className="text-[#7C3AED]">Our software types.</span>
             </div>
             <div className="flex flex-wrap items-center gap-6 text-[#020617] text-sm font-semibold">
-              <span>Free · $49 · $99 flat</span>
+              <span>Free · $49 · $99 · $129</span>
               <span className="h-4 w-px bg-[#020617]/30" />
               <span>Money-back guarantee</span>
               <span className="h-4 w-px bg-[#020617]/30" />

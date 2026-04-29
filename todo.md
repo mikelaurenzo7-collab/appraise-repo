@@ -772,3 +772,25 @@
 - [x] 4-tier pricing display: FilingStatus.tsx updated with all 4 tier labels
 - [x] TypeScript: 0 errors after all changes
 - [x] Tests: 356 passing, 1 skipped (40 test files)
+
+## Audit, Organize, Perfect (Phase 33)
+
+### Copy & Pricing Alignment
+- [ ] Home.tsx: update "Free · $49 · $99 flat" stat band to "Free · $49 · $99 · $129"
+- [ ] About.tsx: update "automated filing at $99" to mention all 4 tiers
+- [ ] TaxAppeals.tsx: update "or $99 Automated Filing" to mention $99 Standard + $129 Express
+- [ ] stripeWebhook.ts: update legacy tierMapping to include all 4 new tier IDs
+- [ ] AnalysisResults.tsx: remove stale "poa" branch from recommendedApproach display
+- [ ] AdminDashboard.tsx: remove stale "poa" branch from filingMethod badge
+- [ ] FilingStatus.tsx: update filingMethod type to remove "poa" and clean up display
+- [ ] UserDashboard.tsx: clean up "poa" legacy label
+
+### Visual Polish
+- [ ] Pricing.tsx: add visual "Most Popular" / "Best Value" callout to Standard tier card
+- [ ] Home.tsx: ensure pricing preview cards use consistent border/shadow treatment
+- [ ] Navbar.tsx: add "Blog" link to desktop nav (currently missing)
+- [ ] Footer.tsx: ensure all 4 pricing tiers are mentioned in the pricing blurb
+
+### Code Organization
+- [ ] db.ts: rename filingType "poa" to "automated" in listFilingQueue return type
+- [ ] jurisdictionRules.ts: update contingencyFeeAllowed field comments to reflect flat-fee model

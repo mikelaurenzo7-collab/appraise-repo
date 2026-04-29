@@ -130,19 +130,22 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     } else {
       // Create a filing tier record if one doesn't exist yet
       // (e.g., user went through checkout before the tier was persisted)
-      const tierMapping: Record<string, "pro-se" | "poa"> = {
-        // New tier IDs
-        free: "pro-se",
+      const tierMapping: Record<string, "pro-se" | "automated_standard" | "automated_express"> = {
+        // Current tier IDs
         pro_se: "pro-se",
-        automated: "poa",
+        automated_standard: "automated_standard",
+        automated_express: "automated_express",
         // Legacy tier IDs (backward compat)
+        free: "pro-se",
+        automated: "automated_express",
+        poa: "automated_express",
         starter: "pro-se",
-        standard: "poa",
-        premium: "poa",
+        standard: "automated_standard",
+        premium: "automated_express",
       };
       await createFilingTier({
         submissionId,
-        tier: tierMapping[tierId] || "poa",
+        tier: tierMapping[tierId] || "automated_express",
         paymentStatus: "paid",
         paymentMethod: "stripe",
         stripePaymentIntentId: paymentIntentId,
@@ -154,8 +157,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     console.error("[Stripe Webhook] Failed to update filing tier payment status:", err);
   }
 
-  // Calculate contingency fee (25% of annual tax savings)
-  const contingencyFee = ((annualTaxSavings * 0.25) / 100).toFixed(2); // Convert from cents
+  // Flat-fee model: record payment against appeal outcome (no contingency fee)
+  const flatFeePaid = ((session.amount_total || 0) / 100).toFixed(2);
 
   // Update appeal outcome with payment info
   const existing = await getAppealOutcomeBySubmissionId(submissionId);
@@ -163,7 +166,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   if (existing) {
     await updateAppealOutcome(existing.id, {
       stripePaymentIntentId: (session.payment_intent as string) || undefined,
-      contingencyFeePaid: contingencyFee,
+      contingencyFeePaid: flatFeePaid, // field repurposed as flat-fee revenue tracker
       paidAt: new Date(),
     });
     console.log(`[Stripe Webhook] Updated appeal outcome ${existing.id} with payment info`);
@@ -201,7 +204,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   console.log(
-    `[Stripe Webhook] Payment completed for submission ${submissionId}: $${contingencyFee}`
+    `[Stripe Webhook] Payment completed for submission ${submissionId}: $${flatFeePaid} flat fee`
   );
 }
 

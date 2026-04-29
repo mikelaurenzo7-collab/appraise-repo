@@ -445,10 +445,8 @@ export default function AnalysisResults() {
                 <div className="text-xs text-[#64748B]">
                   {analysis?.recommendedApproach === "automated_express"
                     ? "We recommend Automated Express (same-day portal filing)"
-                    : analysis?.recommendedApproach === "automated_standard"
+                    : analysis?.recommendedApproach === "automated_standard" || analysis?.recommendedApproach === "poa"
                     ? "We recommend Automated Standard (certified mail filing)"
-                    : analysis?.recommendedApproach === "poa"
-                    ? "We recommend Automated Filing (portal submission)"
                     : analysis?.recommendedApproach === "pro-se"
                     ? "We recommend Pro Se Guided filing"
                     : "Appeal may not be recommended"}

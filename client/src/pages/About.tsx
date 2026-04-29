@@ -74,7 +74,7 @@ export default function About() {
               { title: "Transparency", desc: "No hidden fees. No surprises. You know exactly what you're paying and why." },
               { title: "Integrity", desc: "We only file appeals we believe in. We don't chase every case — we chase the right ones." },
               { title: "Posture", desc: "We are software. We're not a law firm and we don't pretend otherwise." },
-              { title: "Accessibility", desc: "Free analysis for everyone. Pro Se filing at $49, automated filing at $99. 60-day money-back guarantee de-risks the decision." },
+              { title: "Accessibility", desc: "Free analysis for everyone. Pro Se at $49, Automated Standard at $99, Automated Express at $129. 60-day money-back guarantee de-risks the decision." },
               { title: "Speed", desc: "Instant AI appraisals. Filing in 4 minutes for supported counties. No back-and-forth." },
             ].map((v) => (
               <div key={v.title} className="p-6 rounded-xl bg-white border border-[#E2E8F0]">

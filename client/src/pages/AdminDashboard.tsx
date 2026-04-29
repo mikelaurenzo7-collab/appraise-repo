@@ -279,14 +279,12 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-xs">
                           <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                             sub.filingMethod === "automated_express" ? "bg-amber-50 text-amber-700" :
-                            sub.filingMethod === "automated_standard" ? "bg-indigo-50 text-indigo-700" :
-                            sub.filingMethod === "poa" ? "bg-indigo-50 text-indigo-700" :
+                            (sub.filingMethod === "automated_standard" || sub.filingMethod === "poa") ? "bg-indigo-50 text-indigo-700" :
                             sub.filingMethod === "pro-se" ? "bg-purple-50 text-purple-700" :
                             "bg-gray-50 text-gray-500"
                           }`}>
                             {sub.filingMethod === "automated_express" ? "Express" :
-                             sub.filingMethod === "automated_standard" ? "Standard" :
-                             sub.filingMethod === "poa" ? "Automated" :
+                             (sub.filingMethod === "automated_standard" || sub.filingMethod === "poa") ? "Standard" :
                              sub.filingMethod === "pro-se" ? "Pro Se" :
                              sub.filingMethod?.toUpperCase() || "—"}
                           </span>
