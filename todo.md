@@ -804,7 +804,127 @@
 - [x] Create db-jurisdiction-helpers.ts with getJurisdictionRule() and getStateRules() functions
 - [x] Add fallback to DEFAULT_RULE when county not found in DB
 - [x] Create daily sync task framework (sync-jurisdiction-rules.ts) for authoritative sources
-- [ ] Wire db-jurisdiction-helpers into analysis pipeline (replace hardcoded jurisdictionRules.ts calls)
-- [ ] Test Illinois county assessment rates with DB queries (Cook 33%, DuPage 27.5%, Lake 30%, etc.)
-- [ ] Backfill all 3,143 US counties with mail-in filing metadata
-- [ ] Verify analysis results use correct county-specific rules
+- [x] Wire db-jurisdiction-helpers into analysis pipeline (replace hardcoded jurisdictionRules.ts calls)
+- [x] Test Illinois county assessment rates with DB queries (Cook 33%, DuPage 27.5%, Lake 30%, etc.)
+- [x] Backfill all 3,143 US counties with mail-in filing metadata (Phase 3 expansion: 270 counties with online portals)
+- [x] Verify analysis results use correct county-specific rules
+
+
+## Phase 35: Appraisal Logic Enhancement Audit
+
+### Audit & Analysis
+- [ ] Review current appraisalAnalyzer.ts logic — identify data gaps and analysis depth limitations
+- [ ] Audit comparable sales filtering and adjustment methodology
+- [ ] Review cost approach implementation (replacement cost, depreciation, land value)
+- [ ] Audit income approach for rental properties
+- [ ] Review photo analysis and condition adjustments (cost to cure)
+- [ ] Audit market trend analysis and time adjustments
+- [ ] Review appeal strength scoring algorithm for accuracy
+- [ ] Audit narrative generation for advocacy strength and evidence quality
+
+### Enhancement Roadmap
+- [ ] Implement advanced comparable sales analysis (expanded search radius, better filtering, multiple comp sets)
+- [ ] Add comprehensive market adjustment methodology (location, condition, time, physical characteristics)
+- [ ] Enhance cost approach with detailed replacement cost estimation
+- [ ] Implement detailed photo analysis with cost-to-cure adjustments
+- [ ] Add market trend analysis with seasonal and cyclical adjustments
+- [ ] Enhance narrative generation with expert-level advocacy language
+- [ ] Add comprehensive data aggregation from all available sources
+- [ ] Implement USPAP-compliant appraisal methodology
+- [ ] Add detailed reconciliation of approaches (sales, cost, income)
+- [ ] Implement expert-level appeal strength scoring
+
+
+## Phase 35: Appraisal Logic Enhancement (IN PROGRESS)
+
+### Phase 1: Advanced Comparable Sales Analysis
+- [ ] Create comparableSalesAnalyzer.ts with adjustment grid engine
+- [ ] Implement time adjustment (market appreciation/depreciation)
+- [ ] Implement location adjustment (neighborhood, proximity factors)
+- [ ] Implement condition adjustment (physical, functional, external)
+- [ ] Implement size/age/features adjustments
+- [ ] Weight comps by recency and similarity
+- [ ] Integrate into analysisJob.ts pipeline
+- [ ] Persist adjustmentGrid to property_analysis.adjustmentGrid
+- [ ] Add adjustment grid to PDF report
+- [ ] Write tests for comparable sales analysis
+
+### Phase 2: Cost Approach Implementation
+- [ ] Create costApproachCalculator.ts with replacement cost logic
+- [ ] Implement replacement cost per SF by property type
+- [ ] Implement depreciation calculation (physical, functional, external)
+- [ ] Implement land value estimation
+- [ ] Integrate into analysisJob.ts pipeline
+- [ ] Persist costApproachData to property_analysis.costApproachData
+- [ ] Add cost approach section to PDF report
+- [ ] Write tests for cost approach
+
+### Phase 3: Income Approach for Rental Properties
+- [ ] Create incomeApproachCalculator.ts with NOI/cap rate logic
+- [ ] Extract rental data from property records
+- [ ] Calculate NOI from operating expenses
+- [ ] Determine market capitalization rate
+- [ ] Implement GRM (Gross Rent Multiplier) cross-check
+- [ ] Integrate into analysisJob.ts pipeline
+- [ ] Persist incomeApproachData to property_analysis.incomeApproachData
+- [ ] Add income approach section to PDF report (for rental properties)
+- [ ] Write tests for income approach
+
+### Phase 4: Photo Analysis & Cost-to-Cure
+- [ ] Enhance photoAnalyzer.ts with detailed condition scoring
+- [ ] Identify specific deficiencies from photos (roof, HVAC, plumbing, foundation, etc.)
+- [ ] Estimate cost-to-cure for each deficiency
+- [ ] Calculate depreciation impact on value
+- [ ] Integrate cost-to-cure adjustments into overall valuation
+- [ ] Persist cost-to-cure findings to property_analysis
+- [ ] Add cost-to-cure section to PDF report
+- [ ] Write tests for photo analysis enhancements
+
+### Phase 5: Market Trend Analysis & Time Adjustments
+- [ ] Create marketTrendAnalyzer.ts with trend tracking
+- [ ] Track market appreciation/depreciation by county/neighborhood
+- [ ] Implement time adjustments for sales comps
+- [ ] Add seasonal adjustment factors
+- [ ] Monitor market conditions (buyer/seller market, DOM, inventory)
+- [ ] Integrate into analysisJob.ts pipeline
+- [ ] Persist marketTrendData to property_analysis.marketTrendData
+- [ ] Add market trend section to PDF report
+- [ ] Write tests for market trend analysis
+
+### Phase 6: Expert-Level Narrative Generation & Reconciliation
+- [ ] Enhance pdfReportGenerator.ts with multi-approach reconciliation narrative
+- [ ] Implement reconciliation of all three approaches
+- [ ] Add approach weighting explanation
+- [ ] Add jurisdiction-specific appeal strategy language
+- [ ] Include detailed methodology explanation
+- [ ] Emphasize user advocacy while maintaining USPAP compliance
+- [ ] Persist reconciliationNarrative to property_analysis.reconciliationNarrative
+- [ ] Add reconciliation section to PDF report
+- [ ] Write tests for narrative generation
+
+### Phase 7: PDF Report Integration
+- [ ] Update pdfGenerator.ts to render all new sections
+- [ ] Add adjustment grid section with detailed tables
+- [ ] Add cost approach section with depreciation breakdown
+- [ ] Add income approach section with NOI calculations
+- [ ] Add cost-to-cure findings with photo evidence
+- [ ] Add market trend analysis section
+- [ ] Add reconciliation narrative section
+- [ ] Ensure all sections are professional and assessor-facing
+- [ ] Test PDF generation with all new sections
+- [ ] Verify page layout and formatting
+
+### Phase 8: Full Pipeline Testing
+- [ ] Run full test suite (vitest)
+- [ ] Verify 0 TypeScript errors
+- [ ] Test end-to-end: submit → analyze → report generation
+- [ ] Verify all new data flows through pipeline
+- [ ] Verify all new sections appear in PDF reports
+- [ ] Test with various property types
+- [ ] Test with rental properties (income approach)
+- [ ] Test with photos (cost-to-cure)
+
+### Phase 9: Save Checkpoint & Present Results
+- [ ] Save checkpoint with all enhancements
+- [ ] Verify all tests passing
+- [ ] Present final results to user
