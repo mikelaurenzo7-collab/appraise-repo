@@ -1,8 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { lazy, Suspense } from "react";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PageErrorBoundary from "./components/PageErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import LeadChatWidget from "./components/LeadChatWidget";
 import ScrollProgress from "./components/ScrollProgress";
@@ -87,6 +88,19 @@ function Router() {
   );
 }
 
+function RoutedShell() {
+  // Per-route boundary resets when location changes, so an error on /admin
+  // doesn't cascade into a permanent broken state when the user navigates away.
+  const [location] = useLocation();
+  return (
+    <PageErrorBoundary resetKey={location}>
+      <Suspense fallback={<RouteFallback />}>
+        <Router />
+      </Suspense>
+    </PageErrorBoundary>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -94,9 +108,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <ScrollProgress />
-          <Suspense fallback={<RouteFallback />}>
-            <Router />
-          </Suspense>
+          <RoutedShell />
           <LeadChatWidget />
         </TooltipProvider>
       </ThemeProvider>
