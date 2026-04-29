@@ -103,7 +103,7 @@ export async function seedJurisdictionRules() {
       {
         state: "IL",
         county: "DuPage",
-        assessmentRate: "27.50",
+        assessmentRate: "33.33",
         appealDeadlineDays: 30,
         appealDeadlineType: "from_notice" as const,
         minAssessmentDifference: 4000,
@@ -123,7 +123,7 @@ export async function seedJurisdictionRules() {
       {
         state: "IL",
         county: "Lake",
-        assessmentRate: "30.00",
+        assessmentRate: "33.33",
         appealDeadlineDays: 30,
         appealDeadlineType: "from_notice" as const,
         minAssessmentDifference: 4000,
@@ -143,7 +143,7 @@ export async function seedJurisdictionRules() {
       {
         state: "IL",
         county: "Will",
-        assessmentRate: "28.00",
+        assessmentRate: "33.33",
         appealDeadlineDays: 30,
         appealDeadlineType: "from_notice" as const,
         minAssessmentDifference: 3500,
@@ -163,7 +163,7 @@ export async function seedJurisdictionRules() {
       {
         state: "IL",
         county: "Kane",
-        assessmentRate: "29.00",
+        assessmentRate: "33.33",
         appealDeadlineDays: 30,
         appealDeadlineType: "from_notice" as const,
         minAssessmentDifference: 3500,
