@@ -25,6 +25,10 @@ export type UserScenario =
   | "distressed_condition"
   | "new_construction"
   | "recently_renovated"
+  | "senior_homestead"
+  | "veteran_disability"
+  | "financial_hardship"
+  | "mixed_use"
   | "none";
 
 export interface ScenarioContext {
@@ -415,6 +419,165 @@ const scenarioDefinitions: Record<UserScenario, ScenarioContext> = {
     ],
   },
 
+  senior_homestead: {
+    scenario: "senior_homestead",
+    scenarioLabel: "Senior / Retired (65+)",
+    scenarioDescription:
+      "Owner is 65 or older. Most jurisdictions offer senior exemptions, freezes, or deferrals that should be applied BEFORE any market-value appeal — and a parallel appeal still works alongside them.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.85,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.15,
+      conditionAdjustment: -0.02, // Older owners often have aging-in-place deferred maintenance
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 8,
+      legalGroundsBonus: 5,
+      evidenceStrengthMultiplier: 1.1,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 0.85, // Senior exemptions typically reduce effective rate 10-25%
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Senior homeowners are entitled to multiple stacked tax-relief mechanisms — exemptions, assessment freezes, deferral programs, and the standard market-value appeal. The exemptions reduce the rate; the appeal reduces the assessed base. Both should be pursued in parallel when the property is overassessed on the merits.",
+    userAdvocacyPoints: [
+      "Most states offer a senior homestead exemption ($10K–$50K assessed value reduction)",
+      "Some states freeze the assessed value once you turn 65 (TX, IL, NJ have variants)",
+      "Property tax deferral programs let you defer taxes until sale or estate (no interest in some states)",
+      "Senior exemptions apply REGARDLESS of the appeal — pursue both",
+      "Aging-in-place deferred maintenance is a legitimate condition factor in valuation",
+      "You may qualify for a circuit-breaker credit if taxes exceed a % of household income",
+    ],
+  },
+
+  veteran_disability: {
+    scenario: "veteran_disability",
+    scenarioLabel: "Veteran or Disabled Owner",
+    scenarioDescription:
+      "Owner is a veteran (especially disabled veteran) or otherwise disabled. Many states offer 100% exemption for permanently-disabled veterans; partial exemptions for others.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.85,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.15,
+      conditionAdjustment: -0.02,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 10,
+      legalGroundsBonus: 8,
+      evidenceStrengthMultiplier: 1.15,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 0.5, // Disabled veteran exemptions often eliminate or halve tax burden
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Veterans and disabled homeowners qualify for substantial — sometimes total — property tax exemptions in most U.S. states. These exemptions are independent of the market-value appeal: file for the exemption (or verify it's currently applied) and run the appeal in parallel when the underlying assessment is also high.",
+    userAdvocacyPoints: [
+      "100%-disabled veterans qualify for a full property-tax exemption in most states (TX, FL, MI, IA, IL, etc.)",
+      "Partially-disabled veterans qualify for a partial exemption tied to disability rating",
+      "Disabled non-veteran homeowners often qualify for state-specific disability exemptions",
+      "Surviving spouses of disabled veterans usually retain the exemption",
+      "ADA-required modifications (ramps, lifts, etc.) generally do NOT increase taxable value",
+      "Pursue exemption AND market-value appeal in parallel — they reduce different things",
+    ],
+  },
+
+  financial_hardship: {
+    scenario: "financial_hardship",
+    scenarioLabel: "Financial Hardship",
+    scenarioDescription:
+      "Owner facing job loss, medical crisis, divorce, or other documented financial hardship. Many jurisdictions offer hardship deferrals, payment plans, or temporary reductions on top of any merits-based appeal.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.8,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.2,
+      conditionAdjustment: -0.05, // Often deferred maintenance during hardship
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 7,
+      legalGroundsBonus: 5,
+      evidenceStrengthMultiplier: 1.1,
+      urgencyLevel: "critical",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: false, // Hardship comps can be relevant
+      excludeShortSales: false,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 18,
+      requireSimilarCondition: false,
+      allowDistressedComps: true,
+    },
+    narrativeTemplate:
+      "Financial hardship doesn't directly change the property's fair market value, but it changes the urgency and the procedural options available. Pursue the merits-based appeal AND ask the assessor about hardship deferrals, payment plans, and circuit-breaker credits — these stack with a successful appeal.",
+    userAdvocacyPoints: [
+      "Many states offer hardship deferrals (postpone taxes, no foreclosure during hardship)",
+      "Circuit-breaker credits cap property taxes as a % of household income (often 4-6%)",
+      "Payment plans without penalty are available in most jurisdictions",
+      "Senior + disability + hardship programs frequently STACK — apply for all you qualify for",
+      "Document the hardship: medical bills, layoff notice, divorce decree, etc.",
+      "Time is critical — file before delinquency triggers fees and lien proceedings",
+    ],
+  },
+
+  mixed_use: {
+    scenario: "mixed_use",
+    scenarioLabel: "Mixed-Use Property",
+    scenarioDescription:
+      "Property combines residential + commercial use (e.g., live/work, storefront with apartment above, home with detached commercial outbuilding). Often misclassified or over-assessed because the commercial component is valued separately.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.5,
+      incomeApproachWeight: 0.4, // Income approach weighted heavily for the commercial portion
+      costApproachWeight: 0.1,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: -0.03,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 10,
+      legalGroundsBonus: 8,
+      evidenceStrengthMultiplier: 1.2,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: false,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 18,
+      requireSimilarCondition: false,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Mixed-use properties are systematically misvalued because most assessors apply pure-residential or pure-commercial models without blending. The fair valuation requires weighting both approaches by use percentage, and many homestead exemptions still apply to the residential portion.",
+    userAdvocacyPoints: [
+      "Mixed-use requires a blended valuation: residential comps + income approach for commercial",
+      "Homestead exemption usually still applies to the residential portion (verify with assessor)",
+      "Square-footage allocation between uses must be documented (floor plan, business license)",
+      "Assessor often classifies the WHOLE property as commercial — a costly misclassification",
+      "Commercial portion's income must reflect actual rents and vacancy, not market peak",
+    ],
+  },
+
   none: {
     scenario: "none",
     scenarioLabel: "General Property Owner",
@@ -553,6 +716,10 @@ export function calculateScenarioTaxSavings(
     distressed_condition: 0.7,
     new_construction: 0.4,
     recently_renovated: 0.35,
+    senior_homestead: 0.7, // Exemptions stack with appeals; high overall savings probability
+    veteran_disability: 0.8, // Exemptions are largely automatic; appeal layers on top
+    financial_hardship: 0.6, // Hardship triggers more procedural pathways
+    mixed_use: 0.65, // Misclassification appeals tend to succeed
     none: 0.5,
   };
 
@@ -629,6 +796,27 @@ export function getScenarioApproachOverride(
 
   if (scenario === "rental_property" && appealStrengthScore >= 60) {
     return "poa"; // Income approach complexity
+  }
+
+  if (scenario === "veteran_disability") {
+    // Whether the appeal succeeds or not, exemption filing alone is high-value;
+    // we should always recommend filing — POA when the underlying assessment
+    // also overstates value, pro-se when only the exemption needs filing.
+    return appealStrengthScore >= 50 ? "poa" : "pro-se";
+  }
+
+  if (scenario === "senior_homestead" && appealStrengthScore >= 50) {
+    return "poa"; // Senior + appeal stack benefits from professional handling
+  }
+
+  if (scenario === "financial_hardship") {
+    // Hardship cases benefit from the pro-se path because owners often lack
+    // funds for a contingency-fee POA up front; they need the lowest-cost route.
+    return "pro-se";
+  }
+
+  if (scenario === "mixed_use" && appealStrengthScore >= 55) {
+    return "poa"; // Misclassification appeals are technical
   }
 
   return null;

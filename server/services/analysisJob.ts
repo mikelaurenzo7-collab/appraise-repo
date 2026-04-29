@@ -182,7 +182,11 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     }
 
     const [analysis, photoSummaryParallel] = await Promise.all([
-      analyzeProperty(propertyData, propertyType),
+      // Pass the userScenario so the LLM produces a scenario-shaped narrative
+      // (rental → income approach, distressed → cost-floor reasoning,
+      // recently_purchased → purchase-price ceiling, etc.) instead of a
+      // generic analysis that gets retroactively math-adjusted.
+      analyzeProperty(propertyData, propertyType, userScenario),
       photosForAnalysis.length > 0
         ? analyzePropertyPhotos(photosForAnalysis).catch((err) => {
             console.warn(

@@ -37,8 +37,9 @@ export function generateAppealStrategy(
   marketValue: number,
   noticeDate: Date
 ): AppealStrategy | null {
+  // getJurisdictionRules always returns a rule (national fallback when the
+  // state isn't in our database) — no null branch needed.
   const rules = getJurisdictionRules(state, county);
-  if (!rules) return null;
 
   const viability = calculateAppealViability(assessedValue, marketValue, state, county);
   const filing = getFilingStrategy(state, county, propertyType, assessedValue, marketValue);
