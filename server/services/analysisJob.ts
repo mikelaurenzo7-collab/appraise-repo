@@ -23,7 +23,7 @@ import {
 } from "../db";
 import { notifyOwner } from "../_core/notification";
 import { runPropertyResearch } from "./geminiResearch";
-import { getJurisdictionRules } from "../data/jurisdictionRules";
+import { getJurisdictionRule } from "../db-jurisdiction-helpers";
 import { capturePropertyImagery } from "../_core/streetViewCapture";
 import {
   getScenarioContext,
@@ -68,6 +68,8 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     }
 
     console.log(`[AnalysisJob] Starting analysis for #${submissionId} — ${submission.address}`);
+
+    const county = submission.county || "Unknown";
 
     // ── Mark as analyzing ────────────────────────────────────────────────────
     await updatePropertySubmission(submissionId, { status: "analyzing" });
@@ -193,7 +195,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     }
     // ── Step 3: Get jurisdiction rules ───────────────────────────────────────
     const state = submission.state || "";
-    const jurisdictionRules = getJurisdictionRules(state);
+    const jurisdictionRules = await getJurisdictionRule(state, county);
 
     // ── Step 3b: Load scenario context ───────────────────────────────────────
     const userScenario = (submission.userScenario || "none") as UserScenario;
@@ -346,7 +348,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
 
     // ── Step 5: Generate appeal strategy ─────────────────────────────────────
     const { generateAppealStrategy } = await import("./appealStrategy");
-    const appealStrategy = generateAppealStrategy(
+    const appealStrategy = await generateAppealStrategy(
       state,
       propertyData.county || submission.county || undefined,
       propertyType,

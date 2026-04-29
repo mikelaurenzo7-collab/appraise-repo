@@ -794,3 +794,17 @@
 ### Code Organization
 - [x] db.ts: rename filingType "poa" to "automated" in listFilingQueue return type
 - [x] jurisdictionRules.ts: update contingencyFeeAllowed field comments to reflect flat-fee model
+
+
+## Phase 34: Hybrid Jurisdiction Rules System
+
+- [x] Design jurisdiction_rules database table with audit trail (state, county, assessmentRate, appealDeadlineDays, appealDeadlineType, lastVerifiedAt, etc.)
+- [x] Run pnpm db:push to apply schema migration
+- [x] Create seed helper (db-seed-jurisdiction-rules.ts) to populate rules from jurisdictionRules.ts
+- [x] Create db-jurisdiction-helpers.ts with getJurisdictionRule() and getStateRules() functions
+- [x] Add fallback to DEFAULT_RULE when county not found in DB
+- [x] Create daily sync task framework (sync-jurisdiction-rules.ts) for authoritative sources
+- [ ] Wire db-jurisdiction-helpers into analysis pipeline (replace hardcoded jurisdictionRules.ts calls)
+- [ ] Test Illinois county assessment rates with DB queries (Cook 33%, DuPage 27.5%, Lake 30%, etc.)
+- [ ] Backfill all 3,143 US counties with mail-in filing metadata
+- [ ] Verify analysis results use correct county-specific rules
