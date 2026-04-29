@@ -113,6 +113,20 @@
       "when": 1777422923565,
       "tag": "0015_dark_shinko_yamashiro",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1777442631157,
+      "tag": "0016_public_archangel",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1777443581264,
+      "tag": "0017_previous_luminals",
+      "breakpoints": true
     }
   ]
 }

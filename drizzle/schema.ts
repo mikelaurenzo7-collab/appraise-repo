@@ -78,7 +78,7 @@ export const propertySubmissions = mysqlTable("property_submissions", {
 
   // Status tracking
   status: mysqlEnum("status", ["pending", "analyzing", "analyzed", "error", "contacted", "appeal-filed", "hearing-scheduled", "won", "lost", "withdrawn", "archived"]).default("pending").notNull(),
-  filingMethod: mysqlEnum("filingMethod", ["poa", "pro-se", "none"]),
+  filingMethod: mysqlEnum("filingMethod", ["poa", "pro-se", "none", "automated_standard", "automated_express"]),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -109,7 +109,7 @@ export const propertyAnalysis = mysqlTable("property_analysis", {
   marketValueEstimate: int("marketValueEstimate"),
   assessmentGap: int("assessmentGap"),
   appealStrengthFactors: text("appealStrengthFactors"),
-  recommendedApproach: mysqlEnum("recommendedApproach", ["poa", "pro-se", "not-recommended"]),
+  recommendedApproach: mysqlEnum("recommendedApproach", ["poa", "pro-se", "automated_standard", "automated_express", "not-recommended"]),
 
   // LLM-generated content
   executiveSummary: text("executiveSummary"),
@@ -168,7 +168,7 @@ export const appealOutcomes = mysqlTable("appeal_outcomes", {
   boardName: varchar("boardName", { length: 255 }),
 
   // Filing details
-  filingMethod: mysqlEnum("filingMethod", ["poa", "pro-se"]),
+  filingMethod: mysqlEnum("filingMethod", ["poa", "pro-se", "automated_standard", "automated_express"]),
   groundsForAppeal: text("groundsForAppeal"),
   evidenceStrength: int("evidenceStrength"), // 0-100 score at time of filing
 
@@ -679,7 +679,7 @@ export const filingTiers = mysqlTable("filing_tiers", {
   submissionId: int("submissionId").notNull(),
   
   // Tier selection
-  tier: mysqlEnum("tier", ["pro-se", "poa"]).notNull(),
+  tier: mysqlEnum("tier", ["pro-se", "poa", "automated_standard", "automated_express"]).notNull(),
   
   // Pricing
   proSePrice: int("proSePrice"), // In cents (e.g., 19900 = $199)

@@ -19,7 +19,7 @@ export interface GeneratedForm {
   title: string;
   description: string;
   county: County;
-  tier: "poa" | "pro-se";
+  tier: "poa" | "pro-se" | "automated_standard" | "automated_express" | "none";
   fields: FormField[];
   instructions: string[];
   deadline: string;
@@ -32,7 +32,7 @@ export interface GeneratedForm {
  */
 export async function generateCountyForm(
   countyId: number,
-  tier: "poa" | "pro-se"
+  tier: "poa" | "pro-se" | "automated_standard" | "automated_express" | "none"
 ): Promise<GeneratedForm | null> {
   const county = await getCountyById(countyId);
   if (!county) return null;
@@ -186,7 +186,7 @@ function getFilingMethods(county: County): string[] {
 /**
  * Generate filing checklist
  */
-export function generateFilingChecklist(county: County, tier: "poa" | "pro-se") {
+export function generateFilingChecklist(county: County, tier: "poa" | "pro-se" | "automated_standard" | "automated_express" | "none") {
   return {
     preFilingChecks: [
       "✓ Verify property address and parcel number",

@@ -669,74 +669,93 @@ export default function Home() {
       </section>
 
       {/* ─── PRICING PREVIEW ──────────────────────────────────── */}
-      <section className="bg-[oklch(0.94_0.018_85)] py-20 lg:py-28">
+      <section className="bg-[#F8F7FF] py-20 lg:py-28">
         <div className="container">
           <div className="text-center max-w-xl mx-auto mb-12">
-            <span className="gold-rule mx-auto" />
-            <h2 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F3F0FF] text-[#7C3AED] text-xs font-semibold uppercase tracking-widest mb-4">
+              Pricing
+            </div>
+            <h2 className="font-display text-3xl lg:text-4xl font-bold text-[#1E0A3C] mb-4">
               Simple, Transparent Pricing
             </h2>
             <p className="text-[#64748B]">
-              Flat-fee pricing. 60-day money-back guarantee if your
-              assessment isn&apos;t reduced.
+              Start free. Upgrade when you're ready to file. Flat fee, 60-day money-back guarantee.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 max-w-6xl mx-auto">
             {[
               {
-                name: "Instant Appraisal",
+                name: "Free Analysis",
                 price: "Free",
-                sub: "No credit card required",
-                features: ["AI-powered valuation", "Comparable sales analysis", "Assessment vs. market value gap", "Filing recommendation"],
-                cta: "Get Free Appraisal",
+                sub: "See if you're over-assessed",
+                badge: null,
+                features: ["AI market value estimate", "Appeal strength score", "County deadline lookup", "4-page teaser report"],
+                cta: "Get Free Analysis",
                 highlight: false,
               },
               {
-                name: "Pro Se",
+                name: "Pro Se Guided",
                 price: "$49",
                 sub: "You file — we prepare everything",
-                features: ["Everything in Free", "Full PDF appraisal report", "Comparable sales + adjustment grid", "Step-by-step DIY filing guide", "Email support", "60-day money-back guarantee"],
-                cta: "Get Full Report — $49",
+                badge: "DIY + Support",
+                features: ["Full 40-page appraisal report", "Comparable sales + adjustment grid", "Street View + satellite imagery", "Step-by-step filing guide", "60-day money-back guarantee"],
+                cta: "Get Full Report",
                 highlight: false,
               },
               {
-                name: "Automated Filing",
+                name: "Automated Standard",
                 price: "$99",
-                sub: "We file it for you — done in minutes",
-                features: ["Everything in Pro Se", "Auto-fill county portal form", "Scrivener authorization + audit trail", "Real-time filing status tracking", "Priority email support", "60-day money-back guarantee"],
-                cta: "File Automatically — $99",
+                sub: "We mail your appeal — all counties",
+                badge: "All 3,143 Counties",
+                features: ["Everything in Pro Se", "We prepare + mail your packet", "USPS Certified Mail + tracking", "Real-time filing status", "60-day money-back guarantee"],
+                cta: "File by Mail",
+                highlight: false,
+              },
+              {
+                name: "Automated Express",
+                price: "$129",
+                sub: "Same-day electronic filing",
+                badge: "Fastest",
+                features: ["Everything in Standard", "Same-day portal filing", "Instant confirmation receipt", "~650 portal-enabled counties", "60-day money-back guarantee"],
+                cta: "File Express",
                 highlight: true,
               },
             ].map((plan) => (
               <div
                 key={plan.name}
-                className={`rounded-xl p-6 lg:p-8 ${
+                className={`relative rounded-2xl p-6 flex flex-col ${
                   plan.highlight
-                    ? "bg-[#0F172A] text-white shadow-2xl shadow-[#0F172A]/30 scale-105"
-                    : "bg-white border border-[#E2E8F0]"
+                    ? "bg-[#1E0A3C] text-white shadow-2xl shadow-[#7C3AED]/30 ring-2 ring-[#7C3AED]"
+                    : "bg-white border border-[#E9E4FF] shadow-sm"
                 }`}
               >
-                {plan.highlight && (
-                  <div className="text-xs font-semibold text-[#7C3AED] uppercase tracking-widest mb-3">Most Popular</div>
+                {plan.badge && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider whitespace-nowrap ${
+                      plan.highlight ? "bg-[#7C3AED] text-white" : "bg-[#1E0A3C] text-white"
+                    }`}>{plan.badge}</span>
+                  </div>
                 )}
-                <div className={`font-display text-lg font-semibold mb-1 ${plan.highlight ? "text-white" : "text-[#0F172A]"}`}>{plan.name}</div>
-                <div className={`font-data text-4xl font-medium mb-1 ${plan.highlight ? "text-[#7C3AED]" : "text-[#0F172A]"}`}>{plan.price}</div>
-                <div className={`text-xs mb-6 ${plan.highlight ? "text-white/50" : "text-[#64748B]"}`}>{plan.sub}</div>
-                <ul className="space-y-2.5 mb-8">
+                <div className={`font-display text-base font-semibold mb-1 mt-2 ${plan.highlight ? "text-white" : "text-[#1E0A3C]"}`}>{plan.name}</div>
+                <div className={`font-data text-3xl font-bold mb-0.5 ${plan.highlight ? "text-[#A78BFA]" : "text-[#1E0A3C]"}`}>{plan.price}</div>
+                <div className={`text-xs mb-5 ${plan.highlight ? "text-white/50" : "text-[#64748B]"}`}>{plan.sub}</div>
+                <ul className="space-y-2 mb-6 flex-1">
                   {plan.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
-                      <CheckCircle2 size={14} className="text-[#7C3AED] mt-0.5 shrink-0" />
-                      <span className={plan.highlight ? "text-white/80" : "text-[#64748B]"}>{f}</span>
+                      <CheckCircle2 size={13} className={`mt-0.5 shrink-0 ${plan.highlight ? "text-[#A78BFA]" : "text-[#7C3AED]"}`} />
+                      <span className={plan.highlight ? "text-white/80" : "text-[#475569]"}>{f}</span>
                     </li>
                   ))}
                 </ul>
                 <Link
                   href="/get-started"
-                  className={`block text-center py-3 rounded text-sm font-semibold transition-all ${
+                  className={`block text-center py-2.5 rounded-lg text-sm font-semibold transition-all ${
                     plan.highlight
-                      ? "btn-gold"
-                      : "border border-[#0F172A] text-[#0F172A] hover:bg-[#0F172A] hover:text-white"
+                      ? "bg-[#7C3AED] text-white hover:bg-[#6D28D9]"
+                      : plan.price === "Free"
+                      ? "border-2 border-[#7C3AED] text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white"
+                      : "bg-[#1E0A3C] text-white hover:bg-[#2D1060]"
                   }`}
                 >
                   {plan.cta}
@@ -746,8 +765,8 @@ export default function Home() {
           </div>
 
           <div className="text-center mt-8">
-            <Link href="/pricing" className="text-sm text-[#64748B] hover:text-[#0F172A] transition-colors inline-flex items-center gap-1">
-              View full pricing details <ArrowRight size={14} />
+            <Link href="/pricing" className="text-sm text-[#7C3AED] hover:text-[#5B21B6] transition-colors inline-flex items-center gap-1 font-medium">
+              View full pricing details & comparison table <ArrowRight size={14} />
             </Link>
           </div>
         </div>

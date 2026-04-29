@@ -703,3 +703,72 @@
 - [x] Fix blank pages at end (reduce disclaimer white space)
 - [x] Verify 38 pages with 9 sample photos, all sections populated, no blank pages
 - [x] Real submissions with 15-20 photos will hit 50-60 pages naturally
+
+## County Database Expansion — Online Filing Research (Phase 30)
+- [ ] Research all US counties for online property tax appeal filing portals
+- [ ] Compile county database: name, state, portal URL, online filing available, filing window, tier eligibility
+- [ ] Update jurisdictionRules.ts / counties seed data with all researched counties
+- [ ] Add onlinePortalUrl and onlineFilingAvailable fields to counties schema if missing
+- [ ] Seed all counties with accurate data into the database
+- [ ] Verify TypeScript: 0 errors, tests pass after schema/seed changes
+
+## 4-Tier Pricing Implementation (Phase 31)
+- [ ] Update shared/pricing.ts: 4 tiers (free/$0, pro_se/$49, automated_standard/$99, automated_express/$129)
+- [ ] Update schema: filingMethod enum add "automated_standard" and "automated_express"
+- [ ] Update schema: filingTiers.tier enum add "automated_standard" and "automated_express"
+- [ ] Run pnpm db:push to migrate schema
+- [ ] Update server/routers.ts: overrideTier enum, getTierByFilingMethod, checkout routing
+- [ ] Update server/db.ts: tier mapping functions
+- [ ] Update Pricing.tsx: 4-tier card grid (md:grid-cols-4)
+- [ ] Update Home.tsx: pricing preview section with 4 tiers
+- [ ] Update GetStarted.tsx: FILING_METHODS with 4 options (add automated_standard mail-in)
+- [ ] Update AnalysisResults.tsx, UserDashboard.tsx, AppealFilingWorkflow.tsx tier references
+- [ ] Update HowItWorks.tsx, TaxAppeals.tsx, About.tsx, Footer.tsx pricing references
+- [ ] Full design audit: all pages reflect 4-tier positioning and brand consistency
+- [ ] TypeScript: 0 errors
+- [ ] Tests: all passing
+- [ ] Expand county database: add all US online-portal counties (~650-750 total)
+- [ ] Update county seed with mail-in metadata for all 3,143 counties
+- [ ] Run seed script and verify DB counts
+- [ ] Save checkpoint
+
+## County Database Expansion Phase 3 + 4-Tier Pricing Audit (Phase 32)
+- [x] County seed Phase 3: 117 new counties added (270 total across all seed files)
+  - Texas: 28 additional CAD eprotest counties
+  - Maryland: 7 major counties (centralized SDAT portal)
+  - California: 7 additional counties (Riverside, San Bernardino, Sacramento, Alameda, Contra Costa, San Diego, San Francisco, Ventura)
+  - North Carolina: 4 additional counties (Guilford, Forsyth, Durham, Cabarrus, Union)
+  - Georgia: 5 additional counties (DeKalb, Cherokee, Henry, Forsyth, Clayton)
+  - Michigan: 2 additional counties (Macomb, Kent, Washtenaw)
+  - Minnesota: 2 additional counties (Dakota, Anoka, Washington)
+  - Tennessee: 2 additional counties (Knox, Hamilton)
+  - Indiana: 4 additional counties (Lake, Allen, Hamilton, St. Joseph)
+  - New Mexico: 2 additional counties (Bernalillo, Santa Fe)
+  - Hawaii: 2 counties (Honolulu, Maui)
+  - Virginia: 2 additional counties (Prince William, Loudoun)
+  - Ohio: 2 additional counties (Lucas, Hamilton, Montgomery)
+  - Illinois: 1 additional county (Lake)
+  - Pennsylvania: 1 additional county (Chester)
+  - Utah: 2 additional counties (Weber, Davis)
+  - Washington: 3 additional counties (Snohomish, Pierce, Spokane)
+  - Alabama: 2 counties (Jefferson, Mobile)
+  - New York: Nassau County
+  - Oklahoma: 2 counties (Oklahoma, Tulsa)
+  - Oregon: 2 counties (Multnomah, Washington)
+  - South Carolina: 2 counties (Horry, Richland)
+  - West Virginia: 2 counties (Kanawha, Berkeley)
+  - Kentucky: 2 counties (Jefferson, Fayette)
+  - Nebraska: 2 counties (Douglas, Lancaster)
+  - Louisiana: 2 parishes (Orleans, Jefferson)
+  - Massachusetts: 1 county (Suffolk/Boston)
+  - Iowa: 2 counties (Polk, Linn)
+  - Missouri: 3 counties (St. Charles, Greene, Jefferson)
+  - Delaware: 1 county (New Castle)
+  - Wisconsin: 1 county (Dane)
+  - Florida: 6 additional counties (Hillsborough, Orange, Pinellas, Duval, Sarasota, Lee)
+  - New Jersey: 5 additional counties (Burlington, Camden, Morris, Somerset, Passaic)
+  - Arizona: 2 additional counties (Pinal, Yavapai)
+- [x] Import COUNTY_SEED_PHASE3 into admin.ts and spread into COUNTY_SEED
+- [x] 4-tier pricing display: FilingStatus.tsx updated with all 4 tier labels
+- [x] TypeScript: 0 errors after all changes
+- [x] Tests: 356 passing, 1 skipped (40 test files)

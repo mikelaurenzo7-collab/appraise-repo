@@ -131,15 +131,16 @@ describe("getTierByFilingMethod", () => {
     expect(getTierByFilingMethod("pro-se").priceCents).toBe(4900);
   });
 
-  it("returns automated tier for poa filing — $99", () => {
-    expect(getTierByFilingMethod("poa").id).toBe("automated");
-    expect(getTierByFilingMethod("poa").priceCents).toBe(9900);
+  it("returns automated_express tier for poa filing (legacy mapping)", () => {
+    expect(getTierByFilingMethod("poa").id).toBe("automated_express");
+    expect(getTierByFilingMethod("poa").priceCents).toBe(12900);
   });
 
-  it("exposes three distinct, ordered tiers (free < pro_se < automated)", () => {
-    expect(PRICING_TIERS).toHaveLength(3);
+  it("exposes four distinct, ordered tiers (free < pro_se < automated_standard < automated_express)", () => {
+    expect(PRICING_TIERS).toHaveLength(4);
     expect(PRICING_TIERS[0].priceCents).toBeLessThan(PRICING_TIERS[1].priceCents);
     expect(PRICING_TIERS[1].priceCents).toBeLessThan(PRICING_TIERS[2].priceCents);
+    expect(PRICING_TIERS[2].priceCents).toBeLessThan(PRICING_TIERS[3].priceCents);
   });
 });
 
@@ -148,7 +149,7 @@ describe("payments.listTiers", () => {
     const router = await loadRouter();
     const caller = router.createCaller(baseCtx({ user: normalUser }));
     const tiers = await caller.payments.listTiers();
-    expect(tiers).toHaveLength(3);
+    expect(tiers).toHaveLength(4);
     expect(tiers[0]).toHaveProperty("priceCents");
     expect(tiers[0]).toHaveProperty("blurb");
     expect(tiers[0].price).toBeCloseTo(tiers[0].priceCents / 100);

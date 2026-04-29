@@ -309,6 +309,8 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
     year: "numeric", month: "long", day: "numeric",
   });
   const fullAddress = [data.address, data.city, data.state, data.zipCode].filter(Boolean).join(", ");
+  // isFree: only the free tier gets the abbreviated 4-page report.
+  // All paid tiers (pro_se, automated_standard, automated_express, poa legacy) get the full 40-page report.
   const isFree = !data.tier || data.tier === "none" || data.tier === "free";
 
   // Instance-scoped page counter (fixes concurrent generation bug)

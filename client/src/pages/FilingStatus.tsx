@@ -56,7 +56,7 @@ type FilingRow = {
   city: string | null;
   state: string | null;
   status: SubmissionStatus;
-  filingMethod: "poa" | "pro-se" | "none" | null;
+  filingMethod: "poa" | "pro-se" | "automated_standard" | "automated_express" | "none" | null;
   filedDate: Date | null;
   hearingDate: Date | null;
   hearingLocation: string | null;
@@ -252,9 +252,13 @@ export default function FilingStatus() {
                         </span>
                         {filing.filingMethod && filing.filingMethod !== "none" && (
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#EDE9FE] text-[#6D28D9]">
-                            {filing.filingMethod === "poa"
+                            {filing.filingMethod === "automated_express"
+                              ? "Automated Express"
+                              : filing.filingMethod === "automated_standard"
+                              ? "Automated Standard"
+                              : filing.filingMethod === "poa"
                               ? "Automated Filing"
-                              : "Pro Se"}
+                              : "Pro Se Guided"}
                           </span>
                         )}
                       </div>

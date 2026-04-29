@@ -1,0 +1,1 @@
+ALTER TABLE `property_analysis` MODIFY COLUMN `recommendedApproach` enum('poa','pro-se','automated_standard','automated_express','not-recommended');

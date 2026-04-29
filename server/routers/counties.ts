@@ -45,7 +45,7 @@ export const countiesRouter = router({
     .input(
       z.object({
         countyId: z.number(),
-        tier: z.enum(["poa", "pro-se"]),
+        tier: z.enum(["poa", "pro-se", "automated_standard", "automated_express", "none"]),
       })
     )
     .query(async ({ input }) => {
@@ -61,7 +61,7 @@ export const countiesRouter = router({
     .input(
       z.object({
         countyId: z.number(),
-        tier: z.enum(["poa", "pro-se"]),
+        tier: z.enum(["poa", "pro-se", "automated_standard", "automated_express", "none"]),
       })
     )
     .query(async ({ input }) => {

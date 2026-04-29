@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { counties, filingRecipes } from "../../drizzle/schema";
 import { COUNTY_SEED_EXPANSION } from "../seeds/countySeedExpansion";
+import { COUNTY_SEED_PHASE3 } from "../seeds/countySeedPhase3";
 import { RECIPE_SEEDS } from "../seeds/filingRecipes.seed";
 import { RECIPE_SEEDS_EXPANSION } from "../seeds/filingRecipesExpansion.seed";
 
@@ -2809,6 +2810,7 @@ export const COUNTY_SEED = [
     intakeEmail: "taxboard@co.ocean.nj.us",
   },
   ...COUNTY_SEED_EXPANSION,
+  ...COUNTY_SEED_PHASE3,
 ];
 export const adminRouter = router({
   /**

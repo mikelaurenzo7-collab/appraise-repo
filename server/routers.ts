@@ -289,7 +289,7 @@ export const appRouter = router({
         address: z.string().min(5, "Please enter a valid address"),
         email: z.string().email("Please enter a valid email"),
         phone: z.string().optional(),
-        filingMethod: z.enum(["poa", "pro-se", "none"]).default("poa"),
+        filingMethod: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]).default("automated_express"),
         referralCode: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -679,7 +679,7 @@ export const appRouter = router({
           submissionId: z.number(),
           // Optional override for callers who want to preview a tier before
           // the submission has an assessed value recorded.
-          overrideTier: z.enum(["free", "pro_se", "automated"]).optional(),
+          overrideTier: z.enum(["free", "pro_se", "automated_standard", "automated_express"]).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -727,9 +727,9 @@ export const appRouter = router({
               },
             ],
             // Route back to the correct page depending on tier:
-            //   automated (poa) → AppealFilingWorkflow, which has its own payment=success handler
-            //   pro_se / free   → AnalysisResults, which has its own payment=success handler
-            success_url: tier.filingMethod === "poa"
+            //   automated_express / automated_standard → AppealFilingWorkflow (payment=success handler)
+            //   pro_se / free → AnalysisResults (payment=success handler)
+            success_url: (tier.filingMethod === "automated_express" || tier.filingMethod === "automated_standard")
               ? `${ctx.req.headers.origin}/appeal-workflow/${input.submissionId}?payment=success`
               : `${ctx.req.headers.origin}/analysis?id=${input.submissionId}&payment=success`,
             cancel_url: `${ctx.req.headers.origin}/analysis?id=${input.submissionId}`,
@@ -939,7 +939,8 @@ export const appRouter = router({
         const marketTrendData = analysis.marketTrendData ? JSON.parse(analysis.marketTrendData) : undefined;
 
         // Determine report tier from filingMethod
-        const tier = submission.filingMethod === "none" ? "free" : (submission.filingMethod || "free");
+        // Maps filing method to PDF tier: null/undefined=free, all paid methods=full 40-page report
+        const tier = submission.filingMethod ?? "free";
 
         const reportData: AppraisalReportData = {
           submissionId: input.submissionId,
@@ -1012,7 +1013,7 @@ export const appRouter = router({
     selectTier: protectedProcedure
       .input(z.object({
         submissionId: z.number(),
-        tier: z.enum(["poa", "pro-se"]),
+        tier: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]),
         countyId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -1023,14 +1024,18 @@ export const appRouter = router({
           .where(eq(filingTiers.submissionId, input.submissionId))
           .limit(1);
 
+        // Map legacy 'poa' to 'automated_express'
+        const normalizedTier = input.tier === 'poa' ? 'automated_express' :
+          input.tier === 'none' ? 'pro-se' : input.tier as 'pro-se' | 'automated_standard' | 'automated_express';
+
         if (existingTier.length > 0) {
           await db.update(filingTiers)
-            .set({ tier: input.tier, updatedAt: new Date() })
+            .set({ tier: normalizedTier, updatedAt: new Date() })
             .where(eq(filingTiers.submissionId, input.submissionId));
         } else {
           await db.insert(filingTiers).values({
             submissionId: input.submissionId,
-            tier: input.tier,
+            tier: normalizedTier,
             proSePrice: 4900,
             contingencyPercentage: 0,
             paymentStatus: "pending",
@@ -1187,7 +1192,7 @@ export const appRouter = router({
               assessedValue: z.number().min(0).max(1_000_000_000).optional(),
             })
           ).min(1, "At least one property required").max(100, "Batch limit is 100 properties"),
-          filingMethod: z.enum(["poa", "pro-se"]),
+          filingMethod: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]),
           contactEmail: z.string().email().max(255),
           contactPhone: z.string().trim().max(20).optional(),
         })
@@ -1455,7 +1460,7 @@ export const appRouter = router({
         originalAssessedValue: z.number().optional(),
         finalAssessedValue: z.number().optional(),
         annualTaxSavings: z.number().optional(),
-        filingMethod: z.enum(["poa", "pro-se"]).optional(),
+        filingMethod: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]).optional(),
         filedAt: z.string().optional(),
         resolvedAt: z.string().optional(),
         groundsForAppeal: z.string().optional(),
@@ -1491,7 +1496,7 @@ export const appRouter = router({
           reductionAmount,
           annualTaxSavings: input.annualTaxSavings,
           contingencyFeeEarned: contingencyFee,
-          filingMethod: input.filingMethod,
+          filingMethod: (input.filingMethod === 'none' ? undefined : input.filingMethod) as 'poa' | 'pro-se' | 'automated_express' | 'automated_standard' | undefined,
           filedAt: input.filedAt ? new Date(input.filedAt) : undefined,
           resolvedAt: input.resolvedAt ? new Date(input.resolvedAt) : undefined,
           resolutionDays,

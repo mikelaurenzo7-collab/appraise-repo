@@ -1,0 +1,3 @@
+ALTER TABLE `appeal_outcomes` MODIFY COLUMN `filingMethod` enum('poa','pro-se','automated_standard','automated_express');--> statement-breakpoint
+ALTER TABLE `filing_tiers` MODIFY COLUMN `tier` enum('pro-se','poa','automated_standard','automated_express') NOT NULL;--> statement-breakpoint
+ALTER TABLE `property_submissions` MODIFY COLUMN `filingMethod` enum('poa','pro-se','none','automated_standard','automated_express');

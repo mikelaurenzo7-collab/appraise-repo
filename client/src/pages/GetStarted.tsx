@@ -82,34 +82,44 @@ const PROPERTY_TYPES = [
 
 const FILING_METHODS = [
   {
-    value: "poa",
-    label: "Automated Online Filing",
-    icon: <Scale size={20} />,
-    desc: "For supported counties with online portals. Our software pre-fills and submits the county's form after you review and sign a per-filing scrivener authorization. You stay the filer of record.",
-    badge: "Most Popular",
-    price: "$99 flat",
-    priceDesc: "60-day money-back guarantee",
-    badgeColor: "bg-[#7C3AED] text-[#020617]",
+    value: "none",
+    label: "Free Analysis",
+    icon: <Zap size={20} />,
+    desc: "Get the AI appraisal and appeal strength score. See if you're over-assessed before committing to anything.",
+    badge: "Free",
+    price: "Free",
+    priceDesc: "No credit card required",
+    badgeColor: "bg-[#F3F0FF] text-[#7C3AED]",
   },
   {
     value: "pro-se",
-    label: "Pro Se Filing",
+    label: "Pro Se Guided",
     icon: <FileText size={20} />,
-    desc: "You file yourself. We prepare all documents, coach you through the process, and support you at the hearing.",
+    desc: "Full 40-page professional appraisal report + step-by-step filing guide. You file yourself — we prepare everything.",
     badge: "DIY + Support",
     price: "$49",
-    priceDesc: "One-time fee",
+    priceDesc: "Flat fee · 60-day guarantee",
     badgeColor: "bg-[#0F172A] text-white",
   },
   {
-    value: "none",
-    label: "Analysis Only",
-    icon: <Zap size={20} />,
-    desc: "Get the AI appraisal and appeal analysis. Decide later whether to file.",
-    badge: "Free",
-    price: "Free",
-    priceDesc: "No commitment",
-    badgeColor: "bg-green-100 text-green-800",
+    value: "automated_standard",
+    label: "Automated Standard",
+    icon: <Mail size={20} />,
+    desc: "We prepare and physically mail your certified appeal packet via USPS Certified Mail. Available in all 3,143 US counties.",
+    badge: "All Counties",
+    price: "$99",
+    priceDesc: "Flat fee · 60-day guarantee",
+    badgeColor: "bg-[#7C3AED] text-white",
+  },
+  {
+    value: "automated_express",
+    label: "Automated Express",
+    icon: <Scale size={20} />,
+    desc: "Same-day electronic filing through your county's online portal. Instant confirmation receipt. Fastest path to a hearing date.",
+    badge: "Fastest",
+    price: "$129",
+    priceDesc: "Flat fee · 60-day guarantee",
+    badgeColor: "bg-[#F59E0B] text-[#1E0A3C]",
   },
 ];
 
@@ -157,7 +167,7 @@ export default function GetStarted() {
   const [propertyType, setPropertyType] = useState("residential");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [filingMethod, setFilingMethod] = useState<"poa" | "pro-se" | "none">("poa");
+  const [filingMethod, setFilingMethod] = useState<"automated_express" | "automated_standard" | "pro-se" | "none">("automated_express");
   const [selectedCountyId, setSelectedCountyId] = useState<number | null>(null);
   const [photoSubmissionId, setPhotoSubmissionId] = useState<number | null>(null);
   const [photosUploaded, setPhotosUploaded] = useState<number>(0);
@@ -205,7 +215,7 @@ export default function GetStarted() {
 
   // Generate form for selected county and tier
   const formQuery = trpc.counties.generateForm.useQuery(
-    { countyId: selectedCountyId || 0, tier: filingMethod as "poa" | "pro-se" },
+    { countyId: selectedCountyId || 0, tier: filingMethod as "automated_express" | "automated_standard" | "pro-se" | "none" },
     { enabled: !!selectedCountyId && filingMethod !== "none" }
   );
 
@@ -284,7 +294,7 @@ export default function GetStarted() {
       setStep(3);
       return;
     }
-    preMutation.mutate({ address, email, phone, filingMethod: filingMethod as "poa" | "pro-se" | "none" });
+    preMutation.mutate({ address, email, phone, filingMethod: filingMethod as "automated_express" | "automated_standard" | "pro-se" | "none" });
   };
 
   // Step 3 (photos) → Step 4 (final analysis redirect)
@@ -298,7 +308,7 @@ export default function GetStarted() {
       toast.success("Analysis started! Redirecting...");
       navigate(`/analysis?id=${photoSubmissionId}`);
     } else {
-      submitMutation.mutate({ address, email, phone, filingMethod: filingMethod as "poa" | "pro-se" | "none" });
+      submitMutation.mutate({ address, email, phone, filingMethod: filingMethod as "automated_express" | "automated_standard" | "pro-se" | "none" });
     }
   };
 
@@ -452,7 +462,7 @@ export default function GetStarted() {
                     <button
                       key={method.value}
                       type="button"
-                      onClick={() => setFilingMethod(method.value as "poa" | "pro-se" | "none")}
+                      onClick={() => setFilingMethod(method.value as "automated_express" | "automated_standard" | "pro-se" | "none")}
                       className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                         filingMethod === method.value
                           ? "border-[#7C3AED] bg-[#7C3AED]/5"
