@@ -659,3 +659,27 @@
 - [x] Update reportJobQueue.ts to pass all new fields + photoFindings
 - [x] TypeScript: 0 errors
 - [x] Test suite: 40 files, 356 passed, 1 skipped (357 total)
+
+## Report Perfection Pass — Audit & Enhancement (Phase 27)
+- [ ] Fix global _pageNumber race condition (scope per-report instance)
+- [ ] Fix Equity & Uniformity section: replace Math.random() with deterministic comp ratio calculation
+- [ ] Add "Purpose & Intended Use" section after Certification
+- [ ] Add "Scope of Work" section describing methodology employed
+- [ ] Add "Extraordinary Assumptions & Hypothetical Conditions" (USPAP requirement)
+- [ ] Add fallback reconciliation narrative when none provided
+- [ ] Enhance Letter of Transmittal with owner name
+- [ ] Add market value prominently on cover page
+- [ ] Group Photo Gallery by category with sub-headers
+- [ ] Enhance Area & Neighborhood section with richer default narrative
+- [ ] Remove `nextSteps` from AppraisalReportData interface (assessor shouldn't see it)
+- [ ] Generate sample paid-tier PDF with realistic data and show user
+
+## Report Bug Fixes & Branding Update (Phase 28)
+- [x] Fix page bloat bug: 105 pages -> 23 pages (footer height:10 fix + comp table height calculation)
+- [x] Update PDF brand colors from navy/gold to purple (#7C3AED primary, #5B21B6 dark, #A78BFA light)
+- [x] Fix Unicode character rendering (replaced triangles, bullets, copyright with ASCII)
+- [x] Fix comp detail table overflow (calculate exact height before rendering)
+- [x] Fix adjustment grid table overflow (calculate exact height before rendering)
+- [x] Change savings callout box from green to purple for brand consistency
+- [x] Regenerate sample report: 23 pages, all 15 sections verified, purple branding
+- [x] TypeScript: 0 errors, Tests: 40 files, 356 passed

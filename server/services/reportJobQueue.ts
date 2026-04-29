@@ -132,7 +132,6 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       executiveSummary: analysis.executiveSummary ?? undefined,
       valuationJustification: analysis.valuationJustification ?? undefined,
       recommendedApproach: analysis.recommendedApproach ?? undefined,
-      nextSteps: analysis.nextSteps ?? undefined,
       filingMethod: submission.filingMethod ?? undefined,
       appealDeadline: submission.appealDeadline
         ? submission.appealDeadline.toISOString().split("T")[0]
