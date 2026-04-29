@@ -1298,11 +1298,74 @@ export const appRouter = router({
   // ─── ADMIN COMMAND CENTER ────────────────────────────────────────────────
   admin: router({
     // Seed counties (one-time setup — admin only)
+    // Delegates to the COUNTY_SEED array in admin.ts which now includes the expansion
     seedCounties: adminProcedure.mutation(async () => {
+      const { adminRouter } = await import("./routers/admin");
+      // Re-use the real seedCounties logic by calling it directly
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
-      // Seeding logic handled by adminRouter
-      return { success: true, message: "Counties seeded", count: 14 };
+      const { COUNTY_SEED } = await import("./routers/admin");
+      let seeded = 0;
+      const { counties: countiesTable } = await import("../drizzle/schema");
+      for (const county of COUNTY_SEED) {
+        const update: Record<string, unknown> = {
+          portalUrl: county.portalUrl,
+          assessorPhone: county.assessorPhone,
+          hearingScheduleDays: county.hearingScheduleDays,
+        };
+        const mailFields = [
+          "filingWindowStart", "filingWindowEnd", "preferredChannel", "fallbackChannel",
+          "mailingAddressName", "mailingAddressLine1", "mailingAddressLine2",
+          "mailingAddressCity", "mailingAddressState", "mailingAddressZip",
+          "intakeEmail", "poaEligible", "onlinePortalOnly", "pinOnlyLogin",
+        ] as const;
+        for (const f of mailFields) {
+          const v = (county as Record<string, unknown>)[f];
+          if (v !== undefined) update[f] = v;
+        }
+        await db.insert(countiesTable).values(county as any).onDuplicateKeyUpdate({ set: update });
+        seeded++;
+      }
+      return { success: true, message: `Seeded ${seeded} counties`, count: seeded };
+    }),
+
+    // Seed filing recipes (admin only)
+    seedRecipes: adminProcedure.mutation(async () => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      const { RECIPE_SEEDS } = await import("./seeds/filingRecipes.seed");
+      const { RECIPE_SEEDS_EXPANSION } = await import("./seeds/filingRecipesExpansion.seed");
+      const { counties: countiesTable, filingRecipes: filingRecipesTable } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const allRecipes = [...RECIPE_SEEDS, ...RECIPE_SEEDS_EXPANSION];
+      let seeded = 0; let skipped = 0; const errors: string[] = [];
+      for (const seed of allRecipes) {
+        try {
+          const county = await db.select({ id: countiesTable.id }).from(countiesTable)
+            .where(eq(countiesTable.countyCode, seed.countyCode)).limit(1).then((r: any[]) => r[0]);
+          if (!county) { skipped++; errors.push(`County not found: ${seed.countyCode}`); continue; }
+          const existing = await db.select({ id: filingRecipesTable.id }).from(filingRecipesTable)
+            .where(eq(filingRecipesTable.countyId, county.id)).limit(1).then((r: any[]) => r[0]);
+          if (existing) {
+            await db.update(filingRecipesTable).set({
+              steps: JSON.stringify(seed.recipe.steps), portalUrl: seed.portalUrl,
+              notes: seed.notes ?? null,
+              validFrom: seed.validFrom ? new Date(seed.validFrom) : null,
+              validUntil: seed.validUntil ? new Date(seed.validUntil) : null,
+            }).where(eq(filingRecipesTable.id, existing.id));
+          } else {
+            await db.insert(filingRecipesTable).values({
+              countyId: county.id, version: seed.recipe.version ?? 1,
+              portalUrl: seed.portalUrl, steps: JSON.stringify(seed.recipe.steps),
+              validFrom: seed.validFrom ? new Date(seed.validFrom) : null,
+              validUntil: seed.validUntil ? new Date(seed.validUntil) : null,
+              verificationStatus: "draft", notes: seed.notes ?? null, active: true,
+            });
+          }
+          seeded++;
+        } catch (err) { errors.push(`Failed ${seed.countyCode}: ${String(err)}`); }
+      }
+      return { success: true, message: `Seeded ${seeded} recipes (${skipped} skipped)`, count: seeded, skipped, errors: errors.slice(0, 20) };
     }),
 
     // Dashboard overview

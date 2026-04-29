@@ -127,7 +127,7 @@ export default function Pricing() {
               },
               {
                 q: "Which counties are supported for automated filing?",
-                a: "We currently support 22 counties across TX, FL, AZ, WA, and OH with automated online portal filing. We cover 88 counties total across 18 states — if your county doesn't have a portal, we generate a certified-mail or email-ready pro-se packet for you.",
+                a: "We currently support 65+ counties across TX, FL, CA, NY, IL, AZ, WA, OH, GA, CO, MN, MI, NC, VA, MD, NJ, PA, and more with automated online portal filing. We cover 153 counties total across 22 states — if your county doesn't have a portal, we generate a certified-mail or email-ready pro-se packet for you.",
               },
               {
                 q: "Are there any hidden fees?",

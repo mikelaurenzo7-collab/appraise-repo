@@ -6,8 +6,12 @@
 import { router, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { counties } from "../../drizzle/schema";
+import { counties, filingRecipes } from "../../drizzle/schema";
+import { COUNTY_SEED_EXPANSION } from "../seeds/countySeedExpansion";
+import { RECIPE_SEEDS } from "../seeds/filingRecipes.seed";
+import { RECIPE_SEEDS_EXPANSION } from "../seeds/filingRecipesExpansion.seed";
 
 export const COUNTY_SEED = [
   {
@@ -2804,8 +2808,8 @@ export const COUNTY_SEED = [
     mailingAddressZip: "08753",
     intakeEmail: "taxboard@co.ocean.nj.us",
   },
+  ...COUNTY_SEED_EXPANSION,
 ];
-
 export const adminRouter = router({
   /**
    * Seed counties database (admin only)
@@ -2872,5 +2876,92 @@ export const adminRouter = router({
         message: "Failed to seed counties",
       });
     }
+  }),
+
+  /**
+   * Seed filing recipes database (admin only)
+   * Upserts all draft recipes from RECIPE_SEEDS + RECIPE_SEEDS_EXPANSION.
+   * Recipes are inserted with verificationStatus='draft' — they must be
+   * manually promoted to 'staging' or 'verified' after human QA.
+   */
+  seedRecipes: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Admin access required",
+      });
+    }
+
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+
+    const allRecipes = [...RECIPE_SEEDS, ...RECIPE_SEEDS_EXPANSION];
+    let seeded = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const seed of allRecipes) {
+      try {
+        // Look up the county by countyCode to get the real DB id
+        const county = await db
+          .select({ id: counties.id })
+          .from(counties)
+          .where(eq(counties.countyCode, seed.countyCode))
+          .limit(1)
+          .then((r: any[]) => r[0]);
+
+        if (!county) {
+          skipped++;
+          errors.push(`County not found: ${seed.countyCode} (${seed.countyName})`);
+          continue;
+        }
+
+        // Check if a recipe already exists for this county (any version)
+        const existing = await db
+          .select({ id: filingRecipes.id })
+          .from(filingRecipes)
+          .where(eq(filingRecipes.countyId, county.id))
+          .limit(1)
+          .then((r: any[]) => r[0]);
+
+        if (existing) {
+          // Update the existing recipe's steps, portalUrl, and notes
+          await db
+            .update(filingRecipes)
+            .set({
+              steps: JSON.stringify(seed.recipe.steps),
+              portalUrl: seed.portalUrl,
+              notes: seed.notes ?? null,
+              validFrom: seed.validFrom ? new Date(seed.validFrom) : null,
+              validUntil: seed.validUntil ? new Date(seed.validUntil) : null,
+            })
+            .where(eq(filingRecipes.id, existing.id));
+        } else {
+          // Insert a new draft recipe
+          await db.insert(filingRecipes).values({
+            countyId: county.id,
+            version: seed.recipe.version ?? 1,
+            portalUrl: seed.portalUrl,
+            steps: JSON.stringify(seed.recipe.steps),
+            validFrom: seed.validFrom ? new Date(seed.validFrom) : null,
+            validUntil: seed.validUntil ? new Date(seed.validUntil) : null,
+            verificationStatus: "draft",
+            notes: seed.notes ?? null,
+            active: true,
+          });
+        }
+        seeded++;
+      } catch (err) {
+        errors.push(`Failed ${seed.countyCode}: ${String(err)}`);
+      }
+    }
+
+    return {
+      success: true,
+      message: `Seeded ${seeded} recipes (${skipped} skipped — county not found yet)`,
+      count: seeded,
+      skipped,
+      errors: errors.slice(0, 20),
+    };
   }),
 });

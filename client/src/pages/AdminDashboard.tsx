@@ -6,6 +6,7 @@ import {
   BarChart3, TrendingDown, FileText, Clock, CheckCircle2, AlertTriangle,
   Loader2, RefreshCw, Eye, Building2, MapPin, DollarSign, Users, Activity,
   Trophy, XCircle, Scale, Zap, ChevronRight, RotateCcw, Gift, ArrowUpRight,
+  Database,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -55,7 +56,7 @@ function formatTimeAgo(d: Date | string | null | undefined) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-type TabKey = "submissions" | "outcomes" | "activity" | "filings" | "waitlist" | "referrals";
+type TabKey = "submissions" | "outcomes" | "activity" | "filings" | "waitlist" | "referrals" | "data";
 
 export default function AdminDashboard() {
   usePageMeta({
@@ -92,6 +93,16 @@ export default function AdminDashboard() {
       submissionsQuery.refetch();
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  const seedCountiesMutation = trpc.admin.seedCounties.useMutation({
+    onSuccess: (data) => toast.success(data.message),
+    onError: (err) => toast.error(`Seed failed: ${err.message}`),
+  });
+
+  const seedRecipesMutation = trpc.admin.seedRecipes.useMutation({
+    onSuccess: (data) => toast.success(data.message),
+    onError: (err) => toast.error(`Recipe seed failed: ${err.message}`),
   });
 
   if (loading) {
@@ -186,7 +197,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-[#E2E8F0]">
-          {(["submissions", "filings", "waitlist", "outcomes", "referrals", "activity"] as TabKey[]).map((t) => (
+          {(["submissions", "filings", "waitlist", "outcomes", "referrals", "activity", "data"] as TabKey[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -202,6 +213,7 @@ export default function AdminDashboard() {
               {t === "outcomes" && <span className="flex items-center gap-1.5"><Trophy size={14} />{t}</span>}
               {t === "referrals" && <span className="flex items-center gap-1.5"><Gift size={14} />{t}</span>}
               {t === "activity" && <span className="flex items-center gap-1.5"><Activity size={14} />{t}</span>}
+              {t === "data" && <span className="flex items-center gap-1.5"><Database size={14} />data mgmt</span>}
             </button>
           ))}
         </div>
@@ -393,6 +405,82 @@ export default function AdminDashboard() {
 
         {/* ── REFERRALS TAB ───────────────────────────────────────── */}
         {tab === "referrals" && <ReferralManagementTab />}
+
+        {/* ── DATA MANAGEMENT TAB ─────────────────────────────── */}
+        {tab === "data" && (
+          <div className="space-y-6">
+            {/* County Seed */}
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-[#0F172A] mb-1">County Database</h2>
+                  <p className="text-sm text-[#64748B] max-w-lg">
+                    Upserts all 153 counties (88 base + 65 expansion) into the database. Safe to re-run — uses
+                    <code className="mx-1 px-1 bg-[#F1F5F9] rounded text-xs">ON DUPLICATE KEY UPDATE</code>
+                    so existing records are refreshed, not duplicated.
+                  </p>
+                </div>
+                <button
+                  onClick={() => seedCountiesMutation.mutate()}
+                  disabled={seedCountiesMutation.isPending}
+                  className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#7C3AED] text-white text-sm font-semibold hover:bg-[#6D28D9] disabled:opacity-60 transition-colors"
+                >
+                  {seedCountiesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+                  {seedCountiesMutation.isPending ? "Seeding…" : "Seed Counties"}
+                </button>
+              </div>
+              {seedCountiesMutation.data && (
+                <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+                  ✓ {seedCountiesMutation.data.message}
+                </div>
+              )}
+            </div>
+
+            {/* Recipe Seed */}
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-[#0F172A] mb-1">Filing Recipes</h2>
+                  <p className="text-sm text-[#64748B] max-w-lg">
+                    Seeds draft filing recipes for all portal-eligible counties. Recipes are inserted with
+                    <code className="mx-1 px-1 bg-[#F1F5F9] rounded text-xs">verificationStatus=&apos;draft&apos;</code>
+                    and must be promoted to <code className="px-1 bg-[#F1F5F9] rounded text-xs">verified</code> after
+                    human QA before the Automated Filing tier will use them in production.
+                  </p>
+                </div>
+                <button
+                  onClick={() => seedRecipesMutation.mutate()}
+                  disabled={seedRecipesMutation.isPending}
+                  className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F172A] text-white text-sm font-semibold hover:bg-[#1E293B] disabled:opacity-60 transition-colors"
+                >
+                  {seedRecipesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                  {seedRecipesMutation.isPending ? "Seeding…" : "Seed Recipes"}
+                </button>
+              </div>
+              {seedRecipesMutation.data && (
+                <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+                  <p>✓ {seedRecipesMutation.data.message}</p>
+                  {seedRecipesMutation.data.errors && seedRecipesMutation.data.errors.length > 0 && (
+                    <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
+                      {seedRecipesMutation.data.errors.map((e, i) => <li key={i}>⚠ {e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div className="bg-[#FFF7ED] rounded-xl border border-[#FED7AA] p-5">
+              <h3 className="font-semibold text-[#9A3412] text-sm mb-2">⚠ Post-Seed Checklist</h3>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-[#7C2D12]">
+                <li>Run <strong>Seed Counties</strong> first — recipes reference county IDs.</li>
+                <li>Run <strong>Seed Recipes</strong> — all recipes land as <code className="px-1 bg-orange-100 rounded text-xs">draft</code>.</li>
+                <li>For each county you want live, open the Database panel, find the recipe row, and set <code className="px-1 bg-orange-100 rounded text-xs">verificationStatus = &apos;verified&apos;</code>.</li>
+                <li>Only <code className="px-1 bg-orange-100 rounded text-xs">verified</code> recipes are executed by the Automated Filing runner in production.</li>
+              </ol>
+            </div>
+          </div>
+        )}
 
         {/* ── ACTIVITY TAB ────────────────────────────────────────── */}
         {tab === "activity" && (
