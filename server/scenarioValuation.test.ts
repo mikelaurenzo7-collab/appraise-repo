@@ -8,6 +8,7 @@ import {
   getScenarioApproachOverride,
   getAllScenarios,
   formatScenarioLabel,
+  applyCompFilterStrategy,
   type UserScenario,
 } from "./services/scenarioValuation";
 import type { PropertyData } from "./services/propertyDataAggregator";
@@ -45,6 +46,10 @@ describe("Scenario Valuation Engine", () => {
         "distressed_condition",
         "new_construction",
         "recently_renovated",
+        "senior_homestead",
+        "veteran_disability",
+        "financial_hardship",
+        "mixed_use",
         "none",
       ];
       scenarios.forEach((s) => {
@@ -173,9 +178,9 @@ describe("Scenario Valuation Engine", () => {
   });
 
   describe("UI helpers", () => {
-    it("getAllScenarios returns 10 scenarios", () => {
+    it("getAllScenarios returns all 14 scenarios", () => {
       const all = getAllScenarios();
-      expect(all).toHaveLength(10);
+      expect(all).toHaveLength(14);
       expect(all[0]).toHaveProperty("value");
       expect(all[0]).toHaveProperty("label");
       expect(all[0]).toHaveProperty("description");
@@ -184,6 +189,136 @@ describe("Scenario Valuation Engine", () => {
     it("formatScenarioLabel returns human-readable labels", () => {
       expect(formatScenarioLabel("rental_property")).toBe("Rental Property / Investment");
       expect(formatScenarioLabel("recently_purchased")).toBe("Recently Purchased");
+      expect(formatScenarioLabel("senior_homestead")).toBe("Senior / Retired (65+)");
+      expect(formatScenarioLabel("veteran_disability")).toBe("Veteran or Disabled Owner");
+    });
+  });
+
+  // ─── Coverage for the 4 scenarios added in the advocacy wave ────────────
+  describe("New advocacy scenarios", () => {
+    it("senior_homestead has 65+ tax-rate reduction baked in", () => {
+      const ctx = getScenarioContext("senior_homestead");
+      expect(ctx.taxRateAdjustment).toBeLessThan(1); // exemption-driven rate cut
+      expect(ctx.userAdvocacyPoints.some((p) => /exemption|freeze|deferral/i.test(p))).toBe(true);
+    });
+
+    it("veteran_disability halves the effective rate", () => {
+      const ctx = getScenarioContext("veteran_disability");
+      expect(ctx.taxRateAdjustment).toBeLessThanOrEqual(0.5);
+      expect(ctx.userAdvocacyPoints.some((p) => /veteran|disabled|exemption/i.test(p))).toBe(true);
+    });
+
+    it("financial_hardship marks urgency as critical", () => {
+      const ctx = getScenarioContext("financial_hardship");
+      expect(ctx.appealStrengthModifiers.urgencyLevel).toBe("critical");
+    });
+
+    it("mixed_use weights income approach heavily (40%)", () => {
+      const ctx = getScenarioContext("mixed_use");
+      expect(ctx.valuationAdjustments.incomeApproachWeight).toBeGreaterThanOrEqual(0.4);
+    });
+
+    it("getScenarioApproachOverride returns expected POA/pro-se for new scenarios", () => {
+      // financial_hardship — always pro-se (lowest cost path)
+      expect(getScenarioApproachOverride("financial_hardship", 80)).toBe("pro-se");
+      expect(getScenarioApproachOverride("financial_hardship", 30)).toBe("pro-se");
+
+      // veteran_disability — POA when strong, pro-se when weaker (still file)
+      expect(getScenarioApproachOverride("veteran_disability", 60)).toBe("poa");
+      expect(getScenarioApproachOverride("veteran_disability", 30)).toBe("pro-se");
+
+      // senior_homestead — POA at >=50 to handle exemption + appeal stack
+      expect(getScenarioApproachOverride("senior_homestead", 60)).toBe("poa");
+      expect(getScenarioApproachOverride("senior_homestead", 40)).toBeNull();
+
+      // mixed_use — POA at >=55 for misclassification
+      expect(getScenarioApproachOverride("mixed_use", 60)).toBe("poa");
+      expect(getScenarioApproachOverride("mixed_use", 40)).toBeNull();
+    });
+
+    it("calculateScenarioTaxSavings stays positive across every defined scenario", () => {
+      for (const s of getAllScenarios()) {
+        const v = calculateScenarioTaxSavings(50_000, s.value);
+        expect(Number.isFinite(v)).toBe(true);
+        expect(v).toBeGreaterThanOrEqual(0);
+      }
+    });
+  });
+
+  // ─── applyCompFilterStrategy — locks in the comp-filter behavior that
+  // was previously dormant config. ────────────────────────────────────────
+  describe("applyCompFilterStrategy", () => {
+    function comp(over: Partial<{ saleDate: string; similarity: number; salePrice: number; squareFeet: number }> = {}) {
+      return {
+        saleDate: over.saleDate ?? "2025-12-01",
+        similarity: over.similarity,
+        salePrice: over.salePrice ?? 400_000,
+        squareFeet: over.squareFeet ?? 2_000,
+      };
+    }
+    const primaryStrategy = getScenarioContext("primary_residence").compFilterStrategy;
+
+    it("returns empty array on empty input", () => {
+      expect(applyCompFilterStrategy([], primaryStrategy)).toEqual([]);
+    });
+
+    it("drops sales older than maxSaleAgeMonths", () => {
+      const today = new Date();
+      const inWindow = new Date(today); inWindow.setMonth(today.getMonth() - 3);
+      const stale = new Date(today); stale.setMonth(today.getMonth() - 24); // primary = 12mo
+      const out = applyCompFilterStrategy(
+        [comp({ saleDate: inWindow.toISOString() }), comp({ saleDate: stale.toISOString() })],
+        primaryStrategy,
+      );
+      expect(out.length).toBe(1);
+    });
+
+    it("keeps undated comps rather than dropping them silently", () => {
+      const out = applyCompFilterStrategy([comp({ saleDate: "not-a-date" })], primaryStrategy);
+      expect(out.length).toBe(1);
+    });
+
+    it("orders newest-first when preferRecentSales is true", () => {
+      const old = comp({ saleDate: "2025-01-15" });
+      const recent = comp({ saleDate: "2025-12-15" });
+      const out = applyCompFilterStrategy([old, recent], primaryStrategy);
+      expect(out[0]).toBe(recent);
+    });
+
+    it("drops similarity < 0.6 when requireSimilarCondition is true", () => {
+      const out = applyCompFilterStrategy(
+        [comp({ similarity: 0.4 }), comp({ similarity: 0.9 }), comp({ similarity: 0.65 })],
+        primaryStrategy,
+      );
+      expect(out.every((c) => c.similarity === undefined || c.similarity >= 0.6)).toBe(true);
+      expect(out.length).toBe(2);
+    });
+
+    it("trims top + bottom 10% outliers when distressed comps disallowed AND >5 comps", () => {
+      const comps = [
+        comp({ salePrice: 100_000 }),  // floor outlier
+        ...Array.from({ length: 8 }, () => comp()), // 8 baseline
+        comp({ salePrice: 1_600_000 }), // ceiling outlier
+      ];
+      const out = applyCompFilterStrategy(comps, primaryStrategy);
+      const ppsfs = out.map((c) => c.salePrice / c.squareFeet);
+      expect(Math.max(...ppsfs)).toBeLessThan(800);
+      expect(Math.min(...ppsfs)).toBeGreaterThan(50);
+    });
+
+    it("KEEPS distressed comps for distressed_condition scenario", () => {
+      const distressed = getScenarioContext("distressed_condition").compFilterStrategy;
+      const comps = [
+        ...Array.from({ length: 5 }, () => comp()),
+        comp({ salePrice: 200_000 }), // half-price distressed
+      ];
+      const out = applyCompFilterStrategy(comps, distressed);
+      expect(out.some((c) => c.salePrice === 200_000)).toBe(true);
+    });
+
+    it("recently_purchased uses an extended window (>=18 months)", () => {
+      const recent = getScenarioContext("recently_purchased").compFilterStrategy;
+      expect(recent.maxSaleAgeMonths).toBeGreaterThanOrEqual(18);
     });
   });
 });

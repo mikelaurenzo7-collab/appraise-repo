@@ -87,7 +87,7 @@ const APPRAISAL_JSON_SCHEMA = {
  * without going outside the evidence. The conclusion at the lower edge of
  * this range is the strongest defensible advocacy position.
  */
-function computeCompPriceBand(propertyData: PropertyData): {
+export function computeCompPriceBand(propertyData: PropertyData): {
   count: number;
   medianPpsf: number;
   q1Ppsf: number;
