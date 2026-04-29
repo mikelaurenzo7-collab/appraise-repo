@@ -1,35 +1,57 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
+import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
-import HowItWorks from "./pages/HowItWorks";
-import Pricing from "./pages/Pricing";
-import TaxAppeals from "./pages/TaxAppeals";
-import About from "./pages/About";
-import GetStarted from "./pages/GetStarted";
-import AnalysisResults from "./pages/AnalysisResults";
-import AdminDashboard from "./pages/AdminDashboard";
-import ParalegalsDashboard from "./pages/ParalegalsDashboard";
-import UserDashboard from "./pages/UserDashboard";
-import DeadlineCalendar from "./pages/DeadlineCalendar";
-import Portfolio from "./pages/Portfolio";
-import PaymentHistory from "./pages/PaymentHistory";
-import Blog from "./pages/Blog";
-import BlogPost from "./pages/BlogPost";
-import Testimonials from "./pages/Testimonials";
-import BatchProcessing from "./pages/BatchProcessing";
-import AppealFilingWorkflow from "./pages/AppealFilingWorkflow";
-import ReportDownload from "./pages/ReportDownload";
-import FilingStatus from "./pages/FilingStatus";
-import { Privacy, Terms, Disclaimer } from "./pages/LegalPages";
 import LeadChatWidget from "./components/LeadChatWidget";
 import ScrollProgress from "./components/ScrollProgress";
+import { ShimmerCard } from "./components/ShimmerSkeleton";
+
+// Eager: landing + 404 (instant first paint, smallest fallback surface).
+import Home from "./pages/Home";
+import NotFound from "./pages/NotFound";
+
+// Lazy: everything else. Each becomes its own chunk so the initial JS
+// payload is the landing page only — every other route loads on demand.
+const HowItWorks = lazy(() => import("./pages/HowItWorks"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const TaxAppeals = lazy(() => import("./pages/TaxAppeals"));
+const About = lazy(() => import("./pages/About"));
+const GetStarted = lazy(() => import("./pages/GetStarted"));
+const AnalysisResults = lazy(() => import("./pages/AnalysisResults"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const ParalegalsDashboard = lazy(() => import("./pages/ParalegalsDashboard"));
+const UserDashboard = lazy(() => import("./pages/UserDashboard"));
+const DeadlineCalendar = lazy(() => import("./pages/DeadlineCalendar"));
+const Portfolio = lazy(() => import("./pages/Portfolio"));
+const PaymentHistory = lazy(() => import("./pages/PaymentHistory"));
+const Blog = lazy(() => import("./pages/Blog"));
+const BlogPost = lazy(() => import("./pages/BlogPost"));
+const Testimonials = lazy(() => import("./pages/Testimonials"));
+const BatchProcessing = lazy(() => import("./pages/BatchProcessing"));
+const AppealFilingWorkflow = lazy(() => import("./pages/AppealFilingWorkflow"));
+const ReportDownload = lazy(() => import("./pages/ReportDownload"));
+const FilingStatus = lazy(() => import("./pages/FilingStatus"));
+const LegalPrivacy = lazy(() =>
+  import("./pages/LegalPages").then((m) => ({ default: m.Privacy }))
+);
+const LegalTerms = lazy(() =>
+  import("./pages/LegalPages").then((m) => ({ default: m.Terms }))
+);
+const LegalDisclaimer = lazy(() =>
+  import("./pages/LegalPages").then((m) => ({ default: m.Disclaimer }))
+);
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen p-8 max-w-5xl mx-auto">
+      <ShimmerCard lines={6} />
+    </div>
+  );
+}
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -56,9 +78,9 @@ function Router() {
       <Route path="/appeal-workflow/:submissionId">
         {(params) => <AppealFilingWorkflow submissionId={params.submissionId} />}
       </Route>
-      <Route path="/privacy" component={Privacy} />
-      <Route path="/terms" component={Terms} />
-      <Route path="/disclaimer" component={Disclaimer} />
+      <Route path="/privacy" component={LegalPrivacy} />
+      <Route path="/terms" component={LegalTerms} />
+      <Route path="/disclaimer" component={LegalDisclaimer} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -72,7 +94,9 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <ScrollProgress />
-          <Router />
+          <Suspense fallback={<RouteFallback />}>
+            <Router />
+          </Suspense>
           <LeadChatWidget />
         </TooltipProvider>
       </ThemeProvider>
