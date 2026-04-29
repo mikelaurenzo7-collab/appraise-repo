@@ -110,6 +110,19 @@ export const PRICING_TIERS: PricingTier[] = [
   },
 ];
 
+
+/**
+ * Select a pricing tier based on assessed value in cents.
+ * Used by routers.ts for dynamic pricing lookups.
+ * Maps to our 4-tier model: free → pro_se → automated_standard → automated_express
+ */
+export function selectPricingTier(assessedValueCents: number | null | undefined): PricingTier {
+  if (!assessedValueCents || assessedValueCents <= 0) return PRICING_TIERS[1]; // pro_se: $49
+  if (assessedValueCents <= 500_000 * 100) return PRICING_TIERS[1]; // pro_se: $49
+  if (assessedValueCents <= 1_500_000 * 100) return PRICING_TIERS[2]; // automated_standard: $99
+  return PRICING_TIERS[3]; // automated_express: $129 for high-value properties
+}
+
 /** Look up a tier by its ID */
 export function getTierById(id: PricingTierId): PricingTier {
   return PRICING_TIERS.find((t) => t.id === id) ?? PRICING_TIERS[0];

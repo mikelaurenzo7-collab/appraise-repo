@@ -6,7 +6,7 @@ import { smsRouter } from "./routers/sms";
 import { appealsRouter } from "./routers/appeals";
 import { reportsRouter } from "./routers/reports";
 import { guidesRouter } from "./routers/guides";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure as trpcAdminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   createPropertySubmission,
@@ -68,6 +68,7 @@ import {
   PRICING_TIERS,
   getTierByFilingMethod,
   getTierById,
+  selectPricingTier,
   SCRIVENER_AUTHORIZATION_TEXT,
 } from "../shared/pricing";
 import {
@@ -119,13 +120,8 @@ function getStripe(): Stripe {
   return _stripe;
 }
 
-// Admin-only middleware
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== "admin") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-  }
-  return next({ ctx });
-});
+// Use the admin procedure exported from tRPC core (already checks auth + admin role).
+const adminProcedure = trpcAdminProcedure;
 
 /**
  * Money-back-guarantee window, in days. The Terms page commits to 60 days,
@@ -849,22 +845,26 @@ export const appRouter = router({
         return existing ?? null;
       }),
 
-    // Get payment history
+    // Get payment history — list this user's completed checkout sessions from Stripe.
+    // Using customer_details.email filter avoids fetching all charges across every
+    // customer and filtering client-side.
     getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
-      const charges = await getStripe().charges.list({
+      if (!ctx.user.email) return [];
+      const sessions = await getStripe().checkout.sessions.list({
+        customer_details: { email: ctx.user.email },
         limit: 50,
       });
 
-      return charges.data
-        .filter((charge: any) => charge.receipt_email === ctx.user.email || charge.metadata?.userId === ctx.user.id.toString())
-        .map((charge: any) => ({
-          id: charge.id,
-          amount: charge.amount / 100,
-          currency: charge.currency.toUpperCase(),
-          status: charge.status,
-          created: new Date(charge.created * 1000),
-          description: charge.description,
-         }));
+      return sessions.data
+        .filter((s) => s.payment_status === "paid")
+        .map((s) => ({
+          id: s.id,
+          amount: (s.amount_total ?? 0) / 100,
+          currency: (s.currency ?? "usd").toUpperCase(),
+          status: s.payment_status,
+          created: new Date(s.created * 1000),
+          description: s.line_items?.data[0]?.description ?? null,
+        }));
     }),
 
     // Upload property photos to S3
@@ -873,7 +873,7 @@ export const appRouter = router({
         submissionId: z.number(),
         fileName: z.string().max(255).regex(/^[\w\-. ]+$/, "Invalid file name"),
         fileData: z.string().max(50_000_000, "File exceeds 50MB limit"),
-        category: z.enum(["exterior", "interior", "roof", "foundation", "other"]),
+        category: z.enum(["exterior", "interior", "damage", "condition", "comparable", "neighborhood", "other"]),
         caption: z.string().max(500).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -1031,8 +1031,17 @@ export const appRouter = router({
         countyId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
         const db = await getDb();
         if (!db) throw new Error("Database unavailable");
+
+        // Use current flat-fee pricing as the canonical source of truth.
+        const pricingTier = selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
 
         const existingTier = await db.select().from(filingTiers)
           .where(eq(filingTiers.submissionId, input.submissionId))
@@ -1050,7 +1059,7 @@ export const appRouter = router({
           await db.insert(filingTiers).values({
             submissionId: input.submissionId,
             tier: normalizedTier,
-            proSePrice: 4900,
+            proSePrice: pricingTier.priceCents,
             contingencyPercentage: 0,
             paymentStatus: "pending",
             createdAt: new Date(),
@@ -1065,6 +1074,12 @@ export const appRouter = router({
     getTierInfo: protectedProcedure
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) return null;
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
         const db = await getDb();
         if (!db) return null;
 
@@ -1075,10 +1090,13 @@ export const appRouter = router({
 
         if (!tier) return null;
 
+        // Always derive the price from the canonical pricing table, not the
+        // legacy `proSePrice` column (which may hold stale values).
+        const pricingTier = selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
         return {
           tier: tier.tier,
-          proSePrice: tier.proSePrice ? tier.proSePrice / 100 : 49,
-          contingencyPercentage: tier.contingencyPercentage || 0,
+          proSePrice: pricingTier.priceCents / 100,
+          contingencyPercentage: 0,
           paymentStatus: tier.paymentStatus,
         };
       }),
@@ -1111,9 +1129,12 @@ export const appRouter = router({
     // Check report job status
     getReportJobStatus: protectedProcedure
       .input(z.object({ jobId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const job = await getReportJobById(input.jobId);
         if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+        if (job.userId !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your report job" });
+        }
 
         return {
           jobId: job.id,
@@ -1212,19 +1233,31 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        enforceRateLimit(ctx, {
+          scope: "submitBatch",
+          max: 2,
+          windowMs: 60_000,
+        });
+
         const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const results = [];
 
         for (const prop of input.properties) {
           try {
             // Create submission for each property
+            const validPropertyType = (
+              ["residential", "multi-family", "commercial", "agricultural", "industrial", "land"].includes(prop.propertyType ?? "")
+                ? prop.propertyType
+                : "unknown"
+            ) as "residential" | "multi-family" | "commercial" | "agricultural" | "industrial" | "land" | "unknown";
+
             const submission = await createPropertySubmission({
               address: prop.address,
               city: prop.city,
               state: prop.state,
               zipCode: prop.zipCode,
               county: prop.county,
-              propertyType: (prop.propertyType as any) || "unknown",
+              propertyType: validPropertyType,
               assessedValue: prop.assessedValue,
               email: input.contactEmail,
               phone: input.contactPhone,
@@ -1233,8 +1266,8 @@ export const appRouter = router({
             });
 
             if (submission) {
-              // Queue analysis job
-              await queueAnalysisJob(submission.id, ctx.user.id);
+              // Stagger analysis jobs to avoid thundering-herd on the LLM.
+              queueAnalysisJob(submission.id, 2000);
               results.push({
                 address: prop.address,
                 status: "queued" as const,
@@ -1252,7 +1285,7 @@ export const appRouter = router({
 
         // Log batch submission
         await persistActivityLog({
-          type: "batch_submitted" as any,
+          type: "batch_submitted",
           actor: "system",
           description: `Batch submission: ${input.properties.length} properties`,
           metadata: JSON.stringify({ batchId, count: input.properties.length, results }),
@@ -1485,14 +1518,9 @@ export const appRouter = router({
         const existing = await getAppealOutcomeBySubmissionId(input.submissionId);
 
         let reductionAmount: number | undefined;
-        let contingencyFee: string | undefined;
 
         if (input.originalAssessedValue && input.finalAssessedValue) {
           reductionAmount = input.originalAssessedValue - input.finalAssessedValue;
-        }
-        if (input.annualTaxSavings && input.outcome === "won") {
-          // 25% contingency of first-year savings
-          contingencyFee = (input.annualTaxSavings * 0.25).toFixed(2);
         }
 
         let resolutionDays: number | undefined;
@@ -1509,8 +1537,7 @@ export const appRouter = router({
           finalAssessedValue: input.finalAssessedValue,
           reductionAmount,
           annualTaxSavings: input.annualTaxSavings,
-          contingencyFeeEarned: contingencyFee,
-          filingMethod: (input.filingMethod === 'none' ? undefined : input.filingMethod) as 'poa' | 'pro-se' | 'automated_express' | 'automated_standard' | undefined,
+          filingMethod: (input.filingMethod === 'none' ? null : input.filingMethod) as 'poa' | 'pro-se' | 'automated_standard' | 'automated_express' | null | undefined,
           filedAt: input.filedAt ? new Date(input.filedAt) : undefined,
           resolvedAt: input.resolvedAt ? new Date(input.resolvedAt) : undefined,
           resolutionDays,

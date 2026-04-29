@@ -256,7 +256,7 @@ describe("Admin Referral Management", () => {
 
     it("rejects non-admin users", async () => {
       const caller = createUserCaller();
-      await expect(caller.admin.getReferralStats()).rejects.toThrow("Admin access required");
+      await expect(caller.admin.getReferralStats()).rejects.toThrow("You do not have required permission");
     });
   });
 

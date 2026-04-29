@@ -71,7 +71,7 @@ export default function PaymentHistory() {
 
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    {payment.status === "succeeded" ? (
+                    {payment.status === "paid" ? (
                       <>
                         <CheckCircle2 className="text-green-500" size={20} />
                         <span className="text-sm font-medium text-green-700">Completed</span>

@@ -16,9 +16,11 @@ import {
   updatePropertySubmission,
   countPendingFilingJobs,
   getLastFilingJobCompletedAt,
+  getPropertySubmissionById,
 } from "../db";
 import { cleanupOldQueues } from "./sseBroadcaster";
 import { globalLimiter, authLimiter, apiLimiter } from "./rateLimiter";
+import { checkRateLimit } from "./rateLimit";
 
 // In-memory SSE clients for real-time analysis streaming
 const sseClients = new Map<number, express.Response[]>();
@@ -155,10 +157,42 @@ async function startServer() {
       return;
     }
 
+    // Authenticate the request — SSE carries the same session cookie as tRPC.
+    // Unauthenticated callers and callers who don't own the submission are
+    // rejected before any data is streamed.
+    let user: import("../../drizzle/schema").User | null = null;
+    try {
+      const { sdk: authSdk } = await import("./sdk");
+      user = await authSdk.authenticateRequest(req);
+    } catch {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    // Ownership: admin users can stream any submission; regular users only
+    // their own (matched by email on the submission row).
+    if (user.role !== "admin") {
+      const submission = await getPropertySubmissionById(submissionId);
+      if (!submission || submission.email !== user.email) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+    }
+
+    // Rate-limit authenticated SSE connections: 10 new connections per user per
+    // minute prevents runaway polling loops from overwhelming the server.
+    const rateLimitExceeded = checkRateLimit(
+      { headers: req.headers as Record<string, string | string[] | undefined>, ip: req.ip, socket: req.socket, userId: user.id },
+      { scope: "sse.analysis", max: 10, windowMs: 60_000 }
+    );
+    if (rateLimitExceeded) {
+      res.status(429).json({ error: "Too many connections. Please wait before reconnecting." });
+      return;
+    }
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    res.setHeader("Access-Control-Allow-Origin", "*");
 
     // Send initial connection ack
     res.write(`event: connected\ndata: ${JSON.stringify({ submissionId, status: "connected" })}\n\n`);
