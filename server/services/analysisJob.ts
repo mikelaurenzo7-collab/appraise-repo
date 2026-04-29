@@ -428,6 +428,31 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           filteredComps: propertyData.comparableSales?.length ?? 0,
           strategy: scenarioContext.compFilterStrategy,
         }),
+        // Detailed valuation data for professional report generation
+        adjustmentGrid: analysis.adjustmentGrid ? JSON.stringify(analysis.adjustmentGrid) : null,
+        incomeApproachData: analysis.incomeApproach ? JSON.stringify(analysis.incomeApproach) : null,
+        costApproachData: JSON.stringify({
+          landValue: (propertyData as any).landValue || null,
+          improvementValue: (propertyData as any).improvementValue || null,
+          replacementCostNew: (propertyData as any).replacementCostNew || null,
+          totalDepreciation: (propertyData as any).totalDepreciation || null,
+          effectiveAge: propertyData.yearBuilt ? (new Date().getFullYear() - propertyData.yearBuilt) : null,
+          remainingEconomicLife: propertyData.yearBuilt ? Math.max(0, 75 - (new Date().getFullYear() - propertyData.yearBuilt)) : null,
+          costApproachValue: (propertyData as any).costApproachValue || null,
+        }),
+        marketTrendData: JSON.stringify({
+          medianSalePrice: propertyData.marketValue || null,
+          medianPricePerSF: propertyData.squareFeet && propertyData.marketValue
+            ? Math.round(propertyData.marketValue / propertyData.squareFeet)
+            : null,
+          averageDaysOnMarket: propertyData.comparableSales?.length
+            ? Math.round(propertyData.comparableSales.reduce((s, c) => s + (c.daysOnMarket || 0), 0) / propertyData.comparableSales.length)
+            : null,
+          inventoryCount: propertyData.comparableSales?.length || null,
+          priceChangeYoY: null, // Populated by Gemini research if available
+          absorptionRate: null, // Populated by Gemini research if available
+        }),
+        reconciliationNarrative: analysis.valuationJustification || null,
       });
     }
 

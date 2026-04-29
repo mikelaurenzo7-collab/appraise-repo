@@ -121,6 +121,12 @@ export const propertyAnalysis = mysqlTable("property_analysis", {
   valuationApproachWeights: text("valuationApproachWeights"),
   compQualityBreakdown: text("compQualityBreakdown"),
 
+  // Detailed valuation data (persisted for report generation)
+  adjustmentGrid: text("adjustmentGrid"),       // JSON: per-comp adjustments with dollar amounts
+  costApproachData: text("costApproachData"),     // JSON: land value, replacement cost, depreciation
+  incomeApproachData: text("incomeApproachData"), // JSON: NOI, cap rate, income value
+  marketTrendData: text("marketTrendData"),       // JSON: price trends, DOM, absorption rate
+  reconciliationNarrative: text("reconciliationNarrative"), // LLM narrative explaining final value
   // Report generation
   reportUrl: varchar("reportUrl", { length: 500 }),
   reportGeneratedAt: timestamp("reportGeneratedAt"),

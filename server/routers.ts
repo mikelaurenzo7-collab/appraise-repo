@@ -932,6 +932,15 @@ export const appRouter = router({
         const photos = await getSubmissionPhotos(input.submissionId);
         const photoAnalysis = await getLatestPhotoAnalysis(input.submissionId);
 
+        // Parse new analysis columns (JSON stored as text)
+        const adjustmentGrid = analysis.adjustmentGrid ? JSON.parse(analysis.adjustmentGrid) : undefined;
+        const costApproachData = analysis.costApproachData ? JSON.parse(analysis.costApproachData) : undefined;
+        const incomeApproachData = analysis.incomeApproachData ? JSON.parse(analysis.incomeApproachData) : undefined;
+        const marketTrendData = analysis.marketTrendData ? JSON.parse(analysis.marketTrendData) : undefined;
+
+        // Determine report tier from filingMethod
+        const tier = submission.filingMethod === "none" ? "free" : (submission.filingMethod || "free");
+
         const reportData: AppraisalReportData = {
           submissionId: input.submissionId,
           address: submission.address,
@@ -953,12 +962,20 @@ export const appRouter = router({
           filingMethod: submission.filingMethod ?? undefined,
           appealDeadline: submission.appealDeadline ? submission.appealDeadline.toISOString().split("T")[0] : undefined,
           comparableSales,
+          adjustmentGrid,
+          costApproach: costApproachData,
+          incomeApproach: incomeApproachData,
+          marketTrend: marketTrendData,
+          reconciliationNarrative: analysis.reconciliationNarrative ?? undefined,
+          tier,
           squareFeet: submission.squareFeet ?? undefined,
           yearBuilt: submission.yearBuilt ?? undefined,
           bedrooms: submission.bedrooms ?? undefined,
           bathrooms: submission.bathrooms ?? undefined,
           lotSize: submission.lotSize ?? undefined,
           parcelNumber: undefined,
+          streetViewUrl: submission.streetViewUrl ?? undefined,
+          satelliteImageUrl: submission.satelliteUrl ?? undefined,
           photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
           photoFindings: photoAnalysis
             ? {

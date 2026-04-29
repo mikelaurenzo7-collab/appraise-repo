@@ -635,3 +635,27 @@
 - [x] All 88 counties have verified portal URLs, mailing addresses, filing windows, and preferred/fallback channels
 - [x] TypeScript: 0 errors
 - [x] Test suite: 40 files, 356 passed, 1 skipped (357 total)
+
+## Report Enhancement Pass — Professional-Grade Output (Phase 26)
+- [x] Persist adjustmentGrid, incomeApproach, marketTrend data in DB (schema + analysisJob)
+- [x] Rewrite pdfGenerator.ts: tier-aware (Free=branded summary, Paid=full 40-60 page professional report)
+- [x] Add branded cover page: AppraiseAI wordmark, property address, tier badge, report number, date
+- [x] Add letter of transmittal
+- [x] Add table of contents
+- [x] Add full adjustment grid table with dollar amounts per line item
+- [x] Add methodology section explaining each valuation approach (Highest & Best Use, Sales Comparison, Cost, Income)
+- [x] Add reconciliation narrative explaining how final value was derived
+- [x] Add property condition findings section with photo analysis
+- [x] Add market analysis section with trend data
+- [x] Add cost approach section
+- [x] Add income approach section (multifamily)
+- [x] Add assessor's valuation critique section
+- [x] Add equity & uniformity analysis section
+- [x] Add tax impact analysis section
+- [x] Add photo gallery section
+- [x] Add certification & limiting conditions page
+- [x] Add appendices (data sources, definitions, analyst qualifications)
+- [x] Update routers.ts generateReport to pass adjustmentGrid, costApproach, incomeApproach, marketTrend, reconciliationNarrative, tier, streetViewUrl, satelliteUrl
+- [x] Update reportJobQueue.ts to pass all new fields + photoFindings
+- [x] TypeScript: 0 errors
+- [x] Test suite: 40 files, 356 passed, 1 skipped (357 total)
