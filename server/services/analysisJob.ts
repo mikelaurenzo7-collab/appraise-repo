@@ -378,7 +378,8 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       propertyType,
       propertyData.assessedValue || 0,
       scenarioAdjustedValue,
-      new Date()
+      new Date(),
+      userScenario
     );
 
     if (appealStrategy) {

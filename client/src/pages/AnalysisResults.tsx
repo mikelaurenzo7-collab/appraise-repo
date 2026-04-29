@@ -19,6 +19,12 @@ import {
   Activity,
   Zap,
   RefreshCw,
+  Star,
+  DollarSign,
+  Wrench,
+  Heart,
+  TrendingUp,
+  Info,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -508,6 +514,345 @@ export default function AnalysisResults() {
           </div>
         </section>
       )}
+
+      {/* ─── SCENARIO-SPECIFIC UPSELL PROMPTS ─────────────────────────────── */}
+      {submission?.userScenario && submission.userScenario !== "none" && (() => {
+        const scenario = submission.userScenario as string;
+
+        // Rental / Investment — income approach upsell
+        if (scenario === "rental_property" || scenario === "mixed_use") {
+          return (
+            <section className="pb-12">
+              <div className="container">
+                <div className="p-6 rounded-xl border-2 border-[#7C3AED]/40 bg-gradient-to-br from-[#7C3AED]/5 to-[#0D9488]/5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-[#7C3AED] flex items-center justify-center shrink-0">
+                      <DollarSign size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-bold text-[#0F172A]">
+                          Income Approach Analysis Included
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-[#7C3AED]/10 text-[#7C3AED] text-xs font-semibold uppercase tracking-wide">
+                          Rental Property
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#64748B] mb-4 leading-relaxed">
+                        Because you identified this as a{scenario === "mixed_use" ? " mixed-use" : " rental"} property, your analysis includes the{" "}
+                        <strong className="text-[#0F172A]">income capitalization approach</strong> — the legally required valuation method for income-producing properties in most jurisdictions. This gives you a second, powerful angle to challenge the assessor.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[
+                          "Income approach is legally required for rental properties in most states",
+                          "Assessors often use owner-occupied comps — a costly error for rentals",
+                          "Vacancy rates, management fees, and expenses must be deducted",
+                          "Your cap rate analysis is included in the full PDF report",
+                        ].map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-[#E2E8F0]">
+                            <CheckCircle2 size={14} className="text-[#7C3AED] mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#0F172A]">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        // Veteran / Disabled — exemption stacking upsell
+        if (scenario === "veteran_disability") {
+          return (
+            <section className="pb-12">
+              <div className="container">
+                <div className="p-6 rounded-xl border-2 border-amber-400/50 bg-gradient-to-br from-amber-50 to-orange-50">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
+                      <Shield size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-bold text-[#0F172A]">
+                          Veteran &amp; Disability Exemptions — Verify Before Filing
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold uppercase tracking-wide">
+                          Action Required
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#64748B] mb-4 leading-relaxed">
+                        Your market-value appeal runs <strong className="text-[#0F172A]">independently</strong> of veteran and disability exemptions — but exemptions reduce your tax bill <em>even if the appeal fails</em>. Pursue both simultaneously.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                        {[
+                          "100%-disabled veterans qualify for full exemption in most states (TX, FL, MI, IA, IL)",
+                          "Partial disability ratings qualify for proportional exemptions",
+                          "ADA modifications (ramps, lifts) do NOT increase your taxable value",
+                          "Surviving spouses of disabled veterans usually retain the exemption",
+                        ].map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-amber-200">
+                            <Star size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#0F172A]">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-100 border border-amber-300">
+                        <Info size={14} className="text-amber-700 shrink-0" />
+                        <span className="text-xs text-amber-800">
+                          <strong>Next step:</strong> Contact your county assessor's office to verify your exemption is applied to your current tax bill. Exemption deadlines are separate from appeal deadlines.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        // Senior / Retired — exemption stacking upsell
+        if (scenario === "senior_homestead") {
+          return (
+            <section className="pb-12">
+              <div className="container">
+                <div className="p-6 rounded-xl border-2 border-blue-300/60 bg-gradient-to-br from-blue-50 to-indigo-50">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+                      <Heart size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-bold text-[#0F172A]">
+                          Senior Exemptions &amp; Freeze Programs — Stack With Your Appeal
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold uppercase tracking-wide">
+                          Senior Homeowner
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#64748B] mb-4 leading-relaxed">
+                        Senior exemptions reduce your <strong className="text-[#0F172A]">tax rate</strong>. Your appeal reduces the <strong className="text-[#0F172A]">assessed base</strong>. Both work together — a successful appeal on top of your senior exemption produces the maximum savings.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                        {[
+                          "Most states offer a senior homestead exemption ($10K–$50K assessed value reduction)",
+                          "Some states freeze assessed value at age 65 — TX, IL, NJ, and others",
+                          "Property tax deferral programs let you defer taxes until sale",
+                          "Circuit-breaker credits cap taxes as a % of household income",
+                        ].map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-blue-200">
+                            <CheckCircle2 size={14} className="text-blue-600 mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#0F172A]">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-100 border border-blue-300">
+                        <Info size={14} className="text-blue-700 shrink-0" />
+                        <span className="text-xs text-blue-800">
+                          <strong>Next step:</strong> Verify all senior exemptions are applied to your current bill. Exemption and freeze program deadlines are separate from appeal deadlines — apply for both.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        // Financial Hardship — urgency + deferral upsell
+        if (scenario === "financial_hardship") {
+          return (
+            <section className="pb-12">
+              <div className="container">
+                <div className="p-6 rounded-xl border-2 border-red-300/60 bg-gradient-to-br from-red-50 to-orange-50">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center shrink-0">
+                      <AlertTriangle size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-bold text-[#0F172A]">
+                          Hardship Relief Programs — File the Appeal AND Request Deferral
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold uppercase tracking-wide">
+                          Urgent
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#64748B] mb-4 leading-relaxed">
+                        Your market-value appeal is the primary path to a permanent reduction. But while the appeal is pending, <strong className="text-[#0F172A]">hardship deferral programs</strong> can stop the clock on delinquency and prevent fees and lien proceedings.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                        {[
+                          "Hardship deferrals postpone taxes without foreclosure risk in most states",
+                          "Circuit-breaker credits cap taxes as a % of household income (often 4–6%)",
+                          "Payment plans without penalty are available in most jurisdictions",
+                          "Senior + disability + hardship programs frequently stack — apply for all",
+                        ].map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-red-200">
+                            <Shield size={14} className="text-red-600 mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#0F172A]">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-red-100 border border-red-300">
+                        <AlertTriangle size={14} className="text-red-700 shrink-0" />
+                        <span className="text-xs text-red-800">
+                          <strong>Act now:</strong> Delinquency triggers fees and lien proceedings. File the appeal immediately and contact your county assessor about hardship deferral and payment plans today.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        // Distressed Condition — cost-to-cure and photo evidence upsell
+        if (scenario === "distressed_condition") {
+          return (
+            <section className="pb-12">
+              <div className="container">
+                <div className="p-6 rounded-xl border-2 border-orange-300/60 bg-gradient-to-br from-orange-50 to-yellow-50">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center shrink-0">
+                      <Wrench size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-bold text-[#0F172A]">
+                          Condition Evidence Is Your Strongest Asset
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold uppercase tracking-wide">
+                          Distressed Property
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#64748B] mb-4 leading-relaxed">
+                        Mass appraisal systems assume <strong className="text-[#0F172A]">average condition</strong>. Your property's actual deficiencies — documented with photos and repair estimates — are the most powerful evidence you can bring to a hearing.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                        {[
+                          "Repair estimates from 2–3 contractors are legally admissible evidence",
+                          "Dated photos documenting deficiencies carry significant weight",
+                          "You can request a physical re-inspection by the assessor",
+                          "Distressed comparable sales are valid in most jurisdictions",
+                        ].map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-orange-200">
+                            <CheckCircle2 size={14} className="text-orange-600 mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#0F172A]">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-100 border border-orange-300">
+                        <Info size={14} className="text-orange-700 shrink-0" />
+                        <span className="text-xs text-orange-800">
+                          <strong>Next step:</strong> Upload photos of deficiencies and obtain 2–3 contractor repair estimates. These are included in your full PDF report as cost-to-cure evidence.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        // Recently Purchased — purchase price as gold standard evidence
+        if (scenario === "recently_purchased") {
+          return (
+            <section className="pb-12">
+              <div className="container">
+                <div className="p-6 rounded-xl border-2 border-green-300/60 bg-gradient-to-br from-green-50 to-emerald-50">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center shrink-0">
+                      <TrendingUp size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-bold text-[#0F172A]">
+                          Your Purchase Price Is Your Strongest Evidence
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold uppercase tracking-wide">
+                          Recently Purchased
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#64748B] mb-4 leading-relaxed">
+                        Courts and appeal boards consistently recognize a <strong className="text-[#0F172A]">recent arm's-length purchase price</strong> as the gold standard for market value. If your assessment exceeds your purchase price, you have an exceptionally strong case.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                        {[
+                          "Your closing disclosure is the most powerful single document you can present",
+                          "The lender's appraisal from closing independently corroborates your price",
+                          "Many jurisdictions require assessment to equal purchase price after sale",
+                          "Pre-purchase inspection report documents condition at time of sale",
+                        ].map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-green-200">
+                            <CheckCircle2 size={14} className="text-green-600 mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#0F172A]">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-green-100 border border-green-300">
+                        <Info size={14} className="text-green-700 shrink-0" />
+                        <span className="text-xs text-green-800">
+                          <strong>Next step:</strong> Gather your closing disclosure, purchase agreement, and lender's appraisal. These are included in your full PDF report as primary evidence.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        // Inherited Property — stepped-up basis clarification
+        if (scenario === "inherited_property") {
+          return (
+            <section className="pb-12">
+              <div className="container">
+                <div className="p-6 rounded-xl border-2 border-purple-300/60 bg-gradient-to-br from-purple-50 to-violet-50">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center shrink-0">
+                      <Scale size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-bold text-[#0F172A]">
+                          Stepped-Up Basis ≠ Assessed Value — A Common Assessor Error
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold uppercase tracking-wide">
+                          Inherited Property
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#64748B] mb-4 leading-relaxed">
+                        Assessors often confuse the stepped-up basis (a capital gains concept) with market value. Your property's <strong className="text-[#0F172A]">actual condition</strong> — including deferred maintenance typical of estate properties — must be reflected in the assessment.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                        {[
+                          "Stepped-up basis is for capital gains tax — not property tax assessment",
+                          "Estate properties often have deferred maintenance reducing market value",
+                          "Estate sale comparables are legally admissible as condition-adjusted evidence",
+                          "Probate documents establish the transfer date and condition at inheritance",
+                        ].map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-purple-200">
+                            <CheckCircle2 size={14} className="text-purple-600 mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#0F172A]">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        return null;
+      })()}
 
       {/* Property Details */}
       <section className="pb-12">

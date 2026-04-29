@@ -928,3 +928,20 @@
 - [ ] Save checkpoint with all enhancements
 - [ ] Verify all tests passing
 - [ ] Present final results to user
+
+## Phase 36: userScenario Pipeline Integration
+- [ ] Wire userScenario into analysisJob.ts to call scenarioValuation engine
+- [ ] Pass scenario context to appealStrategy.ts for scenario-aware filing advice
+- [ ] Weight analysis approaches by scenario (income for rentals, cost for distressed)
+- [ ] Add scenario-specific exemption detection (veteran, senior, hardship) as owner-only section
+- [ ] Add scenario-specific upsell prompts in Analysis page UI
+- [ ] Ensure scenario context is invisible in assessor-facing PDF report
+
+## Phase 36: userScenario Pipeline Integration — COMPLETE
+
+- [x] Wire userScenario as 7th arg to generateAppealStrategy() in analysisJob.ts
+- [x] Rewrite appealStrategy.ts: scenario-aware filing method boost, success probability bonus, additional documents, tactics, opportunity factors, risk factors, and priority next actions per scenario (10 scenarios covered)
+- [x] Add scenario-specific upsell prompt cards to AnalysisResults.tsx (7 scenario cards: rental/mixed-use, veteran/disability, senior/homestead, financial hardship, distressed condition, recently purchased, inherited property)
+- [x] Each upsell card: branded color scheme, scenario badge, advocacy copy, 4 evidence points, actionable next step callout
+- [x] TypeScript: 0 errors
+- [x] Tests: 451 passing, 1 skipped (45 test files)
