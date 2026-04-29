@@ -30,6 +30,7 @@ import {
   calculateScenarioTaxSavings,
   generateScenarioPromptContext,
   getScenarioApproachOverride,
+  applyCompFilterStrategy,
   type UserScenario,
 } from "./scenarioValuation";
 import { sendAnalysisConfirmationEmail } from "../_core/emailService";
@@ -181,12 +182,31 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       });
     }
 
+    // Apply the scenario's comp-filter strategy to the raw comp set BEFORE
+    // the LLM sees it. Without this, the scenario filters were pure config
+    // that nothing read; the LLM saw the same unfiltered comps regardless
+    // of scenario. Now: a "primary_residence" run drops foreclosure-y
+    // outliers and old comps, a "distressed_condition" run keeps them,
+    // a "recently_purchased" run widens the window to 24 months. This makes
+    // the scenario knobs do real work.
+    const rawComps = propertyData.comparableSales ?? [];
+    const filteredComps = applyCompFilterStrategy(rawComps, scenarioContext.compFilterStrategy);
+    const filteredPropertyData = {
+      ...propertyData,
+      comparableSales: filteredComps.length > 0 ? filteredComps : rawComps, // fail-safe: don't analyze with zero comps
+    };
+    if (rawComps.length !== filteredComps.length && filteredComps.length > 0) {
+      console.log(
+        `[AnalysisJob] #${submissionId} comp filter applied (${userScenario}): ${rawComps.length} → ${filteredComps.length}`,
+      );
+    }
+
     const [analysis, photoSummaryParallel] = await Promise.all([
       // Pass the userScenario so the LLM produces a scenario-shaped narrative
       // (rental → income approach, distressed → cost-floor reasoning,
       // recently_purchased → purchase-price ceiling, etc.) instead of a
       // generic analysis that gets retroactively math-adjusted.
-      analyzeProperty(propertyData, propertyType, userScenario),
+      analyzeProperty(filteredPropertyData, propertyType, userScenario),
       photosForAnalysis.length > 0
         ? analyzePropertyPhotos(photosForAnalysis).catch((err) => {
             console.warn(

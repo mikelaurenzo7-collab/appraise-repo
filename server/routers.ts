@@ -216,6 +216,18 @@ export const appRouter = router({
         email: z.string().email("Please enter a valid email"),
         phone: z.string().optional(),
         filingMethod: z.enum(["poa", "pro-se", "none"]).default("poa"),
+        // Optional scenario picker — drives scenario-aware valuation,
+        // exemption-stacking advice, and POA/pro-se recommendation.
+        // Defaults to "none" (generic analysis).
+        userScenario: z
+          .enum([
+            "primary_residence", "rental_property", "vacation_home",
+            "inherited_property", "recently_purchased", "planning_to_sell",
+            "distressed_condition", "new_construction", "recently_renovated",
+            "senior_homestead", "veteran_disability", "financial_hardship",
+            "mixed_use", "none",
+          ])
+          .default("none"),
       }))
       .mutation(async ({ input, ctx }) => {
         enforceRateLimit(ctx, {
@@ -240,6 +252,7 @@ export const appRouter = router({
             email: input.email,
             phone: input.phone,
             filingMethod: input.filingMethod,
+            userScenario: input.userScenario,
             status: "pending",
           });
 

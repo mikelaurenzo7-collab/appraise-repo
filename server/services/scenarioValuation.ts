@@ -626,6 +626,66 @@ export function getScenarioContext(scenario: UserScenario): ScenarioContext {
 }
 
 /**
+ * Apply a scenario's comp-filter strategy to a raw comparable-sales set.
+ *
+ * Without this, scenario `compFilterStrategy` was pure configuration that
+ * nothing read — the LLM saw the same unfiltered comp set regardless of
+ * scenario. This function makes the strategy real:
+ *
+ *   • maxSaleAgeMonths    — drops comps older than the window
+ *   • preferRecentSales   — orders newest-first so the LLM weights them
+ *   • requireSimilarCondition — drops low-similarity comps (<0.6)
+ *   • allowDistressedComps — when false AND >5 comps remain, trims the
+ *     top + bottom 10% as likely outliers (preserves the meaningful core)
+ *
+ * Note: foreclosure/short-sale tagging isn't reliably present in the
+ * upstream data sources today, so excludeForeclosures/excludeShortSales
+ * are treated as soft signals (logged but not enforced) until the
+ * aggregator surfaces saleType. This is documented intentionally so we
+ * don't silently filter on metadata that isn't there.
+ */
+export function applyCompFilterStrategy<
+  C extends { saleDate: string; similarity?: number; salePrice: number; squareFeet: number },
+>(comps: C[], strategy: CompFilterStrategy): C[] {
+  if (!comps || comps.length === 0) return [];
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - strategy.maxSaleAgeMonths);
+
+  let filtered = comps.filter((c) => {
+    const saleDate = new Date(c.saleDate);
+    if (Number.isNaN(saleDate.getTime())) return true; // keep undated rather than drop
+    return saleDate >= cutoff;
+  });
+
+  if (strategy.requireSimilarCondition) {
+    filtered = filtered.filter((c) => c.similarity === undefined || c.similarity >= 0.6);
+  }
+
+  // Outlier trim: when distressed comps are not welcome AND we have enough
+  // data to spare, drop the extremes of the price-per-sqft distribution.
+  // This stops a single outlier from dragging the LLM's anchor.
+  if (!strategy.allowDistressedComps && filtered.length > 5) {
+    const ppsf = filtered
+      .map((c) => ({ comp: c, ppsf: c.squareFeet > 0 ? c.salePrice / c.squareFeet : 0 }))
+      .filter((x) => x.ppsf > 0)
+      .sort((a, b) => a.ppsf - b.ppsf);
+    const trim = Math.max(1, Math.floor(ppsf.length * 0.1));
+    filtered = ppsf.slice(trim, ppsf.length - trim).map((x) => x.comp);
+  }
+
+  if (strategy.preferRecentSales) {
+    filtered = [...filtered].sort((a, b) => {
+      const at = new Date(a.saleDate).getTime();
+      const bt = new Date(b.saleDate).getTime();
+      return (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at);
+    });
+  }
+
+  return filtered;
+}
+
+/**
  * Calculate scenario-adjusted market value
  * Applies scenario-specific adjustments to the base market value estimate
  */
