@@ -80,6 +80,29 @@ const PROPERTY_TYPES = [
   { value: "land", label: "Land / Vacant", icon: <TreePine size={20} />, desc: "Undeveloped parcel, agricultural" },
 ];
 
+// Optional life-context picker. Drives scenario-aware valuation,
+// exemption-stacking advice, and POA/pro-se recommendation. "none"
+// is the safe default — submissions without a chosen scenario still
+// produce a generic-but-correct analysis.
+const USER_SCENARIOS = [
+  { value: "none", label: "Skip — General Analysis", desc: "Standard property tax appeal analysis" },
+  { value: "primary_residence", label: "Primary Residence", desc: "My home; homestead exemptions may apply" },
+  { value: "rental_property", label: "Rental / Investment", desc: "Income-producing — income approach matters" },
+  { value: "vacation_home", label: "Vacation / Second Home", desc: "Seasonal use, often overassessed" },
+  { value: "inherited_property", label: "Inherited Property", desc: "Often deferred maintenance + as-is condition" },
+  { value: "recently_purchased", label: "Recently Purchased (1-2yr)", desc: "Purchase price = strongest evidence" },
+  { value: "planning_to_sell", label: "Planning to Sell", desc: "High assessment hurts buyer pool" },
+  { value: "distressed_condition", label: "Distressed / Fixer-Upper", desc: "Mass appraisal assumes average; we prove otherwise" },
+  { value: "new_construction", label: "New Construction", desc: "Often assessed at builder cost, not market" },
+  { value: "recently_renovated", label: "Recently Renovated", desc: "Renovations don't always increase market value $-for-$" },
+  { value: "senior_homestead", label: "Senior (65+) / Retired", desc: "Senior exemptions + freezes stack with the appeal" },
+  { value: "veteran_disability", label: "Veteran or Disabled Owner", desc: "Many states 100% exempt; pursue both in parallel" },
+  { value: "financial_hardship", label: "Financial Hardship", desc: "Hardship deferrals + circuit-breaker credits available" },
+  { value: "mixed_use", label: "Mixed-Use Property", desc: "Live/work or storefront-with-residence; often misclassified" },
+] as const;
+
+type UserScenarioValue = (typeof USER_SCENARIOS)[number]["value"];
+
 const FILING_METHODS = [
   {
     value: "none",
@@ -168,6 +191,7 @@ export default function GetStarted() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [filingMethod, setFilingMethod] = useState<"automated_express" | "automated_standard" | "pro-se" | "none">("automated_express");
+  const [userScenario, setUserScenario] = useState<UserScenarioValue>("none");
   const [selectedCountyId, setSelectedCountyId] = useState<number | null>(null);
   const [photoSubmissionId, setPhotoSubmissionId] = useState<number | null>(null);
   const [photosUploaded, setPhotosUploaded] = useState<number>(0);
@@ -308,7 +332,7 @@ export default function GetStarted() {
       toast.success("Analysis started! Redirecting...");
       navigate(`/analysis?id=${photoSubmissionId}`);
     } else {
-      submitMutation.mutate({ address, email, phone, filingMethod: filingMethod as "automated_express" | "automated_standard" | "pro-se" | "none" });
+      submitMutation.mutate({ address, email, phone, filingMethod: filingMethod as "automated_express" | "automated_standard" | "pro-se" | "none", userScenario });
     }
   };
 
@@ -400,6 +424,33 @@ export default function GetStarted() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* User Scenario — drives scenario-aware valuation, exemption
+                  stacking, and the POA/pro-se recommendation. Optional.    */}
+              <div>
+                <label
+                  htmlFor="userScenario"
+                  className="block text-sm font-semibold text-[#0F172A] mb-2"
+                >
+                  Your Situation{" "}
+                  <span className="text-xs font-normal text-[#94A3B8]">(optional — improves the analysis)</span>
+                </label>
+                <select
+                  id="userScenario"
+                  value={userScenario}
+                  onChange={(e) => setUserScenario(e.target.value as UserScenarioValue)}
+                  className="w-full px-4 py-3 rounded border-2 border-[#E2E8F0] bg-white text-sm text-[#0F172A] focus:border-[#7C3AED] focus:outline-none transition-colors"
+                >
+                  {USER_SCENARIOS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#94A3B8] mt-1.5">
+                  {USER_SCENARIOS.find((s) => s.value === userScenario)?.desc}
+                </p>
               </div>
 
               <button
