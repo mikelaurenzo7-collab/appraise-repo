@@ -1,4 +1,5 @@
 import { invokeLLM } from "../_core/llm";
+import { analyzeWithClaude, isClaudeAvailable } from "../_core/claude";
 import type { PropertyData } from "./propertyDataAggregator";
 
 export interface AppraisalAnalysis {
@@ -13,6 +14,39 @@ export interface AppraisalAnalysis {
   potentialSavings: number;
   nextSteps: string[];
 }
+
+// Stable system prompt — prompt-cached by Claude across all analysis calls.
+// Exported so batchProcessor can reuse it for the Batch API requests.
+export const APPRAISAL_SYSTEM_PROMPT_EXPORT =
+  "You are an independent valuation analyst preparing supporting analysis for a property-tax appeal. " +
+  "You produce professional, evidence-based, USPAP-aligned narratives. You are not an attorney and " +
+  "do not provide legal advice. You output valid JSON only. When the data fairly supports a fair " +
+  "market value below the current assessment, you state that conclusion clearly and explain the " +
+  "underlying evidence — but you never invent facts and never editorialize about the assessor.";
+
+const APPRAISAL_SYSTEM_PROMPT = APPRAISAL_SYSTEM_PROMPT_EXPORT;
+
+const APPRAISAL_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    marketValueEstimate: { type: "number" },
+    assessmentGap: { type: "number" },
+    assessmentGapPercent: { type: "number" },
+    appealStrengthScore: { type: "number" },
+    appealStrengthFactors: { type: "array", items: { type: "string" } },
+    recommendedApproach: { type: "string", enum: ["poa", "pro-se", "not-recommended"] },
+    executiveSummary: { type: "string" },
+    valuationJustification: { type: "string" },
+    potentialSavings: { type: "number" },
+    nextSteps: { type: "array", items: { type: "string" } },
+  },
+  required: [
+    "marketValueEstimate", "assessmentGap", "assessmentGapPercent",
+    "appealStrengthScore", "appealStrengthFactors", "recommendedApproach",
+    "executiveSummary", "valuationJustification", "potentialSavings", "nextSteps",
+  ],
+  additionalProperties: false,
+};
 
 /**
  * Analyze property data and generate appraisal assessment
@@ -104,67 +138,47 @@ Provide a JSON response with:
     "Confirm appeal-filing deadline with the county assessor's office"). Do
     not provide legal strategy or jurisdiction-specific procedural advice.
 
-Respond ONLY with valid JSON, no additional text.`;
+Respond ONLY with valid JSON matching this schema:
+${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
 
-    const response = await invokeLLM({
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an independent valuation analyst preparing supporting analysis for a property-tax appeal. " +
-            "You produce professional, evidence-based, USPAP-aligned narratives. You are not an attorney and " +
-            "do not provide legal advice. You output valid JSON only. When the data fairly supports a fair " +
-            "market value below the current assessment, you state that conclusion clearly and explain the " +
-            "underlying evidence — but you never invent facts and never editorialize about the assessor.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "appraisal_analysis",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              marketValueEstimate: { type: "number" },
-              assessmentGap: { type: "number" },
-              assessmentGapPercent: { type: "number" },
-              appealStrengthScore: { type: "number" },
-              appealStrengthFactors: { type: "array", items: { type: "string" } },
-              recommendedApproach: { type: "string", enum: ["poa", "pro-se", "not-recommended"] },
-              executiveSummary: { type: "string" },
-              valuationJustification: { type: "string" },
-              potentialSavings: { type: "number" },
-              nextSteps: { type: "array", items: { type: "string" } },
-            },
-            required: [
-              "marketValueEstimate",
-              "assessmentGap",
-              "assessmentGapPercent",
-              "appealStrengthScore",
-              "appealStrengthFactors",
-              "recommendedApproach",
-              "executiveSummary",
-              "valuationJustification",
-              "potentialSavings",
-              "nextSteps",
-            ],
-            additionalProperties: false,
-          },
-        },
-      },
-    });
+    let rawJson: string;
 
-    const content = response.choices[0]?.message.content;
-    if (!content || typeof content !== "string") {
-      throw new Error("Invalid LLM response format");
+    if (isClaudeAvailable()) {
+      // Claude Opus 4.7 with adaptive thinking + xhigh effort + prompt caching.
+      // The stable system prompt is cached across calls, cutting repeat-call
+      // token costs by ~90%. Adaptive thinking lets Claude reason through
+      // comparable-sales weighting before committing to the JSON output.
+      rawJson = await analyzeWithClaude({
+        systemPrompt: APPRAISAL_SYSTEM_PROMPT,
+        userContent: prompt,
+        maxTokens: 8192,
+        effort: "xhigh",
+      });
+    } else {
+      // Forge / Gemini fallback — used when ANTHROPIC_API_KEY is not set.
+      const response = await invokeLLM({
+        messages: [
+          { role: "system", content: APPRAISAL_SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "appraisal_analysis", strict: true, schema: APPRAISAL_JSON_SCHEMA },
+        },
+      });
+      const content = response.choices[0]?.message.content;
+      if (!content || typeof content !== "string") {
+        throw new Error("Invalid LLM response format");
+      }
+      rawJson = content;
     }
 
-    const analysis = JSON.parse(content) as AppraisalAnalysis;
+    // Strip any markdown fences Claude might emit before the JSON object
+    const jsonStart = rawJson.indexOf("{");
+    const jsonEnd = rawJson.lastIndexOf("}");
+    const cleanJson = jsonStart >= 0 && jsonEnd > jsonStart ? rawJson.slice(jsonStart, jsonEnd + 1) : rawJson;
+
+    const analysis = JSON.parse(cleanJson) as AppraisalAnalysis;
 
     // Validate response
     if (

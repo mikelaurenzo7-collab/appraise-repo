@@ -1,4 +1,4 @@
-import { boolean, decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -72,7 +72,11 @@ export const propertySubmissions = mysqlTable("property_submissions", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  statusCreatedIdx: index("idx_submissions_status_created").on(t.status, t.createdAt),
+  emailIdx: index("idx_submissions_email").on(t.email),
+  countyIdx: index("idx_submissions_county").on(t.county),
+}));
 
 export type PropertySubmission = typeof propertySubmissions.$inferSelect;
 export type InsertPropertySubmission = typeof propertySubmissions.$inferInsert;
@@ -113,7 +117,9 @@ export const propertyAnalysis = mysqlTable("property_analysis", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_analysis_submission").on(t.submissionId),
+}));
 
 export type PropertyAnalysis = typeof propertyAnalysis.$inferSelect;
 export type InsertPropertyAnalysis = typeof propertyAnalysis.$inferInsert;
@@ -161,7 +167,10 @@ export const appealOutcomes = mysqlTable("appeal_outcomes", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_outcomes_submission").on(t.submissionId),
+  outcomeIdx: index("idx_outcomes_outcome_resolved").on(t.outcome, t.resolvedAt),
+}));
 
 export type AppealOutcome = typeof appealOutcomes.$inferSelect;
 export type InsertAppealOutcome = typeof appealOutcomes.$inferInsert;
@@ -182,7 +191,10 @@ export const activityLogs = mysqlTable("activity_logs", {
   durationMs: int("durationMs"),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_logs_submission_created").on(t.submissionId, t.createdAt),
+  typeIdx: index("idx_logs_type_status").on(t.type, t.status),
+}));
 
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
@@ -198,7 +210,9 @@ export const apiCache = mysqlTable("api_cache", {
   expiresAt: timestamp("expiresAt").notNull(),
   hitCount: int("hitCount").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  expiresIdx: index("idx_cache_expires").on(t.expiresAt),
+}));
 
 export type ApiCache = typeof apiCache.$inferSelect;
 export type InsertApiCache = typeof apiCache.$inferInsert;
@@ -224,7 +238,9 @@ export const propertyPhotos = mysqlTable("property_photos", {
   ]).default("other"),
   displayOrder: int("displayOrder").default(0), // For sorting in report
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_photos_submission").on(t.submissionId, t.displayOrder),
+}));
 
 export type PropertyPhoto = typeof propertyPhotos.$inferSelect;
 export type InsertPropertyPhoto = typeof propertyPhotos.$inferInsert;
@@ -282,10 +298,15 @@ export const reportJobs = mysqlTable("report_jobs", {
   // Retry logic
   retryCount: int("retryCount").default(0).notNull(),
   maxRetries: int("maxRetries").default(3).notNull(),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  statusQueuedIdx: index("idx_report_jobs_status_queued").on(t.status, t.queuedAt),
+  submissionIdx: index("idx_report_jobs_submission").on(t.submissionId),
+  userIdx: index("idx_report_jobs_user").on(t.userId),
+  expiresIdx: index("idx_report_jobs_expires").on(t.expiresAt),
+}));
 
 export type ReportJob = typeof reportJobs.$inferSelect;
 export type InsertReportJob = typeof reportJobs.$inferInsert;
@@ -373,7 +394,9 @@ export const counties = mysqlTable("counties", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  stateCountyIdx: index("idx_counties_state_county").on(t.state, t.countyName),
+}));
 
 export type County = typeof counties.$inferSelect;
 export type InsertCounty = typeof counties.$inferInsert;
@@ -407,7 +430,9 @@ export const filingRecipes = mysqlTable("filing_recipes", {
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  countyActiveIdx: index("idx_recipes_county_active").on(t.countyId, t.active),
+}));
 
 export type FilingRecipe = typeof filingRecipes.$inferSelect;
 export type InsertFilingRecipe = typeof filingRecipes.$inferInsert;
@@ -434,7 +459,10 @@ export const scrivenerAuthorizations = mysqlTable("scrivener_authorizations", {
   // the authorization pane.
   scrolledToEnd: boolean("scrolledToEnd").default(false).notNull(),
   signedAt: timestamp("signedAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_scrivener_submission").on(t.submissionId),
+  userIdx: index("idx_scrivener_user").on(t.userId),
+}));
 
 export type ScrivenerAuthorization = typeof scrivenerAuthorizations.$inferSelect;
 export type InsertScrivenerAuthorization = typeof scrivenerAuthorizations.$inferInsert;
@@ -507,7 +535,13 @@ export const filingJobs = mysqlTable("filing_jobs", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  statusQueuedIdx: index("idx_filing_jobs_status_queued").on(t.status, t.queuedAt),
+  submissionIdx: index("idx_filing_jobs_submission").on(t.submissionId),
+  userIdx: index("idx_filing_jobs_user").on(t.userId),
+  deliveryStatusIdx: index("idx_filing_jobs_delivery_status").on(t.deliveryStatus),
+  trackingIdx: index("idx_filing_jobs_tracking").on(t.mailTrackingNumber),
+}));
 
 export type FilingJob = typeof filingJobs.$inferSelect;
 export type InsertFilingJob = typeof filingJobs.$inferInsert;
@@ -535,7 +569,11 @@ export const refundRequests = mysqlTable("refund_requests", {
   stripeRefundId: varchar("stripeRefundId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  statusIdx: index("idx_refunds_status").on(t.status),
+  submissionIdx: index("idx_refunds_submission").on(t.submissionId),
+  userIdx: index("idx_refunds_user").on(t.userId),
+}));
 
 export type RefundRequest = typeof refundRequests.$inferSelect;
 export type InsertRefundRequest = typeof refundRequests.$inferInsert;
@@ -567,7 +605,10 @@ export const countyWaitlist = mysqlTable("county_waitlist", {
   notes: text("notes"),
   notifiedAt: timestamp("notifiedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  emailIdx: index("idx_waitlist_email").on(t.email),
+  stateCountyIdx: index("idx_waitlist_state_county").on(t.state, t.countyName),
+}));
 
 export type CountyWaitlistEntry = typeof countyWaitlist.$inferSelect;
 export type InsertCountyWaitlistEntry = typeof countyWaitlist.$inferInsert;
@@ -601,10 +642,13 @@ export const poaFilings = mysqlTable("poa_filings", {
   confirmationNumber: varchar("confirmationNumber", { length: 100 }),
   portalUrl: varchar("portalUrl", { length: 500 }), // Link to county portal
   notes: text("notes"),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_poa_submission").on(t.submissionId),
+  countyStatusIdx: index("idx_poa_county_status").on(t.countyId, t.status),
+}));
 
 export type POAFiling = typeof poaFilings.$inferSelect;
 export type InsertPOAFiling = typeof poaFilings.$inferInsert;
@@ -638,12 +682,15 @@ export const proSeFilings = mysqlTable("pro_se_filings", {
   // Outcome
   hearingDate: timestamp("hearingDate"),
   outcome: mysqlEnum("outcome", ["won", "lost", "pending", "unknown"]).default("pending"),
-  
+
   notes: text("notes"),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_prose_submission").on(t.submissionId),
+  countyStatusIdx: index("idx_prose_county_status").on(t.countyId, t.status),
+}));
 
 export type ProSeFiling = typeof proSeFilings.$inferSelect;
 export type InsertProSeFiling = typeof proSeFilings.$inferInsert;
@@ -671,10 +718,13 @@ export const filingTiers = mysqlTable("filing_tiers", {
   // For contingency fees
   contingencyPaidDate: timestamp("contingencyPaidDate"),
   contingencyAmount: int("contingencyAmount"), // In cents
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  submissionIdx: index("idx_tiers_submission").on(t.submissionId),
+  paymentStatusIdx: index("idx_tiers_payment_status").on(t.paymentStatus),
+}));
 
 export type FilingTier = typeof filingTiers.$inferSelect;
 export type InsertFilingTier = typeof filingTiers.$inferInsert;
@@ -703,10 +753,14 @@ export const paralegalsQueue = mysqlTable("paralegals_queue", {
   // Notes
   notes: text("notes"),
   blockers: text("blockers"), // If blocked, why
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  statusPriorityIdx: index("idx_paralegals_status_priority").on(t.status, t.priority),
+  assignedIdx: index("idx_paralegals_assigned").on(t.assignedTo),
+  poaIdx: index("idx_paralegals_poa").on(t.poaFilingId),
+}));
 
 export type ParalegalsQueueItem = typeof paralegalsQueue.$inferSelect;
 export type InsertParalegalsQueueItem = typeof paralegalsQueue.$inferInsert;

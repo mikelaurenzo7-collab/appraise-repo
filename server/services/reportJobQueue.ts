@@ -4,6 +4,7 @@
  */
 
 import { generateAppraisalPDF, type AppraisalReportData } from "./pdfGenerator";
+import { generateEnhancedReportNarrative } from "./pdfReportGenerator";
 import {
   getReportJobById,
   updateReportJob,
@@ -101,6 +102,42 @@ async function processReportJobAsync(jobId: number): Promise<void> {
 
     // Prepare report data
     const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
+    const appealStrengthFactors = analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [];
+
+    // Try to upgrade the narrative with Claude Opus 4.7 (streaming + cached
+    // USPAP template). Falls back to the analysis JSON's existing narrative
+    // when Claude is unavailable or fails — never blocks PDF generation.
+    let enrichedJustification = analysis.valuationJustification ?? undefined;
+    try {
+      const narrative = await generateEnhancedReportNarrative({
+        submission,
+        analysis,
+        comparableSales: comparableSales.map((c: { address: string; salePrice: number; saleDate: string; squareFeet?: number; sqft?: number; pricePerSqft?: number }) => ({
+          address: c.address,
+          salePrice: c.salePrice,
+          saleDate: c.saleDate,
+          sqft: c.squareFeet ?? c.sqft ?? 0,
+          pricePerSqft: c.pricePerSqft ?? (c.squareFeet || c.sqft ? Math.round(c.salePrice / (c.squareFeet ?? c.sqft ?? 1)) : 0),
+        })),
+        appealStrengthFactors,
+        nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+      });
+      if (narrative) {
+        const sections = [
+          narrative.valuationMethodology,
+          narrative.comparableSalesNarrative,
+          narrative.conditionAdjustmentNarrative,
+          narrative.conclusionAndRecommendation,
+        ].filter(Boolean);
+        if (sections.length > 0) {
+          enrichedJustification = sections.join("\n\n");
+          console.log(`[ReportQueue] Job ${jobId} narrative enriched via Claude (${enrichedJustification.length} chars)`);
+        }
+      }
+    } catch (err) {
+      console.warn(`[ReportQueue] Job ${jobId} narrative enrichment skipped:`, (err as Error).message);
+    }
+
     const reportData: AppraisalReportData = {
       submissionId: job.submissionId,
       address: submission.address,
@@ -118,7 +155,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       potentialSavings: submission.potentialSavings ?? undefined,
       appealStrengthScore: submission.appealStrengthScore ?? undefined,
       executiveSummary: analysis.executiveSummary ?? undefined,
-      valuationJustification: analysis.valuationJustification ?? undefined,
+      valuationJustification: enrichedJustification,
       recommendedApproach: analysis.recommendedApproach ?? undefined,
       nextSteps: analysis.nextSteps ?? undefined,
       filingMethod: submission.filingMethod ?? undefined,
@@ -194,13 +231,25 @@ async function processReportJobAsync(jobId: number): Promise<void> {
 
     const job = await getReportJobById(jobId);
     if (job && job.retryCount < job.maxRetries) {
-      // Retry
+      // Exponential backoff with jitter — prevents thundering-herd retries
+      // from hammering S3 / the PDF generator during transient failures.
+      // Cap at 30s so retries don't lag past the 24h job SLA.
+      const backoffMs = Math.min(1000 * Math.pow(2, job.retryCount), 30_000);
+      const jitterMs = Math.random() * 1000;
+      const delayMs = backoffMs + jitterMs;
+
       await updateReportJob(jobId, {
         status: "queued",
         retryCount: job.retryCount + 1,
         errorMessage: errMsg,
       });
-      console.log(`[ReportQueue] Job ${jobId} queued for retry (attempt ${job.retryCount + 2}/${job.maxRetries + 1})`);
+      console.log(`[ReportQueue] Job ${jobId} retry ${job.retryCount + 2}/${job.maxRetries + 1} in ${Math.round(delayMs)}ms`);
+
+      setTimeout(() => {
+        processReportJobAsync(jobId).catch((err) => {
+          console.error(`[ReportQueue] Retry error:`, err);
+        });
+      }, delayMs);
     } else {
       // Final failure
       await updateReportJob(jobId, {

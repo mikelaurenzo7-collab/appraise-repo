@@ -66,7 +66,18 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  /**
+   * Hard ceiling on the round trip to Forge. If the upstream stalls past
+   * this many ms, the request is aborted and an Error is thrown. Default
+   * 5 minutes accommodates long-form report generations; bump higher per
+   * call for the heaviest report jobs (e.g. 600_000), or pass 0 to
+   * disable entirely. The point is to stop one wedged call from blocking
+   * the whole job queue, not to constrain legitimate long completions.
+   */
+  timeoutMs?: number;
 };
+
+const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 
 export type ToolCall = {
   id: string;
@@ -312,14 +323,32 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const timeoutMs = params.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const timeoutId =
+    controller && timeoutMs > 0
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
+
+  let response: Response;
+  try {
+    response = await fetch(resolveApiUrl(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${ENV.forgeApiKey}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller?.signal,
+    });
+  } catch (err) {
+    if ((err as { name?: string })?.name === "AbortError") {
+      throw new Error(`LLM invoke timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
