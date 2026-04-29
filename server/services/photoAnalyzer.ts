@@ -15,7 +15,26 @@
  */
 
 import { invokeLLM } from "../_core/llm";
+import { analyzePhotoWithClaude, isClaudeAvailable } from "../_core/claude";
 import type { SubmissionPhoto } from "../db";
+
+/**
+ * SSRF guard — reject any URL that isn't https://.
+ * Without this, a user-supplied url like file:///etc/passwd or an internal
+ * Manus metadata endpoint would be sent to the vision LLM and its content
+ * leaked in the response.
+ */
+function assertSafePhotoUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid photo URL: ${url}`);
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error(`Unsafe photo URL scheme "${parsed.protocol}" — only https:// is allowed`);
+  }
+}
 
 export interface PhotoFinding {
   url: string;
@@ -51,8 +70,24 @@ export interface PhotoAnalysisSummary {
 
 const PHOTO_VISION_TIMEOUT_MS = 25_000;
 
+// Stable system prompt — prompt-cached by Claude when multiple photos are
+// analyzed in sequence (e.g. the 8-photo cap per submission). The cache
+// eliminates repeated input-token costs for the identical instructions.
+const PHOTO_SYSTEM_PROMPT =
+  "You are a meticulous property condition analyst. You produce evidence-based, " +
+  "non-prescriptive observations. You never give legal advice and never overstate " +
+  "what an image shows. Output valid JSON only with these exact fields: " +
+  "conditionScore (0-100 integer, higher = better condition), " +
+  "conditionLabel (one of: excellent | good | average | fair | poor), " +
+  "observations (array of short neutral verifiable phrases, max 5), " +
+  "valueImpactingIssues (array of defect phrases that support lower value, max 5), " +
+  "evidenceStrength (0-100 integer, how strongly this photo supports the appeal).";
+
 async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding | null> {
   try {
+    // SSRF guard — block non-HTTPS URLs before sending to any vision model
+    assertSafePhotoUrl(photo.url);
+
     const categoryLabel =
       photo.category === "roof"
         ? "the roof"
@@ -65,78 +100,79 @@ async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding 
         : "the property";
 
     const userInstruction =
-      `You are a property condition analyst preparing factual observations for a property tax appeal.\n\n` +
       `Photo category: ${photo.category} (showing ${categoryLabel}).\n` +
       (photo.caption ? `Owner caption: "${photo.caption}"\n` : "") +
-      `\nDescribe ONLY what is visible in the image. Do not speculate beyond evidence. ` +
+      `Describe ONLY what is visible. Do not speculate beyond evidence. ` +
       `Do not make legal recommendations. Write each observation as a short, neutral, ` +
       `verifiable phrase (e.g. "missing gutter on north elevation", "interior wall ` +
-      `staining consistent with prior moisture intrusion"). If a defect is unclear, omit it.\n\n` +
+      `staining consistent with prior moisture intrusion"). If a defect is unclear, omit it.\n` +
       `Return JSON only.`;
 
-    const llmPromise = invokeLLM({
-      maxTokens: 800,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a meticulous property condition analyst. You produce evidence-based, " +
-            "non-prescriptive observations. You never give legal advice and never overstate " +
-            "what an image shows. You output valid JSON only.",
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userInstruction },
-            { type: "image_url", image_url: { url: photo.url, detail: "high" } },
-          ],
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "photo_finding",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              conditionScore: { type: "number" },
-              conditionLabel: {
-                type: "string",
-                enum: ["excellent", "good", "average", "fair", "poor"],
-              },
-              observations: {
-                type: "array",
-                items: { type: "string" },
-              },
-              valueImpactingIssues: {
-                type: "array",
-                items: { type: "string" },
-              },
-              evidenceStrength: { type: "number" },
-            },
-            required: [
-              "conditionScore",
-              "conditionLabel",
-              "observations",
-              "valueImpactingIssues",
-              "evidenceStrength",
+    let rawJson: string;
+
+    if (isClaudeAvailable()) {
+      // Claude Opus 4.7 vision with prompt-cached system prompt.
+      // Claude's vision outperforms Gemini on subtle structural defects
+      // (hairline cracks, granule loss, moisture staining) that matter most
+      // for property-condition appeals.
+      const claudePromise = analyzePhotoWithClaude({
+        systemPrompt: PHOTO_SYSTEM_PROMPT,
+        userInstruction,
+        imageUrl: photo.url,
+        maxTokens: 800,
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("photo vision timeout")), PHOTO_VISION_TIMEOUT_MS),
+      );
+      rawJson = await Promise.race([claudePromise, timeoutPromise]);
+    } else {
+      // Forge / Gemini fallback
+      const llmPromise = invokeLLM({
+        maxTokens: 800,
+        messages: [
+          { role: "system", content: PHOTO_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userInstruction },
+              { type: "image_url", image_url: { url: photo.url, detail: "high" } },
             ],
-            additionalProperties: false,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "photo_finding",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                conditionScore: { type: "number" },
+                conditionLabel: { type: "string", enum: ["excellent", "good", "average", "fair", "poor"] },
+                observations: { type: "array", items: { type: "string" } },
+                valueImpactingIssues: { type: "array", items: { type: "string" } },
+                evidenceStrength: { type: "number" },
+              },
+              required: ["conditionScore", "conditionLabel", "observations", "valueImpactingIssues", "evidenceStrength"],
+              additionalProperties: false,
+            },
           },
         },
-      },
-    });
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("photo vision timeout")), PHOTO_VISION_TIMEOUT_MS),
+      );
+      const response = await Promise.race([llmPromise, timeoutPromise]);
+      const content = response.choices[0]?.message?.content;
+      if (!content || typeof content !== "string") return null;
+      rawJson = content;
+    }
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("photo vision timeout")), PHOTO_VISION_TIMEOUT_MS),
-    );
+    const jsonStart = rawJson.indexOf("{");
+    const jsonEnd = rawJson.lastIndexOf("}");
+    const cleanJson = jsonStart >= 0 && jsonEnd > jsonStart ? rawJson.slice(jsonStart, jsonEnd + 1) : rawJson;
 
-    const response = await Promise.race([llmPromise, timeoutPromise]);
-    const content = response.choices[0]?.message?.content;
-    if (!content || typeof content !== "string") return null;
-
-    const parsed = JSON.parse(content) as Omit<PhotoFinding, "url" | "category" | "caption">;
+    const parsed = JSON.parse(cleanJson) as Omit<PhotoFinding, "url" | "category" | "caption">;
     const conditionScore = clampScore(parsed.conditionScore);
     const evidenceStrength = clampScore(parsed.evidenceStrength);
 
