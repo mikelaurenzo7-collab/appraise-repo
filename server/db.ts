@@ -852,7 +852,7 @@ export type FilingQueueRow = {
   address: string;
   ownerEmail: string;
   ownerPhone: string | null;
-  filingType: "poa" | "pro-se";
+  filingType: "automated" | "pro-se";
   notes: string | null;
 };
 
@@ -900,7 +900,7 @@ export async function listFilingQueue(): Promise<FilingQueueRow[]> {
       address: r.address ?? "",
       ownerEmail: r.ownerEmail ?? "",
       ownerPhone: r.ownerPhone ?? null,
-      filingType: "poa",
+      filingType: "automated",
       notes: r.notes ?? null,
     }));
   } catch (error) {

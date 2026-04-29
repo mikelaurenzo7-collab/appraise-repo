@@ -18,8 +18,8 @@ export interface JurisdictionRule {
   documentationRequired: string[];
   hearingRequired: boolean;
   averageResolutionDays: number;
-  contingencyFeeAllowed: boolean;
-  maxContingencyFee: number; // As percentage (e.g., 25)
+  contingencyFeeAllowed: boolean; // Whether local market allows contingency-fee attorneys (informational only — AppraiseAI charges flat fees)
+  maxContingencyFee: number; // Local market max contingency % (informational only — AppraiseAI does not charge contingency fees)
   notes: string;
 }
 

@@ -776,21 +776,21 @@
 ## Audit, Organize, Perfect (Phase 33)
 
 ### Copy & Pricing Alignment
-- [ ] Home.tsx: update "Free · $49 · $99 flat" stat band to "Free · $49 · $99 · $129"
-- [ ] About.tsx: update "automated filing at $99" to mention all 4 tiers
-- [ ] TaxAppeals.tsx: update "or $99 Automated Filing" to mention $99 Standard + $129 Express
-- [ ] stripeWebhook.ts: update legacy tierMapping to include all 4 new tier IDs
-- [ ] AnalysisResults.tsx: remove stale "poa" branch from recommendedApproach display
-- [ ] AdminDashboard.tsx: remove stale "poa" branch from filingMethod badge
-- [ ] FilingStatus.tsx: update filingMethod type to remove "poa" and clean up display
-- [ ] UserDashboard.tsx: clean up "poa" legacy label
+- [x] Home.tsx: update "Free · $49 · $99 flat" stat band to "Free · $49 · $99 · $129"
+- [x] About.tsx: update "automated filing at $99" to mention all 4 tiers
+- [x] TaxAppeals.tsx: update "or $99 Automated Filing" to mention $99 Standard + $129 Express
+- [x] stripeWebhook.ts: update legacy tierMapping to include all 4 new tier IDs
+- [x] AnalysisResults.tsx: remove stale "poa" branch from recommendedApproach display
+- [x] AdminDashboard.tsx: remove stale "poa" branch from filingMethod badge
+- [x] FilingStatus.tsx: update filingMethod type to remove "poa" and clean up display
+- [x] UserDashboard.tsx: clean up "poa" legacy label
 
 ### Visual Polish
-- [ ] Pricing.tsx: add visual "Most Popular" / "Best Value" callout to Standard tier card
-- [ ] Home.tsx: ensure pricing preview cards use consistent border/shadow treatment
-- [ ] Navbar.tsx: add "Blog" link to desktop nav (currently missing)
-- [ ] Footer.tsx: ensure all 4 pricing tiers are mentioned in the pricing blurb
+- [x] Pricing.tsx: add visual "Most Popular" / "Best Value" callout to Standard tier card
+- [x] Home.tsx: ensure pricing preview cards use consistent border/shadow treatment
+- [x] Navbar.tsx: add "Blog" link to desktop nav (currently missing)
+- [x] Footer.tsx: ensure all 4 pricing tiers are mentioned in the pricing blurb
 
 ### Code Organization
-- [ ] db.ts: rename filingType "poa" to "automated" in listFilingQueue return type
-- [ ] jurisdictionRules.ts: update contingencyFeeAllowed field comments to reflect flat-fee model
+- [x] db.ts: rename filingType "poa" to "automated" in listFilingQueue return type
+- [x] jurisdictionRules.ts: update contingencyFeeAllowed field comments to reflect flat-fee model

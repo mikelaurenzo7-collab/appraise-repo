@@ -43,7 +43,7 @@ type FilingRow = {
   address: string;
   ownerEmail: string;
   ownerPhone: string | null;
-  filingType: "poa" | "pro-se";
+  filingType: "automated" | "pro-se";
   notes: string | null;
 };
 
@@ -294,8 +294,8 @@ export default function ParalegalsDashboard() {
                               {filing.state ? `, ${filing.state}` : ""}
                             </p>
                             <p className="text-xs text-[#94A3B8]">
-                              {filing.filingType === "poa"
-                                ? "Power of Attorney"
+                              {filing.filingType === "automated"
+                                ? "Automated Filing"
                                 : "Pro Se"}
                             </p>
                           </div>
