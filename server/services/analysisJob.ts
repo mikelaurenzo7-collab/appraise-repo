@@ -79,13 +79,29 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     });
     broadcastAnalysisUpdate(submissionId, "status", { status: "analyzing", message: "Starting AI analysis pipeline..." });
 
-    // ── Step 1: Classify property type ───────────────────────────────────────
-    const llmType = await classifyPropertyType(
-      submission.address,
-      submission.squareFeet || undefined,
-      submission.bedrooms || undefined,
-      submission.bathrooms || undefined
-    );
+    // ── Steps 1 + 2 + photo fetch run in PARALLEL ────────────────────────────
+    // All three are independent of each other:
+    //   • classifyPropertyType    — needs only submission.{address, sqft, beds, baths}
+    //   • aggregatePropertyData   — needs only submission.{address, city, state}
+    //   • getSubmissionPhotos     — DB read, no LLM
+    // Running them concurrently shaves the LLM classification round-trip (~3-5s)
+    // off the critical path.
+    broadcastAnalysisUpdate(submissionId, "step", {
+      step: "api_aggregation_started",
+      message: "Classifying property type, fetching data, and loading photos in parallel...",
+    });
+
+    const [llmType, propertyData, photosForAnalysis] = await Promise.all([
+      classifyPropertyType(
+        submission.address,
+        submission.squareFeet || undefined,
+        submission.bedrooms || undefined,
+        submission.bathrooms || undefined,
+      ).catch(() => "unknown" as const),
+      aggregatePropertyData(submission.address, submission.city || "", submission.state || ""),
+      getSubmissionPhotos(submissionId).catch(() => []),
+    ]);
+
     const propertyType = llmType !== "unknown" ? llmType : classifyByAddressPattern(submission.address);
 
     await persistActivityLog({
@@ -97,22 +113,6 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
     broadcastAnalysisUpdate(submissionId, "step", { step: "property_classified", propertyType });
-
-    // ── Step 2: Aggregate data from all 4 APIs ───────────────────────────────
-    await persistActivityLog({
-      submissionId,
-      type: "api_aggregation_started",
-      actor: "system",
-      description: "Querying Lightbox, RentCast, ReGRID, and AttomData in parallel",
-      status: "success",
-    });
-    broadcastAnalysisUpdate(submissionId, "step", { step: "api_aggregation_started", message: "Fetching property data from 4 sources..." });
-
-    const propertyData = await aggregatePropertyData(
-      submission.address,
-      submission.city || "",
-      submission.state || ""
-    );
 
     await persistActivityLog({
       submissionId,
@@ -156,16 +156,43 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
-    // ── Step 4: LLM analysis (scenario-aware) ────────────────────────────────
+    // ── Step 4 + 4c: LLM appraisal analysis AND photo analysis in PARALLEL ───
+    // The two LLM stages are independent — appraisal needs propertyData and
+    // propertyType (already resolved); photo analysis needs only the photos
+    // (already loaded). Running them concurrently overlaps the slowest step
+    // in the pipeline: instead of (analyze → photos), we wait max(analyze,
+    // photos). On submissions with photos this saves 10-30s wall-clock.
     await persistActivityLog({
       submissionId,
       type: "llm_analysis_started",
       actor: "system",
-      description: "LLM appraisal analysis running — USPAP-aligned, scenario-aware methodology",
+      description:
+        "LLM appraisal analysis running — USPAP-aligned, scenario-aware methodology" +
+        (photosForAnalysis.length > 0
+          ? ` (running concurrently with ${photosForAnalysis.length} photo analyses)`
+          : ""),
       status: "success",
     });
+    if (photosForAnalysis.length > 0) {
+      broadcastAnalysisUpdate(submissionId, "step", {
+        step: "photo_analysis_started",
+        message: `Analyzing ${photosForAnalysis.length} photo${photosForAnalysis.length === 1 ? "" : "s"} for condition evidence...`,
+        photoCount: photosForAnalysis.length,
+      });
+    }
 
-    const analysis = await analyzeProperty(propertyData, propertyType);
+    const [analysis, photoSummaryParallel] = await Promise.all([
+      analyzeProperty(propertyData, propertyType),
+      photosForAnalysis.length > 0
+        ? analyzePropertyPhotos(photosForAnalysis).catch((err) => {
+            console.warn(
+              `[AnalysisJob] Photo analysis failed (non-blocking) for #${submissionId}:`,
+              (err as Error).message,
+            );
+            return null;
+          })
+        : Promise.resolve(null as PhotoAnalysisSummary | null),
+    ]);
 
     // ── Step 4b: Apply scenario adjustments ──────────────────────────────────
     const scenarioAdjustedValue = calculateScenarioAdjustedValue(
@@ -195,48 +222,36 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     const approachOverride = getScenarioApproachOverride(userScenario, scenarioAppealStrength);
     const finalApproach = approachOverride || analysis.recommendedApproach;
 
-    // ── Step 4c: Photo condition analysis (additive, never blocking) ─────────
-    let photoSummary: PhotoAnalysisSummary | null = null;
+    // ── Step 4c finalize: roll the (already-completed) photo analysis into
+    //                     the post-scenario appeal-strength score ─────────────
+    const photoSummary: PhotoAnalysisSummary | null = photoSummaryParallel;
     let appealStrengthAfterPhotos = scenarioAppealStrength;
-    try {
-      const photos = await getSubmissionPhotos(submissionId);
-      if (photos.length > 0) {
-        broadcastAnalysisUpdate(submissionId, "step", {
-          step: "photo_analysis_started",
-          message: `Analyzing ${photos.length} photo${photos.length === 1 ? "" : "s"} for condition evidence...`,
-          photoCount: photos.length,
-        });
-        photoSummary = await analyzePropertyPhotos(photos);
-        if (photoSummary.findings.length > 0) {
-          appealStrengthAfterPhotos = Math.max(
-            0,
-            Math.min(100, scenarioAppealStrength + photoSummary.appealStrengthDelta),
-          );
-          await persistActivityLog({
-            submissionId,
-            type: "photo_analysis_complete",
-            actor: "system",
-            description: `Photo analysis complete — ${photoSummary.findings.length} photo${photoSummary.findings.length === 1 ? "" : "s"} analyzed, condition: ${photoSummary.overallConditionScore}/100, appeal-strength delta: ${photoSummary.appealStrengthDelta >= 0 ? "+" : ""}${photoSummary.appealStrengthDelta}`,
-            metadata: JSON.stringify({
-              photoCount: photoSummary.findings.length,
-              overallConditionScore: photoSummary.overallConditionScore,
-              overallEvidenceStrength: photoSummary.overallEvidenceStrength,
-              appealStrengthDelta: photoSummary.appealStrengthDelta,
-              topObservations: photoSummary.topObservations,
-              topValueIssues: photoSummary.topValueIssues,
-            }),
-            status: "success",
-          });
-          broadcastAnalysisUpdate(submissionId, "step", {
-            step: "photo_analysis_complete",
-            photoCount: photoSummary.findings.length,
-            conditionScore: photoSummary.overallConditionScore,
-            appealStrengthDelta: photoSummary.appealStrengthDelta,
-          });
-        }
-      }
-    } catch (err) {
-      console.warn(`[AnalysisJob] Photo analysis failed (non-blocking) for #${submissionId}:`, (err as Error).message);
+    if (photoSummary && photoSummary.findings.length > 0) {
+      appealStrengthAfterPhotos = Math.max(
+        0,
+        Math.min(100, scenarioAppealStrength + photoSummary.appealStrengthDelta),
+      );
+      await persistActivityLog({
+        submissionId,
+        type: "photo_analysis_complete",
+        actor: "system",
+        description: `Photo analysis complete — ${photoSummary.findings.length} photo${photoSummary.findings.length === 1 ? "" : "s"} analyzed, condition: ${photoSummary.overallConditionScore}/100, appeal-strength delta: ${photoSummary.appealStrengthDelta >= 0 ? "+" : ""}${photoSummary.appealStrengthDelta}`,
+        metadata: JSON.stringify({
+          photoCount: photoSummary.findings.length,
+          overallConditionScore: photoSummary.overallConditionScore,
+          overallEvidenceStrength: photoSummary.overallEvidenceStrength,
+          appealStrengthDelta: photoSummary.appealStrengthDelta,
+          topObservations: photoSummary.topObservations,
+          topValueIssues: photoSummary.topValueIssues,
+        }),
+        status: "success",
+      });
+      broadcastAnalysisUpdate(submissionId, "step", {
+        step: "photo_analysis_complete",
+        photoCount: photoSummary.findings.length,
+        conditionScore: photoSummary.overallConditionScore,
+        appealStrengthDelta: photoSummary.appealStrengthDelta,
+      });
     }
 
     await persistActivityLog({

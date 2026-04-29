@@ -1,5 +1,6 @@
 import { invokeLLM } from "../_core/llm";
 import { analyzeWithClaude, isClaudeAvailable } from "../_core/claude";
+import { hashLLMInput, withLLMCache } from "../_core/lcache";
 import type { PropertyData } from "./propertyDataAggregator";
 
 export interface AppraisalAnalysis {
@@ -141,54 +142,65 @@ Provide a JSON response with:
 Respond ONLY with valid JSON matching this schema:
 ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
 
-    let rawJson: string;
+    // Cache key derived from the property inputs only. Identical
+    // (propertyData, propertyType) yields the same key, so admin
+    // retriggers and pipeline retries skip the LLM round-trip.
+    // 24h TTL aligns with the report-generation SLA window.
+    const source = isClaudeAvailable() ? "claude-opus-4-7" : "forge-gemini-2.5-flash";
+    const cacheKey = `llm:appraisal:${source}:${hashLLMInput([propertyData, propertyType])}`;
 
-    if (isClaudeAvailable()) {
-      // Claude Opus 4.7 with adaptive thinking + xhigh effort + prompt caching.
-      // The stable system prompt is cached across calls, cutting repeat-call
-      // token costs by ~90%. Adaptive thinking lets Claude reason through
-      // comparable-sales weighting before committing to the JSON output.
-      rawJson = await analyzeWithClaude({
-        systemPrompt: APPRAISAL_SYSTEM_PROMPT,
-        userContent: prompt,
-        maxTokens: 8192,
-        effort: "xhigh",
-      });
-    } else {
-      // Forge / Gemini fallback — used when ANTHROPIC_API_KEY is not set.
-      const response = await invokeLLM({
-        messages: [
-          { role: "system", content: APPRAISAL_SYSTEM_PROMPT },
-          { role: "user", content: prompt },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: "appraisal_analysis", strict: true, schema: APPRAISAL_JSON_SCHEMA },
-        },
-      });
-      const content = response.choices[0]?.message.content;
-      if (!content || typeof content !== "string") {
-        throw new Error("Invalid LLM response format");
+    const analysis = await withLLMCache<AppraisalAnalysis>(cacheKey, source, 24 * 3600, async () => {
+      let rawJson: string;
+
+      if (isClaudeAvailable()) {
+        // Claude Opus 4.7 with adaptive thinking + xhigh effort + prompt caching.
+        // The stable system prompt is cached across calls, cutting repeat-call
+        // token costs by ~90%. Adaptive thinking lets Claude reason through
+        // comparable-sales weighting before committing to the JSON output.
+        rawJson = await analyzeWithClaude({
+          systemPrompt: APPRAISAL_SYSTEM_PROMPT,
+          userContent: prompt,
+          maxTokens: 8192,
+          effort: "xhigh",
+        });
+      } else {
+        // Forge / Gemini fallback — used when ANTHROPIC_API_KEY is not set.
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: APPRAISAL_SYSTEM_PROMPT },
+            { role: "user", content: prompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: "appraisal_analysis", strict: true, schema: APPRAISAL_JSON_SCHEMA },
+          },
+        });
+        const content = response.choices[0]?.message.content;
+        if (!content || typeof content !== "string") {
+          throw new Error("Invalid LLM response format");
+        }
+        rawJson = content;
       }
-      rawJson = content;
-    }
 
-    // Strip any markdown fences Claude might emit before the JSON object
-    const jsonStart = rawJson.indexOf("{");
-    const jsonEnd = rawJson.lastIndexOf("}");
-    const cleanJson = jsonStart >= 0 && jsonEnd > jsonStart ? rawJson.slice(jsonStart, jsonEnd + 1) : rawJson;
+      // Strip any markdown fences Claude might emit before the JSON object
+      const jsonStart = rawJson.indexOf("{");
+      const jsonEnd = rawJson.lastIndexOf("}");
+      const cleanJson = jsonStart >= 0 && jsonEnd > jsonStart ? rawJson.slice(jsonStart, jsonEnd + 1) : rawJson;
 
-    const analysis = JSON.parse(cleanJson) as AppraisalAnalysis;
+      const parsed = JSON.parse(cleanJson) as AppraisalAnalysis;
 
-    // Validate response
-    if (
-      !analysis.marketValueEstimate ||
-      !analysis.appealStrengthScore ||
-      !analysis.recommendedApproach ||
-      !analysis.executiveSummary
-    ) {
-      throw new Error("Incomplete analysis response");
-    }
+      // Validate response — throw before caching so we never store a partial.
+      if (
+        !parsed.marketValueEstimate ||
+        !parsed.appealStrengthScore ||
+        !parsed.recommendedApproach ||
+        !parsed.executiveSummary
+      ) {
+        throw new Error("Incomplete analysis response");
+      }
+
+      return parsed;
+    });
 
     return analysis;
   } catch (error) {
