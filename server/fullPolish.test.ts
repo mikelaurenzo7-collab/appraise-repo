@@ -235,7 +235,7 @@ describe("admin.listWaitlist", () => {
   it("refuses non-admin", async () => {
     const router = await loadRouter();
     const caller = router.createCaller(baseCtx({ ...adminUser, role: "user" }));
-    await expect(caller.admin.listWaitlist()).rejects.toThrow(/Admin/i);
+    await expect(caller.admin.listWaitlist()).rejects.toThrow(/permission/i);
   });
 });
 

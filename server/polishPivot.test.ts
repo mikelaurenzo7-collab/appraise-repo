@@ -230,7 +230,7 @@ describe("admin.listFilingJobs / retry / cancel", () => {
   it("refuses listFilingJobs for non-admin", async () => {
     const router = await loadRouter();
     const caller = router.createCaller(baseCtx(normalUser));
-    await expect(caller.admin.listFilingJobs()).rejects.toThrow(/Admin access/i);
+    await expect(caller.admin.listFilingJobs()).rejects.toThrow(/permission/i);
   });
 
   it("retry resets status and bumps retry count", async () => {
