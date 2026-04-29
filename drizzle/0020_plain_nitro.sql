@@ -1,0 +1,1 @@
+ALTER TABLE `property_submissions` MODIFY COLUMN `userScenario` enum('primary_residence','rental_property','vacation_home','inherited_property','recently_purchased','planning_to_sell','distressed_condition','new_construction','recently_renovated','senior_homestead','veteran_disability','financial_hardship','mixed_use','none') DEFAULT 'none';
