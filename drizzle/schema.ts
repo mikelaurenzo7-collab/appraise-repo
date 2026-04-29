@@ -864,3 +864,51 @@ export const referralPayouts = mysqlTable("referral_payouts", {
 
 export type ReferralPayout = typeof referralPayouts.$inferSelect;
 export type InsertReferralPayout = typeof referralPayouts.$inferInsert;
+
+
+/**
+ * Jurisdiction Rules — Dynamic, sourced from authoritative databases
+ * Stores appeal deadlines, procedures, success rates, and assessment rates
+ * for all US counties. Updated daily from state tax boards and IAAO data.
+ * Audit trail tracks when each rule was last verified/updated.
+ */
+export const jurisdictionRules = mysqlTable("jurisdiction_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  state: varchar("state", { length: 2 }).notNull(),
+  county: varchar("county", { length: 100 }).notNull(),
+  
+  // Assessment and appeal parameters
+  assessmentRate: decimal("assessmentRate", { precision: 5, scale: 2 }).notNull(), // e.g., 33.33 for Cook County IL
+  appealDeadlineDays: int("appealDeadlineDays").notNull(),
+  appealDeadlineType: mysqlEnum("appealDeadlineType", ["from_notice", "calendar_year", "fiscal_year", "rolling"]).notNull(),
+  minAssessmentDifference: int("minAssessmentDifference"), // Minimum $ difference to justify appeal
+  minAssessmentPercentage: decimal("minAssessmentPercentage", { precision: 5, scale: 2 }), // Minimum % difference
+  successRate: int("successRate"), // 0-100
+  averageResolutionDays: int("averageResolutionDays"),
+  
+  // Filing and documentation
+  filingMethods: varchar("filingMethods", { length: 255 }), // JSON array: ["poa", "pro_se", "agent"]
+  documentationRequired: text("documentationRequired"), // JSON array of required docs
+  hearingRequired: boolean("hearingRequired").default(false),
+  
+  // Market info (for context only — AppraiseAI charges flat fees, not contingency)
+  contingencyFeeAllowed: boolean("contingencyFeeAllowed").default(false),
+  maxContingencyFee: decimal("maxContingencyFee", { precision: 5, scale: 2 }), // Local market max %
+  
+  // Notes and source
+  notes: text("notes"),
+  source: varchar("source", { length: 255 }), // e.g., "Illinois Department of Revenue", "County Assessor Website"
+  sourceUrl: varchar("sourceUrl", { length: 500 }),
+  
+  // Audit trail
+  lastVerifiedAt: timestamp("lastVerifiedAt").notNull(), // When this rule was last confirmed accurate
+  lastUpdatedAt: timestamp("lastUpdatedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  stateCountyIdx: index("idx_jurisdiction_state_county").on(t.state, t.county),
+  stateIdx: index("idx_jurisdiction_state").on(t.state),
+  lastVerifiedIdx: index("idx_jurisdiction_last_verified").on(t.lastVerifiedAt),
+}));
+
+export type JurisdictionRule = typeof jurisdictionRules.$inferSelect;
+export type InsertJurisdictionRule = typeof jurisdictionRules.$inferInsert;
