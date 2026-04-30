@@ -30,8 +30,12 @@ export async function createContext(
 
   // Re-use the caller's trace ID when present (e.g. forwarded by a test harness
   // or an upstream service), otherwise generate a fresh one.
+  // Sanitize: only accept hex strings up to 32 chars to prevent log injection.
+  const rawTraceId = opts.req.headers["x-trace-id"] as string | undefined;
   const traceId =
-    (opts.req.headers["x-trace-id"] as string | undefined) ?? generateTraceId();
+    rawTraceId && /^[0-9a-f]{1,32}$/i.test(rawTraceId)
+      ? rawTraceId
+      : generateTraceId();
 
   return {
     req: opts.req,

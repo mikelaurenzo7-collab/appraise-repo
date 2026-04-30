@@ -27,6 +27,9 @@ import { storageGet } from "../storage";
 import type { County, FilingJob } from "../../drizzle/schema";
 import { sendLobLetter, type LobServiceLevel } from "./lobDelivery";
 import { sendAppealEmail, buildAppealEmailBody } from "./emailDelivery";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("Dispatcher");
 
 export type DeliveryChannel =
   | "portal"
@@ -134,7 +137,7 @@ async function loadAppealPdf(
     const buffer = Buffer.from(await resp.arrayBuffer());
     return { buffer, filename: `AppraiseAI-Appeal-${submissionId}.pdf` };
   } catch (err) {
-    console.warn("[Dispatcher] Could not fetch report PDF:", err);
+    log.warn("Could not fetch report PDF for delivery", { submissionId, err: (err as Error).message });
     return null;
   }
 }
