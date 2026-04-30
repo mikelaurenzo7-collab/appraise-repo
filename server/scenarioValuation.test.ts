@@ -178,9 +178,9 @@ describe("Scenario Valuation Engine", () => {
   });
 
   describe("UI helpers", () => {
-    it("getAllScenarios returns all 14 scenarios", () => {
+    it("getAllScenarios returns all 28 scenarios", () => {
       const all = getAllScenarios();
-      expect(all).toHaveLength(14);
+      expect(all).toHaveLength(28);
       expect(all[0]).toHaveProperty("value");
       expect(all[0]).toHaveProperty("label");
       expect(all[0]).toHaveProperty("description");
