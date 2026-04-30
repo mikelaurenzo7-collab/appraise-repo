@@ -819,7 +819,7 @@ export const appRouter = router({
           submissionId: input.submissionId,
           type: "report_generated",
           actor: "user",
-          actorId: 0,
+          actorId: ctx.user.id,
           description: "Certified appraisal report generated",
           metadata: JSON.stringify({ reportUrl: url, reportKey: key }),
           status: "success",
@@ -1030,6 +1030,7 @@ export const appRouter = router({
 
         const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const results = [];
+        let queuedIndex = 0;
 
         for (const prop of input.properties) {
           try {
@@ -1056,7 +1057,10 @@ export const appRouter = router({
 
             if (submission) {
               // Stagger analysis jobs to avoid thundering-herd on the LLM.
-              queueAnalysisJob(submission.id, 2000, ctx.traceId);
+              // Each successfully queued job is offset by 3s so at most one
+              // LLM call starts per window (50 properties → last job at ~150s).
+              queueAnalysisJob(submission.id, (queuedIndex + 1) * 3_000, ctx.traceId);
+              queuedIndex++;
               results.push({
                 address: prop.address,
                 status: "queued" as const,

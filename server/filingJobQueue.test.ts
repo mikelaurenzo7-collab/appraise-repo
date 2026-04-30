@@ -24,6 +24,8 @@ vi.mock("./db", () => ({
   getCountyById: (id: number) => mockGetCountyById(id),
   updatePropertySubmission: (id: number, updates: any) => mockUpdatePropertySubmission(id, updates),
   createFilingJob: vi.fn(async () => null),
+  // Required by resolveCountyIdForJob's dynamic-import fallback path.
+  getDb: vi.fn(async () => null),
 }));
 
 vi.mock("./services/deliveryDispatcher", () => ({
