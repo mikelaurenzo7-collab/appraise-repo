@@ -2,6 +2,7 @@ import { invokeLLM } from "../_core/llm";
 import { analyzeWithClaude, isClaudeAvailable } from "../_core/claude";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
 import { getScenarioContext, generateScenarioPromptContext, type UserScenario } from "./scenarioValuation";
+import { buildSuccessRecipe } from "./successRecipe";
 import type { PropertyData } from "./propertyDataAggregator";
 
 export interface AppraisalAnalysis {
@@ -195,6 +196,7 @@ ${
       scenario && scenario !== "none"
         ? "\n" + generateScenarioPromptContext(scenario, propertyData) + "\n"
         : "";
+    const successRecipeBlock = "\n" + buildSuccessRecipe(propertyData, propertyType, scenario).promptContext + "\n";
 
     const prompt = `You are preparing the analytical narrative for a property
 owner who intends to challenge an over-assessment by their county tax authority.
@@ -221,6 +223,7 @@ Posture & methodology:
 
 ${dataSummary}
 ${scenarioBlock}
+${successRecipeBlock}
 
 Provide a JSON response with:
 1. marketValueEstimate: Independent fair-market-value conclusion derived from
