@@ -37,6 +37,16 @@ export async function createContext(
       ? rawTraceId
       : generateTraceId();
 
+  // Echo the (validated) trace ID back so clients can correlate a failed
+  // request with the server-side log lines it produced. The value at this
+  // point is guaranteed safe for a header (hex only, ≤32 chars).
+  try {
+    opts.res.setHeader("x-trace-id", traceId);
+  } catch {
+    // Headers may already be sent in some edge paths; never let observability
+    // wiring break the request.
+  }
+
   return {
     req: opts.req,
     res: opts.res,
