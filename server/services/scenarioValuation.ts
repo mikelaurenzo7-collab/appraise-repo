@@ -29,6 +29,20 @@ export type UserScenario =
   | "veteran_disability"
   | "financial_hardship"
   | "mixed_use"
+  | "divorce_settlement"
+  | "estate_liquidation"
+  | "property_flipping"
+  | "airbnb_shortterm_rental"
+  | "homeowners_association"
+  | "historic_property"
+  | "environmental_contamination"
+  | "flood_zone_designation"
+  | "eminent_domain"
+  | "neighboring_property_impact"
+  | "market_downturn_appeal"
+  | "commercial_to_residential_conversion"
+  | "agricultural_exemption"
+  | "religious_nonprofit_exempt"
   | "none";
 
 export interface ScenarioContext {
@@ -578,6 +592,524 @@ const scenarioDefinitions: Record<UserScenario, ScenarioContext> = {
     ],
   },
 
+  divorce_settlement: {
+    scenario: "divorce_settlement",
+    scenarioLabel: "Divorce Settlement",
+    scenarioDescription:
+      "Property subject to divorce proceedings. Accurate valuation is critical for equitable distribution of assets.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.9,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.1,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 7,
+      legalGroundsBonus: 3,
+      evidenceStrengthMultiplier: 1.2,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 6,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Focus on current market value with recent comparable sales. Time-sensitive due to legal proceedings. Document any deferred maintenance or condition issues that affect value.",
+    userAdvocacyPoints: [
+      "Accurate valuation protects both parties in divorce proceedings",
+      "Tax assessment relief can significantly impact settlement negotiations",
+      "Time-sensitive: file before settlement finalization",
+    ],
+  },
+
+  estate_liquidation: {
+    scenario: "estate_liquidation",
+    scenarioLabel: "Estate Liquidation",
+    scenarioDescription:
+      "Property from an estate that needs to be sold. Overassessment can complicate estate settlement and reduce inheritance value.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.85,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.15,
+      conditionAdjustment: -5,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 6,
+      legalGroundsBonus: 2,
+      evidenceStrengthMultiplier: 1.1,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: false,
+      excludeShortSales: false,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: false,
+      allowDistressedComps: true,
+    },
+    narrativeTemplate:
+      "Focus on as-is market value. Estates often involve properties with deferred maintenance. Document all condition issues and compare to similar estate sales.",
+    userAdvocacyPoints: [
+      "Estate properties often have deferred maintenance affecting value",
+      "Reducing tax burden can significantly increase net estate value",
+      "Heirs should not pay taxes on inflated assessments",
+    ],
+  },
+
+  property_flipping: {
+    scenario: "property_flipping",
+    scenarioLabel: "Property Flipping / Investment",
+    scenarioDescription:
+      "Property being renovated for resale. Assessment should reflect current condition, not future potential.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.8,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.2,
+      conditionAdjustment: -10,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 8,
+      legalGroundsBonus: 5,
+      evidenceStrengthMultiplier: 1.2,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: false,
+      excludeShortSales: false,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 6,
+      requireSimilarCondition: true,
+      allowDistressedComps: true,
+    },
+    narrativeTemplate:
+      "Emphasize current as-is condition versus assessor's projection of future value. Document renovation timeline and costs. Assessment should reflect property state on assessment date.",
+    userAdvocacyPoints: [
+      "Assessors cannot tax you on improvements not yet made",
+      "As-is value is substantially lower than after-renovation value",
+      "Reduction in taxes improves investment return",
+    ],
+  },
+
+  airbnb_shortterm_rental: {
+    scenario: "airbnb_shortterm_rental",
+    scenarioLabel: "Airbnb / Short-Term Rental",
+    scenarioDescription:
+      "Property used for short-term rentals. Classification and income approach methodology are critical factors.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.6,
+      incomeApproachWeight: 0.3,
+      costApproachWeight: 0.1,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 7,
+      legalGroundsBonus: 4,
+      evidenceStrengthMultiplier: 1.15,
+      urgencyLevel: "medium",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Balance market approach with actual rental income data. Document occupancy rates, seasonal variations, and operating expenses. Ensure proper residential vs commercial classification.",
+    userAdvocacyPoints: [
+      "Short-term rental income is more volatile than long-term rentals",
+      "Higher operating expenses reduce net income and property value",
+      "Proper classification prevents commercial tax rates on residential property",
+    ],
+  },
+
+  homeowners_association: {
+    scenario: "homeowners_association",
+    scenarioLabel: "HOA / Condo Association",
+    scenarioDescription:
+      "Property in HOA or condo with high fees. HOA fees and restrictions materially affect market value.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.85,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.15,
+      conditionAdjustment: -5,
+      marketConditionsAdjustment: -3,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 6,
+      legalGroundsBonus: 3,
+      evidenceStrengthMultiplier: 1.1,
+      urgencyLevel: "medium",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Emphasize impact of HOA fees on market value. Show comparable sales in similar HOA/condo environments. Document any special assessments or pending HOA litigation.",
+    userAdvocacyPoints: [
+      "High HOA fees reduce property marketability and value",
+      "Special assessments and restrictions affect buyer willingness to pay",
+      "Comparables must account for HOA fee variations",
+    ],
+  },
+
+  historic_property: {
+    scenario: "historic_property",
+    scenarioLabel: "Historic Property / Landmark",
+    scenarioDescription:
+      "Property with historic designation. Restrictions on modifications limit value and use.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.7,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.3,
+      conditionAdjustment: -10,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 9,
+      legalGroundsBonus: 8,
+      evidenceStrengthMultiplier: 1.3,
+      urgencyLevel: "medium",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 24,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Document all restrictions imposed by historic designation. Emphasize cost of required maintenance and limitations on modifications. Compare to similar historic properties.",
+    userAdvocacyPoints: [
+      "Historic restrictions significantly limit property use and modifications",
+      "Higher maintenance costs and lower functional utility reduce value",
+      "Many jurisdictions offer historic property tax relief programs",
+    ],
+  },
+
+  environmental_contamination: {
+    scenario: "environmental_contamination",
+    scenarioLabel: "Environmental Contamination",
+    scenarioDescription:
+      "Property with known environmental issues (lead, asbestos, soil contamination, etc.) that materially affect value.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.8,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.2,
+      conditionAdjustment: -25,
+      marketConditionsAdjustment: -10,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 12,
+      legalGroundsBonus: 10,
+      evidenceStrengthMultiplier: 1.4,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: false,
+      excludeShortSales: false,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: false,
+      allowDistressedComps: true,
+    },
+    narrativeTemplate:
+      "Document environmental contamination with professional reports. Calculate remediation costs. Demonstrate impact on marketability and buyer pool. Strong legal grounds for significant reduction.",
+    userAdvocacyPoints: [
+      "Environmental contamination severely limits property marketability",
+      "Remediation costs can exceed property value in severe cases",
+      "Legal liability concerns deter buyers and reduce sale price",
+    ],
+  },
+
+  flood_zone_designation: {
+    scenario: "flood_zone_designation",
+    scenarioLabel: "Flood Zone Property",
+    scenarioDescription:
+      "Property in FEMA flood zone requiring flood insurance. Insurance costs and flood risk materially affect value.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.85,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.15,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: -8,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 8,
+      legalGroundsBonus: 6,
+      evidenceStrengthMultiplier: 1.25,
+      urgencyLevel: "medium",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Document flood insurance costs and FEMA designation. Show impact on buyer financing and marketability. Compare to similar flood zone properties. Emphasize reduced buyer demand.",
+    userAdvocacyPoints: [
+      "Mandatory flood insurance adds thousands to annual costs",
+      "Flood risk significantly reduces buyer pool and sale price",
+      "Many buyers cannot obtain financing for flood zone properties",
+    ],
+  },
+
+  eminent_domain: {
+    scenario: "eminent_domain",
+    scenarioLabel: "Eminent Domain / Condemnation",
+    scenarioDescription:
+      "Property subject to or threatened by eminent domain/condemnation. Uncertainty and pending acquisition affect value.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.8,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.2,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: -15,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 10,
+      legalGroundsBonus: 8,
+      evidenceStrengthMultiplier: 1.3,
+      urgencyLevel: "critical",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: false,
+      excludeShortSales: false,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: true,
+    },
+    narrativeTemplate:
+      "Document pending or threatened condemnation. Emphasize uncertainty's impact on marketability. Show that no rational buyer pays full value for property facing eminent domain.",
+    userAdvocacyPoints: [
+      "Eminent domain proceedings create severe market uncertainty",
+      "Property effectively unmarketable during condemnation process",
+      "Tax assessment should reflect diminished value until resolved",
+    ],
+  },
+
+  neighboring_property_impact: {
+    scenario: "neighboring_property_impact",
+    scenarioLabel: "Negative Neighboring Property Impact",
+    scenarioDescription:
+      "Property value affected by neighboring property issues (commercial development, nuisances, view obstruction, etc.)",
+    valuationAdjustments: {
+      marketApproachWeight: 0.85,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.15,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: -8,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 7,
+      legalGroundsBonus: 4,
+      evidenceStrengthMultiplier: 1.15,
+      urgencyLevel: "medium",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Document specific neighboring property impacts with photos and evidence. Show how comparable properties without such impacts command higher prices. Quantify the value reduction.",
+    userAdvocacyPoints: [
+      "External factors beyond your control affect property value",
+      "Neighboring commercial/industrial uses reduce residential values",
+      "Loss of views, noise, or other nuisances are quantifiable impacts",
+    ],
+  },
+
+  market_downturn_appeal: {
+    scenario: "market_downturn_appeal",
+    scenarioLabel: "Market Downturn / Declining Values",
+    scenarioDescription:
+      "Property in area experiencing market downturn. Recent sales show declining values but assessment hasn't adjusted.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.95,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.05,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: -12,
+      timeAdjustmentMonths: 6,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 10,
+      legalGroundsBonus: 7,
+      evidenceStrengthMultiplier: 1.3,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: false,
+      excludeShortSales: false,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 6,
+      requireSimilarCondition: true,
+      allowDistressedComps: true,
+    },
+    narrativeTemplate:
+      "Focus on recent sale trends showing market decline. Emphasize time adjustment showing values dropping. Use most recent sales as best evidence of current market value.",
+    userAdvocacyPoints: [
+      "Assessment lags market reality — your taxes should reflect current values",
+      "Recent sales clearly show declining market conditions",
+      "Market downturns justify immediate assessment reductions",
+    ],
+  },
+
+  commercial_to_residential_conversion: {
+    scenario: "commercial_to_residential_conversion",
+    scenarioLabel: "Commercial-to-Residential Conversion",
+    scenarioDescription:
+      "Property being converted from commercial to residential use. Assessment classification and value should reflect residential use.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.75,
+      incomeApproachWeight: 0.0,
+      costApproachWeight: 0.25,
+      conditionAdjustment: -5,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 9,
+      legalGroundsBonus: 7,
+      evidenceStrengthMultiplier: 1.25,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 1.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 12,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Document conversion from commercial to residential classification. Show that residential use justifies lower assessment. Emphasize conversion costs and residential market values.",
+    userAdvocacyPoints: [
+      "Commercial tax rates are 2-3x higher than residential",
+      "Property should be taxed based on current use, not prior use",
+      "Conversion costs reduce effective value during transition",
+    ],
+  },
+
+  agricultural_exemption: {
+    scenario: "agricultural_exemption",
+    scenarioLabel: "Agricultural Use / Ag Exemption",
+    scenarioDescription:
+      "Property used for agricultural purposes. Agricultural use exemption can dramatically reduce assessment.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.4,
+      incomeApproachWeight: 0.4,
+      costApproachWeight: 0.2,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 12,
+      legalGroundsBonus: 10,
+      evidenceStrengthMultiplier: 1.4,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 0.3,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 24,
+      requireSimilarCondition: true,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Document active agricultural use with income records, crop production, or livestock operations. Show qualification for agricultural exemption. Agricultural value is typically 70-90% lower than development value.",
+    userAdvocacyPoints: [
+      "Agricultural exemptions can reduce taxes by 70-90%",
+      "Active agricultural use qualifies for special assessment programs",
+      "Land should be valued based on agricultural income, not development potential",
+    ],
+  },
+
+  religious_nonprofit_exempt: {
+    scenario: "religious_nonprofit_exempt",
+    scenarioLabel: "Religious / Nonprofit Exemption",
+    scenarioDescription:
+      "Property owned by religious organization or nonprofit. May qualify for full or partial property tax exemption.",
+    valuationAdjustments: {
+      marketApproachWeight: 0.5,
+      incomeApproachWeight: 0.3,
+      costApproachWeight: 0.2,
+      conditionAdjustment: 0,
+      marketConditionsAdjustment: 0,
+      timeAdjustmentMonths: 0,
+    },
+    appealStrengthModifiers: {
+      baseModifier: 15,
+      legalGroundsBonus: 12,
+      evidenceStrengthMultiplier: 1.5,
+      urgencyLevel: "high",
+    },
+    taxRateAdjustment: 0.0,
+    compFilterStrategy: {
+      excludeForeclosures: true,
+      excludeShortSales: true,
+      preferRecentSales: true,
+      maxSaleAgeMonths: 24,
+      requireSimilarCondition: false,
+      allowDistressedComps: false,
+    },
+    narrativeTemplate:
+      "Document religious or charitable nonprofit status with IRS determination letter. Show that property is used exclusively for exempt purposes. Apply for available exemptions.",
+    userAdvocacyPoints: [
+      "Religious and charitable organizations often qualify for full tax exemption",
+      "Even partial exemptions can save thousands annually",
+      "Ensure assessor has properly classified property as tax-exempt",
+    ],
+  },
+
   none: {
     scenario: "none",
     scenarioLabel: "General Property Owner",
@@ -780,6 +1312,20 @@ export function calculateScenarioTaxSavings(
     veteran_disability: 0.8, // Exemptions are largely automatic; appeal layers on top
     financial_hardship: 0.6, // Hardship triggers more procedural pathways
     mixed_use: 0.65, // Misclassification appeals tend to succeed
+    divorce_settlement: 0.6,
+    estate_liquidation: 0.55,
+    property_flipping: 0.65,
+    airbnb_shortterm_rental: 0.6,
+    homeowners_association: 0.55,
+    historic_property: 0.65,
+    environmental_contamination: 0.75,
+    flood_zone_designation: 0.7,
+    eminent_domain: 0.8,
+    neighboring_property_impact: 0.6,
+    market_downturn_appeal: 0.75,
+    commercial_to_residential_conversion: 0.7,
+    agricultural_exemption: 0.8,
+    religious_nonprofit_exempt: 0.85,
     none: 0.5,
   };
 
