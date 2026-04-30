@@ -271,7 +271,7 @@ export const appRouter = router({
             }).catch((err: unknown) => console.error("[Notification] Failed to notify owner:", err));
 
             // Queue analysis
-            queueAnalysisJob(submission.id, 2000);
+            queueAnalysisJob(submission.id, 2000, ctx.traceId);
           }
 
           return {
@@ -1056,7 +1056,7 @@ export const appRouter = router({
 
             if (submission) {
               // Stagger analysis jobs to avoid thundering-herd on the LLM.
-              queueAnalysisJob(submission.id, 2000);
+              queueAnalysisJob(submission.id, 2000, ctx.traceId);
               results.push({
                 address: prop.address,
                 status: "queued" as const,
@@ -1360,7 +1360,7 @@ export const appRouter = router({
         if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
         await updatePropertySubmission(input.submissionId, { status: "pending" });
-        queueAnalysisJob(input.submissionId, 500);
+        queueAnalysisJob(input.submissionId, 500, ctx.traceId);
 
         await persistActivityLog({
           submissionId: input.submissionId,

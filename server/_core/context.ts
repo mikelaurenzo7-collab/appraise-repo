@@ -1,11 +1,19 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
+import { randomBytes } from "crypto";
+
+/** Generate a short, URL-safe trace ID (8 hex chars = 4 bytes = enough uniqueness for log correlation). */
+function generateTraceId(): string {
+  return randomBytes(4).toString("hex");
+}
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  /** Stable identifier for correlating a tRPC request with its downstream jobs and log lines. */
+  traceId: string;
 };
 
 export async function createContext(
@@ -20,9 +28,15 @@ export async function createContext(
     user = null;
   }
 
+  // Re-use the caller's trace ID when present (e.g. forwarded by a test harness
+  // or an upstream service), otherwise generate a fresh one.
+  const traceId =
+    (opts.req.headers["x-trace-id"] as string | undefined) ?? generateTraceId();
+
   return {
     req: opts.req,
     res: opts.res,
     user,
+    traceId,
   };
 }

@@ -7,6 +7,10 @@
  * specific artifacts the dispatcher returned. Which channel actually
  * ran (portal / certified mail / first-class mail / email) is decided
  * inside deliveryDispatcher.ts based on the county's configuration.
+ *
+ * Transient dispatch failures (network errors, portal downtime) are
+ * automatically retried with exponential backoff up to maxRetries times
+ * before the job is marked permanently failed.
  */
 
 import {
@@ -24,6 +28,9 @@ import { buildAppUrl } from "../_core/appUrl";
 import { sendFilingSubmittedEmail } from "../_core/emailService";
 import { storagePut } from "../storage";
 import { dispatchFiling, resolveChannel } from "./deliveryDispatcher";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("FilingQueue");
 
 export type QueuedFilingJob = {
   jobId: number;
@@ -71,14 +78,12 @@ export async function queueFilingJob(options: QueueFilingOptions): Promise<Queue
 }
 
 /**
- * Process a single pending job. Returns true if a job was processed.
+ * Process a specific filing job by ID. Contains the full dispatch logic.
+ * Separated from processOnePendingJob so the retry path can call it directly.
  */
-export async function processOnePendingJob(): Promise<boolean> {
-  const pending = await listPendingFilingJobs(1);
-  if (pending.length === 0) return false;
-  const job = pending[0];
-  const row = await getFilingJobById(job.id);
-  if (!row) return false;
+async function executeFilingJob(jobId: number): Promise<void> {
+  const row = await getFilingJobById(jobId);
+  if (!row) return;
 
   await updateFilingJob(row.id, {
     status: "processing",
@@ -92,7 +97,8 @@ export async function processOnePendingJob(): Promise<boolean> {
       errorMessage: "Scrivener authorization missing or mismatched",
       completedAt: new Date(),
     });
-    return true;
+    log.warn("Filing job failed: auth missing", { jobId: row.id, submissionId: row.submissionId });
+    return;
   }
 
   const submission = await getPropertySubmissionById(row.submissionId);
@@ -102,7 +108,8 @@ export async function processOnePendingJob(): Promise<boolean> {
       errorMessage: "Submission not found",
       completedAt: new Date(),
     });
-    return true;
+    log.warn("Filing job failed: submission not found", { jobId: row.id, submissionId: row.submissionId });
+    return;
   }
 
   // Resolve the county. Filings are queued with the taxpayer's chosen
@@ -115,143 +122,221 @@ export async function processOnePendingJob(): Promise<boolean> {
       errorMessage: "No county could be associated with this filing",
       completedAt: new Date(),
     });
-    return true;
+    log.warn("Filing job failed: county not resolved", { jobId: row.id, submissionId: row.submissionId });
+    return;
   }
 
   const perRunInputs: Record<string, string | number | null> = row.inputs
     ? (JSON.parse(row.inputs) as Record<string, string | number | null>)
     : {};
 
-  try {
-    // Resolve the channel once for logging, then dispatch.
-    const county = await getCountyById(countyId);
-    const channel = county ? await resolveChannel(county) : "unsupported";
+  // Resolve the channel once for logging, then dispatch.
+  const county = await getCountyById(countyId);
+  const channel = county ? await resolveChannel(county) : "unsupported";
 
-    if (channel === "unsupported") {
-      await updateFilingJob(row.id, {
-        status: "failed",
-        errorMessage: "County is not supported for automated filing",
-        completedAt: new Date(),
-      });
-      return true;
-    }
-
-    const dispatchResult = await dispatchFiling({
-      job: row,
-      countyId,
-      perRunInputs,
-    });
-
-    // Persist channel-specific artifacts.
-    const updates: Parameters<typeof updateFilingJob>[1] = {
-      status: dispatchResult.success ? "completed" : "failed",
-      completedAt: new Date(),
-      deliveryChannel: dispatchResult.channelUsed,
-      errorMessage: dispatchResult.errorMessage,
-      // Always wipe the per-run inputs when we're done (PIN, account #).
-      inputs: null,
-    };
-
-    // Portal artifacts — screenshot + execution log to S3.
-    if (dispatchResult.portalConfirmationNumber) {
-      updates.portalConfirmationNumber = dispatchResult.portalConfirmationNumber;
-    }
-    if (dispatchResult.portalScreenshot) {
-      const key = `filings/${row.submissionId}/${row.id}-confirmation.png`;
-      const { key: storedKey } = await storagePut(
-        key,
-        dispatchResult.portalScreenshot,
-        "image/png"
-      );
-      updates.finalScreenshotKey = storedKey;
-    }
-    if (dispatchResult.portalExecutionLog) {
-      const logKey = `filings/${row.submissionId}/${row.id}-log.json`;
-      const { key: storedLogKey } = await storagePut(
-        logKey,
-        Buffer.from(JSON.stringify(dispatchResult.portalExecutionLog, null, 2)),
-        "application/json"
-      );
-      updates.executionLogKey = storedLogKey;
-    }
-
-    // Mail artifacts.
-    if (dispatchResult.mailTrackingNumber) {
-      updates.mailTrackingNumber = dispatchResult.mailTrackingNumber;
-    }
-    if (dispatchResult.lobLetterId) {
-      updates.lobLetterId = dispatchResult.lobLetterId;
-    }
-    if (dispatchResult.lobExpectedDeliveryDate) {
-      updates.lobExpectedDeliveryDate = dispatchResult.lobExpectedDeliveryDate;
-    }
-
-    // Email artifacts.
-    if (dispatchResult.emailMessageId) {
-      updates.emailMessageId = dispatchResult.emailMessageId;
-    }
-    if (dispatchResult.emailRecipient) {
-      updates.emailRecipient = dispatchResult.emailRecipient;
-    }
-
-    await updateFilingJob(row.id, updates);
-
-    await persistActivityLog({
-      submissionId: row.submissionId,
-      type: dispatchResult.success ? "filing_succeeded" : "filing_failed",
-      actor: "system",
-      description: dispatchResult.success
-        ? `Filing #${row.id} delivered via ${dispatchResult.channelUsed}`
-        : `Filing #${row.id} failed (${dispatchResult.channelUsed}): ${dispatchResult.errorMessage ?? "unknown error"}`,
-      metadata: JSON.stringify({
-        jobId: row.id,
-        channel: dispatchResult.channelUsed,
-        trackingNumber: dispatchResult.mailTrackingNumber,
-        confirmationNumber: dispatchResult.portalConfirmationNumber,
-        messageId: dispatchResult.emailMessageId,
-      }),
-      status: dispatchResult.success ? "success" : "error",
-    });
-
-    // On successful dispatch: (1) update the property submission's
-    // pipeline status so the user dashboard reflects the filing, and
-    // (2) send the confirmation email with the tracking artifact.
-    if (dispatchResult.success) {
-      await updatePropertySubmission(row.submissionId, { status: "appeal-filed" }).catch(
-        (err) => console.error("[FilingQueue] Failed to update submission status:", err)
-      );
-      try {
-        await sendFilingSubmittedEmail({
-          userEmail: submission.email,
-          userName: submission.email.split("@")[0],
-          propertyAddress: [submission.address, submission.city, submission.state]
-            .filter(Boolean)
-            .join(", "),
-          countyName: county?.countyName ?? "your county",
-          deliveryChannel: dispatchResult.channelUsed,
-          portalConfirmationNumber: dispatchResult.portalConfirmationNumber,
-          mailTrackingNumber: dispatchResult.mailTrackingNumber,
-          expectedDeliveryDate: dispatchResult.lobExpectedDeliveryDate
-            ? dispatchResult.lobExpectedDeliveryDate.toISOString()
-            : null,
-          emailRecipient: dispatchResult.emailRecipient,
-          dashboardUrl: buildAppUrl("/dashboard"),
-        });
-      } catch (err) {
-        console.error("[FilingQueue] Failed to send filing confirmation email:", err);
-      }
-    }
-
-    return true;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  if (channel === "unsupported") {
     await updateFilingJob(row.id, {
       status: "failed",
+      errorMessage: "County is not supported for automated filing",
       completedAt: new Date(),
-      errorMessage: message,
     });
-    return true;
+    log.warn("Filing job failed: county unsupported", { jobId: row.id, countyId });
+    return;
   }
+
+  const dispatchResult = await dispatchFiling({
+    job: row,
+    countyId,
+    perRunInputs,
+  });
+
+  // Persist channel-specific artifacts.
+  const updates: Parameters<typeof updateFilingJob>[1] = {
+    status: dispatchResult.success ? "completed" : "failed",
+    completedAt: new Date(),
+    deliveryChannel: dispatchResult.channelUsed,
+    errorMessage: dispatchResult.errorMessage,
+    // Always wipe the per-run inputs when we're done (PIN, account #).
+    inputs: null,
+  };
+
+  // Portal artifacts — screenshot + execution log to S3.
+  if (dispatchResult.portalConfirmationNumber) {
+    updates.portalConfirmationNumber = dispatchResult.portalConfirmationNumber;
+  }
+  if (dispatchResult.portalScreenshot) {
+    const key = `filings/${row.submissionId}/${row.id}-confirmation.png`;
+    const { key: storedKey } = await storagePut(
+      key,
+      dispatchResult.portalScreenshot,
+      "image/png"
+    );
+    updates.finalScreenshotKey = storedKey;
+  }
+  if (dispatchResult.portalExecutionLog) {
+    const logKey = `filings/${row.submissionId}/${row.id}-log.json`;
+    const { key: storedLogKey } = await storagePut(
+      logKey,
+      Buffer.from(JSON.stringify(dispatchResult.portalExecutionLog, null, 2)),
+      "application/json"
+    );
+    updates.executionLogKey = storedLogKey;
+  }
+
+  // Mail artifacts.
+  if (dispatchResult.mailTrackingNumber) {
+    updates.mailTrackingNumber = dispatchResult.mailTrackingNumber;
+  }
+  if (dispatchResult.lobLetterId) {
+    updates.lobLetterId = dispatchResult.lobLetterId;
+  }
+  if (dispatchResult.lobExpectedDeliveryDate) {
+    updates.lobExpectedDeliveryDate = dispatchResult.lobExpectedDeliveryDate;
+  }
+
+  // Email artifacts.
+  if (dispatchResult.emailMessageId) {
+    updates.emailMessageId = dispatchResult.emailMessageId;
+  }
+  if (dispatchResult.emailRecipient) {
+    updates.emailRecipient = dispatchResult.emailRecipient;
+  }
+
+  await updateFilingJob(row.id, updates);
+
+  await persistActivityLog({
+    submissionId: row.submissionId,
+    type: dispatchResult.success ? "filing_succeeded" : "filing_failed",
+    actor: "system",
+    description: dispatchResult.success
+      ? `Filing #${row.id} delivered via ${dispatchResult.channelUsed}`
+      : `Filing #${row.id} failed (${dispatchResult.channelUsed}): ${dispatchResult.errorMessage ?? "unknown error"}`,
+    metadata: JSON.stringify({
+      jobId: row.id,
+      channel: dispatchResult.channelUsed,
+      trackingNumber: dispatchResult.mailTrackingNumber,
+      confirmationNumber: dispatchResult.portalConfirmationNumber,
+      messageId: dispatchResult.emailMessageId,
+    }),
+    status: dispatchResult.success ? "success" : "error",
+  });
+
+  if (dispatchResult.success) {
+    log.info("Filing job completed", {
+      jobId: row.id,
+      submissionId: row.submissionId,
+      channel: dispatchResult.channelUsed,
+    });
+
+    // Update the property submission's pipeline status so the user dashboard
+    // reflects the filing, then send the confirmation email.
+    await updatePropertySubmission(row.submissionId, { status: "appeal-filed" }).catch(
+      (err) => log.error("Failed to update submission status after filing", { jobId: row.id, err: (err as Error).message })
+    );
+    try {
+      await sendFilingSubmittedEmail({
+        userEmail: submission.email,
+        userName: submission.email.split("@")[0],
+        propertyAddress: [submission.address, submission.city, submission.state]
+          .filter(Boolean)
+          .join(", "),
+        countyName: county?.countyName ?? "your county",
+        deliveryChannel: dispatchResult.channelUsed,
+        portalConfirmationNumber: dispatchResult.portalConfirmationNumber,
+        mailTrackingNumber: dispatchResult.mailTrackingNumber,
+        expectedDeliveryDate: dispatchResult.lobExpectedDeliveryDate
+          ? dispatchResult.lobExpectedDeliveryDate.toISOString()
+          : null,
+        emailRecipient: dispatchResult.emailRecipient,
+        dashboardUrl: buildAppUrl("/dashboard"),
+      });
+    } catch (err) {
+      log.warn("Failed to send filing confirmation email", { jobId: row.id, err: (err as Error).message });
+    }
+  } else {
+    log.warn("Filing job dispatch returned failure", {
+      jobId: row.id,
+      channel: dispatchResult.channelUsed,
+      err: dispatchResult.errorMessage,
+    });
+  }
+}
+
+/**
+ * Schedule a retry for a filing job that encountered a transient error.
+ * Uses exponential backoff with jitter — mirrors the report job queue pattern.
+ * Cap at 60s so retries don't lag past the user's filing deadline.
+ */
+async function scheduleFilingRetry(jobId: number, retryCount: number, maxRetries: number, errMsg: string): Promise<void> {
+  if (retryCount < maxRetries) {
+    const backoffMs = Math.min(2_000 * Math.pow(2, retryCount), 60_000);
+    const jitterMs = Math.random() * 2_000;
+    const delayMs = backoffMs + jitterMs;
+
+    await updateFilingJob(jobId, {
+      status: "pending",
+      retryCount: retryCount + 1,
+      errorMessage: errMsg,
+    });
+
+    log.warn("Filing job transient failure — scheduling retry", {
+      jobId,
+      attempt: retryCount + 1,
+      maxRetries,
+      delayMs: Math.round(delayMs),
+      err: errMsg,
+    });
+
+    setTimeout(() => {
+      executeFilingJob(jobId).catch((err) => {
+        log.error("Filing job retry threw unexpectedly", { jobId, err: (err as Error).message });
+      });
+    }, delayMs);
+  } else {
+    // Reload to get submissionId for the activity log.
+    const job = await getFilingJobById(jobId);
+    await updateFilingJob(jobId, {
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage: errMsg,
+    });
+    if (job) {
+      await persistActivityLog({
+        submissionId: job.submissionId,
+        type: "filing_failed",
+        actor: "system",
+        description: `Filing #${jobId} permanently failed after ${retryCount} retries: ${errMsg}`,
+        metadata: JSON.stringify({ jobId, retryCount }),
+        status: "error",
+      }).catch(() => undefined);
+    }
+    log.error("Filing job exceeded max retries — permanently failed", { jobId, retryCount, maxRetries, err: errMsg });
+  }
+}
+
+/**
+ * Process a single pending job. Returns true if a job was processed.
+ * Transient dispatch errors trigger automatic retries with exponential backoff.
+ */
+export async function processOnePendingJob(): Promise<boolean> {
+  const pending = await listPendingFilingJobs(1);
+  if (pending.length === 0) return false;
+  const job = pending[0];
+
+  try {
+    await executeFilingJob(job.id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+
+    // Reload to get authoritative retryCount (another process may have incremented it).
+    const reloaded = await getFilingJobById(job.id);
+    const retryCount = reloaded?.retryCount ?? 0;
+    const maxRetries = reloaded?.maxRetries ?? 2;
+
+    await scheduleFilingRetry(job.id, retryCount, maxRetries, message);
+  }
+
+  return true;
 }
 
 /**
