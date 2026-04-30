@@ -1083,11 +1083,361 @@ export const jurisdictionRules: Record<string, JurisdictionRule[]> = {
     },
   ],
 
-  // ARIZONA second county
-  // (Maricopa already in AZ block above.)
-  // KENTUCKY, OKLAHOMA, KANSAS, UTAH, ALABAMA, ARKANSAS, IOWA, OREGON
-  // additional states served by national fallback for now — add later as
-  // user demand surfaces.
+  // ALABAMA (0.4% avg tax rate, property-tax-friendly)
+  AL: [
+    {
+      state: "AL", county: "Jefferson", // Birmingham
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 3,
+      successRate: 45, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Property inspection", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Jefferson County Board of Equalization. Pro-taxpayer posture; reasonable hearing process.",
+    },
+    {
+      state: "AL", county: "Mobile",
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 1500, minAssessmentPercentage: 2.5,
+      successRate: 48, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 75,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Mobile County. Straightforward appeal process; good comps data availability.",
+    },
+  ],
+
+  // ALASKA (1.2% avg tax rate, limited municipalities assess)
+  AK: [
+    {
+      state: "AK", county: "Anchorage",
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 5000, minAssessmentPercentage: 4,
+      successRate: 42, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Independent appraisal", "Market study"],
+      hearingRequired: true, averageResolutionDays: 120,
+      contingencyFeeAllowed: true, maxContingencyFee: 30,
+      notes: "Anchorage Municipality. Limited comps; high bar for success due to small market.",
+    },
+  ],
+
+  // ARKANSAS (0.6% avg tax rate)
+  AR: [
+    {
+      state: "AR", county: "Pulaski", // Little Rock
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 2.5,
+      successRate: 46, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Property assessment", "Market data"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Pulaski County Board of Equalization. Moderate success rate; fair hearing process.",
+    },
+  ],
+
+  // DELAWARE (0.6% avg tax rate, low burden state)
+  DE: [
+    {
+      state: "DE", county: "New Castle",
+      appealDeadlineDays: 45, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 3000, minAssessmentPercentage: 3,
+      successRate: 44, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Independent appraisal", "Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 120,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "New Castle County (Wilmington). Formal appeal process; requires substantial documentation.",
+    },
+  ],
+
+  // HAWAII (0.3% avg tax rate, lowest in nation but high values)
+  HI: [
+    {
+      state: "HI", county: "Honolulu",
+      appealDeadlineDays: 45, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 10000, minAssessmentPercentage: 5,
+      successRate: 38, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Independent appraisal", "Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 150,
+      contingencyFeeAllowed: true, maxContingencyFee: 30,
+      notes: "Honolulu Board of Review. Limited comps; high values; strict evidentiary requirements.",
+    },
+  ],
+
+  // IDAHO (0.6% avg tax rate)
+  ID: [
+    {
+      state: "ID", county: "Ada", // Boise
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 47, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis", "Property assessment"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Ada County Board of Equalization. Growing market; good comps availability.",
+    },
+  ],
+
+  // IOWA (1.5% avg tax rate)
+  IA: [
+    {
+      state: "IA", county: "Polk", // Des Moines
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 2.5,
+      successRate: 48, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Property condition", "Market study"],
+      hearingRequired: true, averageResolutionDays: 100,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Polk County Board of Review. Reasonable appeal process; taxpayer-friendly posture.",
+    },
+  ],
+
+  // KANSAS (1.4% avg tax rate)
+  KS: [
+    {
+      state: "KS", county: "Johnson", // Kansas City suburbs
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 46, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Johnson County. Strong residential appeal market; active BOE.",
+    },
+  ],
+
+  // KENTUCKY (0.9% avg tax rate)
+  KY: [
+    {
+      state: "KY", county: "Jefferson", // Louisville
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 2.5,
+      successRate: 47, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Property assessment", "Market data"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Jefferson County PVA. Fair appeal process; moderate success rates.",
+    },
+  ],
+
+  // LOUISIANA (0.5% avg tax rate, low burden state)
+  LA: [
+    {
+      state: "LA", county: "Orleans", // New Orleans
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 44, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Independent appraisal", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 120,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Orleans Parish. Post-hurricane market comps can be challenging; recent sales critical.",
+    },
+  ],
+
+  // MAINE (1.3% avg tax rate)
+  ME: [
+    {
+      state: "ME", county: "Cumberland", // Portland
+      appealDeadlineDays: 45, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 45, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis", "Property condition"],
+      hearingRequired: true, averageResolutionDays: 100,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Cumberland County. Rural areas may have limited comps; focus on condition adjustments.",
+    },
+  ],
+
+  // MISSISSIPPI (0.8% avg tax rate)
+  MS: [
+    {
+      state: "MS", county: "Hinds", // Jackson
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 1500, minAssessmentPercentage: 2.5,
+      successRate: 46, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Property assessment"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Hinds County. Straightforward appeal process; reasonable success rates.",
+    },
+  ],
+
+  // MONTANA (0.8% avg tax rate)
+  MT: [
+    {
+      state: "MT", county: "Yellowstone", // Billings
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 3,
+      successRate: 44, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis", "Property condition"],
+      hearingRequired: true, averageResolutionDays: 100,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Yellowstone County. Rural comps can be sparse; distance adjustments important.",
+    },
+  ],
+
+  // NEBRASKA (1.7% avg tax rate, high burden)
+  NE: [
+    {
+      state: "NE", county: "Douglas", // Omaha
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 47, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis", "Independent appraisal"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Douglas County Board of Equalization. Active appeal market; good comps availability.",
+    },
+  ],
+
+  // NEW HAMPSHIRE (2.2% avg tax rate, second highest in nation)
+  NH: [
+    {
+      state: "NH", county: "Rockingham",
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 3000, minAssessmentPercentage: 3,
+      successRate: 45, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Independent appraisal", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 120,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Rockingham County. High tax burden drives appeal activity; strong evidentiary standard.",
+    },
+  ],
+
+  // NEW MEXICO (0.8% avg tax rate)
+  NM: [
+    {
+      state: "NM", county: "Bernalillo", // Albuquerque
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 3,
+      successRate: 46, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis", "Property condition"],
+      hearingRequired: true, averageResolutionDays: 100,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Bernalillo County. Reasonable appeal process; good metropolitan comps.",
+    },
+  ],
+
+  // NORTH DAKOTA (1.0% avg tax rate)
+  ND: [
+    {
+      state: "ND", county: "Cass", // Fargo
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 3,
+      successRate: 45, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Cass County. Limited market size; recent sales within metro area critical.",
+    },
+  ],
+
+  // OKLAHOMA (0.9% avg tax rate)
+  OK: [
+    {
+      state: "OK", county: "Oklahoma", // Oklahoma City
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 2.5,
+      successRate: 47, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Oklahoma County. Fair appeal process; moderate success rates.",
+    },
+    {
+      state: "OK", county: "Tulsa",
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 2.5,
+      successRate: 48, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 85,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Tulsa County. Active appeal market; good residential comps.",
+    },
+  ],
+
+  // RHODE ISLAND (1.6% avg tax rate)
+  RI: [
+    {
+      state: "RI", county: "Providence",
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 45, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Independent appraisal", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 120,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Providence. Small state market; comps availability varies by municipality.",
+    },
+  ],
+
+  // SOUTH DAKOTA (1.3% avg tax rate)
+  SD: [
+    {
+      state: "SD", county: "Minnehaha", // Sioux Falls
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 3,
+      successRate: 46, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Minnehaha County. Straightforward appeal process; reasonable success rates.",
+    },
+  ],
+
+  // UTAH (0.6% avg tax rate, low burden)
+  UT: [
+    {
+      state: "UT", county: "Salt Lake",
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 46, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis", "Property condition"],
+      hearingRequired: true, averageResolutionDays: 100,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Salt Lake County. Growing market; good metropolitan comps availability.",
+    },
+  ],
+
+  // VERMONT (1.9% avg tax rate, high burden)
+  VT: [
+    {
+      state: "VT", county: "Chittenden", // Burlington
+      appealDeadlineDays: 45, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2500, minAssessmentPercentage: 3,
+      successRate: 44, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Independent appraisal", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 120,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Chittenden County. Rural comps can be limited; seasonal property adjustments important.",
+    },
+  ],
+
+  // WEST VIRGINIA (0.6% avg tax rate)
+  WV: [
+    {
+      state: "WV", county: "Kanawha", // Charleston
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 1500, minAssessmentPercentage: 2.5,
+      successRate: 46, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis"],
+      hearingRequired: true, averageResolutionDays: 90,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Kanawha County. Fair appeal process; moderate success rates.",
+    },
+  ],
+
+  // WYOMING (0.6% avg tax rate, low burden)
+  WY: [
+    {
+      state: "WY", county: "Laramie", // Cheyenne
+      appealDeadlineDays: 30, appealDeadlineType: "from_notice",
+      minAssessmentDifference: 2000, minAssessmentPercentage: 3,
+      successRate: 45, filingMethods: ["poa", "pro_se"],
+      documentationRequired: ["Comparable sales", "Market analysis", "Property condition"],
+      hearingRequired: true, averageResolutionDays: 100,
+      contingencyFeeAllowed: true, maxContingencyFee: 25,
+      notes: "Laramie County. Small market; distance to comps can be significant factor.",
+    },
+  ],
 };
 
 /**
