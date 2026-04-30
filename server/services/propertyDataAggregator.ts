@@ -6,6 +6,9 @@
 
 import axios from "axios";
 import { getCachedApiResponse, setCachedApiResponse } from "../db";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("Aggregator");
 
 export interface PropertyData {
   address: string;
@@ -62,7 +65,7 @@ async function withCache<T>(
   const key = makeCacheKey(source, address, city, state);
   const cached = await getCachedApiResponse(key);
   if (cached) {
-    console.log(`[Cache] HIT for ${source} — ${address}`);
+    log.debug("cache hit", { source, address });
     return cached as T;
   }
   const data = await fetcher();
@@ -75,7 +78,7 @@ async function withCache<T>(
 async function queryLightbox(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("lightbox", address, city, state, async () => {
     try {
-      if (!process.env.LIGHTBOX_API_KEY) { console.warn("[Lightbox] API key not configured"); return {}; }
+      if (!process.env.LIGHTBOX_API_KEY) { log.warn("Lightbox API key not configured"); return {}; }
       const response = await axios.get("https://api.lightboxre.com/v1/properties/search", {
         params: { address, city, state },
         headers: { Authorization: `Bearer ${process.env.LIGHTBOX_API_KEY}` },
@@ -98,7 +101,7 @@ async function queryLightbox(address: string, city: string, state: string): Prom
         source: "lightbox",
       };
     } catch (error) {
-      console.error("[Lightbox] Error:", (error as any)?.response?.status ?? error);
+      log.error("Lightbox error", { status: (error as any)?.response?.status, err: error as Error });
       return {};
     }
   });
@@ -109,7 +112,7 @@ async function queryLightbox(address: string, city: string, state: string): Prom
 async function queryRentCast(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("rentcast", address, city, state, async () => {
     try {
-      if (!process.env.RENTCAST_API_KEY) { console.warn("[RentCast] API key not configured"); return {}; }
+      if (!process.env.RENTCAST_API_KEY) { log.warn("RentCast API key not configured"); return {}; }
       const response = await axios.get("https://api.rentcast.io/v1/properties", {
         params: { address: `${address}, ${city}, ${state}` },
         headers: { "X-Api-Key": process.env.RENTCAST_API_KEY },
@@ -135,7 +138,7 @@ async function queryRentCast(address: string, city: string, state: string): Prom
         source: "rentcast",
       };
     } catch (error) {
-      console.error("[RentCast] Error:", (error as any)?.response?.status ?? error);
+      log.error("RentCast error", { status: (error as any)?.response?.status, err: error as Error });
       return {};
     }
   });
@@ -146,7 +149,7 @@ async function queryRentCast(address: string, city: string, state: string): Prom
 async function queryReGRID(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("regrid", address, city, state, async () => {
     try {
-      if (!process.env.REGRID_API_KEY) { console.warn("[ReGRID] API key not configured"); return {}; }
+      if (!process.env.REGRID_API_KEY) { log.warn("ReGRID API key not configured"); return {}; }
       const response = await axios.get("https://app.regrid.com/api/v1/search.json", {
         params: { query: `${address}, ${city}, ${state}`, limit: 1 },
         headers: { token: process.env.REGRID_API_KEY },
@@ -165,7 +168,7 @@ async function queryReGRID(address: string, city: string, state: string): Promis
         source: "regrid",
       };
     } catch (error) {
-      console.error("[ReGRID] Error:", (error as any)?.response?.status ?? error);
+      log.error("ReGRID error", { status: (error as any)?.response?.status, err: error as Error });
       return {};
     }
   });
@@ -176,7 +179,7 @@ async function queryReGRID(address: string, city: string, state: string): Promis
 async function queryAttomData(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("attom", address, city, state, async () => {
     try {
-      if (!process.env.ATTOM_API_KEY) { console.warn("[AttomData] API key not configured"); return {}; }
+      if (!process.env.ATTOM_API_KEY) { log.warn("AttomData API key not configured"); return {}; }
       const response = await axios.get("https://api.gateway.attomdata.com/propertyapi/v1.0.0/property/detail", {
         params: { address1: address, address2: `${city}, ${state}` },
         headers: { apikey: process.env.ATTOM_API_KEY, Accept: "application/json" },
@@ -201,7 +204,7 @@ async function queryAttomData(address: string, city: string, state: string): Pro
         source: "attom",
       };
     } catch (error) {
-      console.error("[AttomData] Error:", (error as any)?.response?.status ?? error);
+      log.error("AttomData error", { status: (error as any)?.response?.status, err: error as Error });
       return {};
     }
   });
@@ -249,7 +252,7 @@ export async function aggregatePropertyData(address: string, city: string, state
 
     return merged;
     } catch (error) {
-    console.error("[Aggregator] Error:", error);
+    log.error("Aggregator error", { err: error as Error });
     // Return partial data instead of empty object on error
     return { 
       address, 

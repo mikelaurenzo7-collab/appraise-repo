@@ -8,6 +8,10 @@
  * - Compliance and legal documentation
  */
 
+import { scopedLogger } from "../_core/logger";
+
+const slog = scopedLogger("Activity");
+
 export type ActivityType =
   | "submission_received"
   | "property_classified"
@@ -66,7 +70,7 @@ export function logActivity(
   };
 
   activityLogs.push(log);
-  console.log(`[Activity] ${type}: ${description}`);
+  slog.info(description, { activityType: type, submissionId, status });
 
   return log;
 }

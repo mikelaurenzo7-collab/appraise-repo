@@ -11,8 +11,10 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { nanoid } from "nanoid";
 import { storagePut } from "../storage";
+import { scopedLogger } from "../_core/logger";
 
 const execFileAsync = promisify(execFile);
+const log = scopedLogger("PDFGenerator");
 
 export interface AppraisalReportData {
   submissionId: number;
@@ -100,7 +102,7 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
     });
 
     if (stderr && !stderr.includes("UserWarning")) {
-      console.warn("[PDF Generator] Python stderr:", stderr);
+      log.warn("Python stderr", { stderr });
     }
 
     // Read generated PDF

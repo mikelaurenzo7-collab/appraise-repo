@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { MessageCircle, X, Minus, CheckCircle2 } from "lucide-react";
 import { useLocation } from "wouter";
-import { AIChatBox, type Message } from "@/components/AIChatBox";
+import type { Message } from "@/components/AIChatBox";
 import { trpc } from "@/lib/trpc";
+
+// Lazy-load the chat box itself: it transitively imports `streamdown`
+// (which loads shiki / mermaid / katex on demand). The floating "Ask"
+// button on every page should not pay that cost — those deps load only
+// after the user opens the widget.
+const AIChatBox = lazy(() =>
+  import("@/components/AIChatBox").then((m) => ({ default: m.AIChatBox })),
+);
 
 const GREETING: Message = {
   role: "assistant",
@@ -158,15 +166,23 @@ export default function LeadChatWidget() {
       {!minimized && (
         <div className="flex flex-col" style={{ height: "min(540px, calc(100vh - 6rem))" }}>
           <div className="flex-1 overflow-hidden">
-            <AIChatBox
-              messages={messages}
-              onSendMessage={handleSend}
-              isLoading={askMutation.isPending}
-              placeholder="Ask about appeals, savings, or share your address..."
-              height="100%"
-              emptyStateMessage="Ask about tax appeals"
-              suggestedPrompts={SUGGESTED}
-            />
+            <Suspense
+              fallback={
+                <div className="h-full w-full flex items-center justify-center text-sm text-slate-400">
+                  Loading chat…
+                </div>
+              }
+            >
+              <AIChatBox
+                messages={messages}
+                onSendMessage={handleSend}
+                isLoading={askMutation.isPending}
+                placeholder="Ask about appeals, savings, or share your address..."
+                height="100%"
+                emptyStateMessage="Ask about tax appeals"
+                suggestedPrompts={SUGGESTED}
+              />
+            </Suspense>
           </div>
 
           <div className="px-3 py-2 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">

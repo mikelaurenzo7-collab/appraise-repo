@@ -21,6 +21,9 @@ import {
   type ClaudeBatchRequest,
 } from "../_core/claude";
 import { APPRAISAL_SYSTEM_PROMPT_EXPORT } from "./appraisalAnalyzer";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("Batch");
 
 export interface BatchSubmissionRequest {
   clientId: string;
@@ -76,7 +79,11 @@ export async function processBatch(request: BatchSubmissionRequest): Promise<Bat
   };
 
   // Log batch start
-  console.log(`[Batch] Batch processing started: ${request.clientName} - ${request.properties.length} properties (${batchId})`);
+  log.info("batch processing started", {
+    clientName: request.clientName,
+    propertyCount: request.properties.length,
+    batchId,
+  });
 
   // Process each property
   for (const prop of request.properties) {
@@ -130,8 +137,12 @@ export async function processBatch(request: BatchSubmissionRequest): Promise<Bat
   results.averageAnalysisTime = (Date.now() - startTime) / request.properties.length;
 
   // Log batch completion
-  console.log(`[Batch] Batch processing completed: ${results.successCount}/${results.totalProperties} successful (${batchId})`);
-  console.log(`[Batch] Estimated total savings: $${results.estimatedTotalSavings.toLocaleString()}`);
+  log.info("batch processing completed", {
+    batchId,
+    successCount: results.successCount,
+    totalProperties: results.totalProperties,
+    estimatedTotalSavings: Math.round(results.estimatedTotalSavings),
+  });
 
   return results;
 }
@@ -234,7 +245,7 @@ export async function processBatchViaClaudeAPI(
   });
 
   const batchId = await submitClaudeBatch(requests);
-  console.log(`[Batch] Claude Batch API submitted: ${batchId} (${requests.length} properties)`);
+  log.info("Claude Batch API submitted", { batchId, requestCount: requests.length });
 
   if (!shouldAwait) {
     return { batchId, status: "submitted" };
@@ -251,7 +262,7 @@ export async function processBatchViaClaudeAPI(
     };
   });
 
-  console.log(`[Batch] Claude Batch API completed: ${batchId} (${results.length} results)`);
+  log.info("Claude Batch API completed", { batchId, resultCount: results.length });
 
   return { batchId, status: "completed", properties };
 }

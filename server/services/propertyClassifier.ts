@@ -1,5 +1,8 @@
 import { invokeLLM } from "../_core/llm";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("PropertyClassifier");
 
 export type PropertyType = "residential" | "multi-family" | "commercial" | "agricultural" | "industrial" | "land" | "unknown";
 
@@ -60,7 +63,7 @@ Respond with ONLY one of these values (no explanation):
       return "unknown";
     });
   } catch (error) {
-    console.error("[PropertyClassifier] Error classifying property:", error);
+    log.error("Error classifying property", { err: error as Error });
     return "unknown";
   }
 }

@@ -17,7 +17,10 @@
 import { invokeLLM } from "../_core/llm";
 import { analyzePhotoWithClaude, isClaudeAvailable } from "../_core/claude";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
+import { scopedLogger } from "../_core/logger";
 import type { SubmissionPhoto } from "../db";
+
+const log = scopedLogger("PhotoAnalyzer");
 
 /**
  * SSRF guard — reject any URL that isn't https://.
@@ -102,7 +105,7 @@ async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding 
     );
     return cachedFinding;
   } catch (err) {
-    console.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, (err as Error).message);
+    log.warn("Failed to analyze photo", { url: photo.url, err: (err as Error).message });
     return null;
   }
 }
@@ -208,7 +211,7 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
       evidenceStrength,
     };
   } catch (err) {
-    console.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, (err as Error).message);
+    log.warn("Failed to analyze photo", { url: photo.url, err: (err as Error).message });
     return null;
   }
 }

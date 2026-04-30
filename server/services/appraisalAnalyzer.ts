@@ -1,9 +1,12 @@
 import { invokeLLM } from "../_core/llm";
 import { analyzeWithClaude, isClaudeAvailable } from "../_core/claude";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
+import { scopedLogger } from "../_core/logger";
 import { getScenarioContext, generateScenarioPromptContext, type UserScenario } from "./scenarioValuation";
 import { buildSuccessRecipe } from "./successRecipe";
 import type { PropertyData } from "./propertyDataAggregator";
+
+const log = scopedLogger("AppraisalAnalyzer");
 
 export interface AppraisalAnalysis {
   marketValueEstimate: number;
@@ -328,7 +331,7 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
 
     return analysis;
   } catch (error) {
-    console.error("[AppraisalAnalyzer] Error analyzing property:", error);
+    log.error("Error analyzing property", { err: error as Error });
 
     // Return default analysis if LLM fails
     const assessed = propertyData.assessedValue || 0;

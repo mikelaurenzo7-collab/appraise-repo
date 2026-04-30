@@ -5,9 +5,13 @@ import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageErrorBoundary from "./components/PageErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import LeadChatWidget from "./components/LeadChatWidget";
 import ScrollProgress from "./components/ScrollProgress";
 import { ShimmerCard } from "./components/ShimmerSkeleton";
+
+// Lazy: the chat widget pulls in `streamdown` (which loads shiki + mermaid +
+// katex on demand). Loading it lazily keeps those heavy deps out of the
+// initial bundle — they only fetch once the widget actually mounts.
+const LeadChatWidget = lazy(() => import("./components/LeadChatWidget"));
 
 // Eager: landing + 404 (instant first paint, smallest fallback surface).
 import Home from "./pages/Home";
@@ -109,7 +113,9 @@ function App() {
           <Toaster />
           <ScrollProgress />
           <RoutedShell />
-          <LeadChatWidget />
+          <Suspense fallback={null}>
+            <LeadChatWidget />
+          </Suspense>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

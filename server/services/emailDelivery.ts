@@ -15,6 +15,9 @@
  */
 
 import crypto from "crypto";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("EmailDelivery");
 
 export interface AppealEmailParams {
   toEmail: string; // county intake email
@@ -55,9 +58,10 @@ export async function sendAppealEmail(
       .update(params.pdfBuffer)
       .update(params.toEmail)
       .digest("hex");
-    console.log(
-      `[EmailDelivery] STUB: would send ${params.pdfBuffer.length}-byte PDF to ${params.toEmail}`
-    );
+    log.info("STUB: would send PDF (stub mode)", {
+      bytes: params.pdfBuffer.length,
+      to: params.toEmail,
+    });
     return {
       messageId: `stub-${hash.slice(0, 24)}@appraiseai.local`,
       stubbed: true,

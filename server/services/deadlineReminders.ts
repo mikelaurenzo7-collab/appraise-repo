@@ -19,8 +19,11 @@ import {
   propertySubmissions,
 } from "../../drizzle/schema";
 import { buildAppUrl } from "../_core/appUrl";
+import { scopedLogger } from "../_core/logger";
 import { getDb, persistActivityLog } from "../db";
 import { sendFilingDeadlineReminderEmail } from "../_core/emailService";
+
+const log = scopedLogger("DeadlineReminders");
 
 const DEFAULT_REMINDER_DAYS = 7;
 const DE_DUP_WINDOW_DAYS = 6;
@@ -172,7 +175,10 @@ export async function sendPendingDeadlineReminders(opts: {
         result.errors += 1;
       }
     } catch (err) {
-      console.error(`[DeadlineReminders] submission=${row.submissionId}`, err);
+      log.error("submission reminder failed", {
+        submissionId: row.submissionId,
+        err: err as Error,
+      });
       result.errors += 1;
     }
   }
@@ -188,12 +194,15 @@ export function buildDeadlineReminderInterval(
       try {
         const r = await sendPendingDeadlineReminders();
         if (r.sent > 0 || r.errors > 0) {
-          console.log(
-            `[DeadlineReminders] scanned=${r.scanned} sent=${r.sent} skipped=${r.skipped} errors=${r.errors}`
-          );
+          log.info("reminder sweep", {
+            scanned: r.scanned,
+            sent: r.sent,
+            skipped: r.skipped,
+            errors: r.errors,
+          });
         }
       } catch (err) {
-        console.error("[DeadlineReminders] top-level error", err);
+        log.error("top-level error", { err: err as Error });
       }
     }, intervalMs);
 }
