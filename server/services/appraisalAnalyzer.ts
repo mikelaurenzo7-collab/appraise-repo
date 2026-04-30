@@ -1,7 +1,11 @@
 import { invokeLLM } from "../_core/llm";
 import { analyzeWithClaude, isClaudeAvailable } from "../_core/claude";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
-import { getScenarioContext, generateScenarioPromptContext, type UserScenario } from "./scenarioValuation";
+import {
+  generateScenarioPromptContext,
+  type UserScenario,
+} from "./scenarioValuation";
+import { buildSuccessRecipe } from "./successRecipe";
 import type { PropertyData } from "./propertyDataAggregator";
 
 export interface AppraisalAnalysis {
@@ -67,16 +71,26 @@ const APPRAISAL_JSON_SCHEMA = {
     assessmentGapPercent: { type: "number" },
     appealStrengthScore: { type: "number" },
     appealStrengthFactors: { type: "array", items: { type: "string" } },
-    recommendedApproach: { type: "string", enum: ["poa", "pro-se", "not-recommended"] },
+    recommendedApproach: {
+      type: "string",
+      enum: ["poa", "pro-se", "not-recommended"],
+    },
     executiveSummary: { type: "string" },
     valuationJustification: { type: "string" },
     potentialSavings: { type: "number" },
     nextSteps: { type: "array", items: { type: "string" } },
   },
   required: [
-    "marketValueEstimate", "assessmentGap", "assessmentGapPercent",
-    "appealStrengthScore", "appealStrengthFactors", "recommendedApproach",
-    "executiveSummary", "valuationJustification", "potentialSavings", "nextSteps",
+    "marketValueEstimate",
+    "assessmentGap",
+    "assessmentGapPercent",
+    "appealStrengthScore",
+    "appealStrengthFactors",
+    "recommendedApproach",
+    "executiveSummary",
+    "valuationJustification",
+    "potentialSavings",
+    "nextSteps",
   ],
   additionalProperties: false,
 };
@@ -96,16 +110,19 @@ export function computeCompPriceBand(propertyData: PropertyData): {
   maxPpsf: number;
 } | null {
   const comps = (propertyData.comparableSales ?? []).filter(
-    (c) => c.salePrice > 0 && (c.squareFeet ?? 0) > 0,
+    c => c.salePrice > 0 && (c.squareFeet ?? 0) > 0
   );
   if (comps.length < 3) return null;
 
   const ppsf = comps
-    .map((c) => c.salePrice / (c.squareFeet as number))
+    .map(c => c.salePrice / (c.squareFeet as number))
     .sort((a, b) => a - b);
 
   const at = (q: number) => {
-    const idx = Math.max(0, Math.min(ppsf.length - 1, Math.floor(ppsf.length * q)));
+    const idx = Math.max(
+      0,
+      Math.min(ppsf.length - 1, Math.floor(ppsf.length * q))
+    );
     return ppsf[idx];
   };
 
@@ -134,7 +151,7 @@ export function computeCompPriceBand(propertyData: PropertyData): {
 export async function analyzeProperty(
   propertyData: PropertyData,
   propertyType: string = "residential",
-  scenario: UserScenario = "none",
+  scenario: UserScenario = "none"
 ): Promise<AppraisalAnalysis> {
   try {
     const compBand = computeCompPriceBand(propertyData);
@@ -163,26 +180,35 @@ Comparable Sales: ${propertyData.comparableSales?.length || 0} found (top 7 show
 ${
   propertyData.comparableSales
     ?.slice(0, 7)
-    .map((comp) => {
-      const ppsf = comp.squareFeet ? Math.round(comp.salePrice / comp.squareFeet) : null;
+    .map(comp => {
+      const ppsf = comp.squareFeet
+        ? Math.round(comp.salePrice / comp.squareFeet)
+        : null;
       return `- ${comp.address}: $${comp.salePrice.toLocaleString()} (${comp.squareFeet ?? "?"} sqft${ppsf ? `, $${ppsf}/sqft` : ""})`;
     })
     .join("\n") || "None"
 }
 
-${compBand ? `Comparable-Sales Price Band (price per sqft, n=${compBand.count}):
+${
+  compBand
+    ? `Comparable-Sales Price Band (price per sqft, n=${compBand.count}):
 - Range:    $${Math.round(compBand.minPpsf)} – $${Math.round(compBand.maxPpsf)}/sqft
 - IQR:      $${Math.round(compBand.q1Ppsf)} – $${Math.round(compBand.q3Ppsf)}/sqft  ← supportable range
 - Median:   $${Math.round(compBand.medianPpsf)}/sqft
 - Lower advocacy anchor (Q1): $${Math.round(compBand.q1Ppsf)}/sqft × subject sqft = ${propertyData.squareFeet ? `$${(Math.round(compBand.q1Ppsf) * propertyData.squareFeet).toLocaleString()}` : "n/a (subject sqft unknown)"}
 - Median anchor:              $${Math.round(compBand.medianPpsf)}/sqft × subject sqft = ${propertyData.squareFeet ? `$${(Math.round(compBand.medianPpsf) * propertyData.squareFeet).toLocaleString()}` : "n/a"}
-` : "Comparable-Sales Price Band: insufficient comp data (need ≥3 with square footage) to compute a defensible band."}
+`
+    : "Comparable-Sales Price Band: insufficient comp data (need ≥3 with square footage) to compute a defensible band."
+}
 
 Rental Comps: ${propertyData.rentalComps?.length || 0} found
 ${
   propertyData.rentalComps
     ?.slice(0, 3)
-    .map((comp) => `- ${comp.address}: $${comp.monthlyRent}/month (${comp.bedrooms}bd/${comp.bathrooms}ba)`)
+    .map(
+      comp =>
+        `- ${comp.address}: $${comp.monthlyRent}/month (${comp.bedrooms}bd/${comp.bathrooms}ba)`
+    )
     .join("\n") || "None"
 }
     `;
@@ -195,6 +221,10 @@ ${
       scenario && scenario !== "none"
         ? "\n" + generateScenarioPromptContext(scenario, propertyData) + "\n"
         : "";
+    const successRecipeBlock =
+      "\n" +
+      buildSuccessRecipe(propertyData, propertyType, scenario).promptContext +
+      "\n";
 
     const prompt = `You are preparing the analytical narrative for a property
 owner who intends to challenge an over-assessment by their county tax authority.
@@ -221,6 +251,7 @@ Posture & methodology:
 
 ${dataSummary}
 ${scenarioBlock}
+${successRecipeBlock}
 
 Provide a JSON response with:
 1. marketValueEstimate: Independent fair-market-value conclusion derived from
@@ -267,61 +298,75 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
     // part of the key because the same property under a different scenario
     // gets a meaningfully different narrative.
     // 24h TTL aligns with the report-generation SLA window.
-    const source = isClaudeAvailable() ? "claude-opus-4-7" : "forge-gemini-2.5-flash";
+    const source = isClaudeAvailable()
+      ? "claude-opus-4-7"
+      : "forge-gemini-2.5-flash";
     const cacheKey = `llm:appraisal:${source}:${hashLLMInput([propertyData, propertyType, scenario])}`;
 
-    const analysis = await withLLMCache<AppraisalAnalysis>(cacheKey, source, 24 * 3600, async () => {
-      let rawJson: string;
+    const analysis = await withLLMCache<AppraisalAnalysis>(
+      cacheKey,
+      source,
+      24 * 3600,
+      async () => {
+        let rawJson: string;
 
-      if (isClaudeAvailable()) {
-        // Claude Opus 4.7 with adaptive thinking + xhigh effort + prompt caching.
-        // The stable system prompt is cached across calls, cutting repeat-call
-        // token costs by ~90%. Adaptive thinking lets Claude reason through
-        // comparable-sales weighting before committing to the JSON output.
-        rawJson = await analyzeWithClaude({
-          systemPrompt: APPRAISAL_SYSTEM_PROMPT,
-          userContent: prompt,
-          maxTokens: 8192,
-          effort: "xhigh",
-        });
-      } else {
-        // Forge / Gemini fallback — used when ANTHROPIC_API_KEY is not set.
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: APPRAISAL_SYSTEM_PROMPT },
-            { role: "user", content: prompt },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: { name: "appraisal_analysis", strict: true, schema: APPRAISAL_JSON_SCHEMA },
-          },
-        });
-        const content = response.choices[0]?.message.content;
-        if (!content || typeof content !== "string") {
-          throw new Error("Invalid LLM response format");
+        if (isClaudeAvailable()) {
+          // Claude Opus 4.7 with adaptive thinking + xhigh effort + prompt caching.
+          // The stable system prompt is cached across calls, cutting repeat-call
+          // token costs by ~90%. Adaptive thinking lets Claude reason through
+          // comparable-sales weighting before committing to the JSON output.
+          rawJson = await analyzeWithClaude({
+            systemPrompt: APPRAISAL_SYSTEM_PROMPT,
+            userContent: prompt,
+            maxTokens: 8192,
+            effort: "xhigh",
+          });
+        } else {
+          // Forge / Gemini fallback — used when ANTHROPIC_API_KEY is not set.
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: APPRAISAL_SYSTEM_PROMPT },
+              { role: "user", content: prompt },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "appraisal_analysis",
+                strict: true,
+                schema: APPRAISAL_JSON_SCHEMA,
+              },
+            },
+          });
+          const content = response.choices[0]?.message.content;
+          if (!content || typeof content !== "string") {
+            throw new Error("Invalid LLM response format");
+          }
+          rawJson = content;
         }
-        rawJson = content;
+
+        // Strip any markdown fences Claude might emit before the JSON object
+        const jsonStart = rawJson.indexOf("{");
+        const jsonEnd = rawJson.lastIndexOf("}");
+        const cleanJson =
+          jsonStart >= 0 && jsonEnd > jsonStart
+            ? rawJson.slice(jsonStart, jsonEnd + 1)
+            : rawJson;
+
+        const parsed = JSON.parse(cleanJson) as AppraisalAnalysis;
+
+        // Validate response — throw before caching so we never store a partial.
+        if (
+          !parsed.marketValueEstimate ||
+          !parsed.appealStrengthScore ||
+          !parsed.recommendedApproach ||
+          !parsed.executiveSummary
+        ) {
+          throw new Error("Incomplete analysis response");
+        }
+
+        return parsed;
       }
-
-      // Strip any markdown fences Claude might emit before the JSON object
-      const jsonStart = rawJson.indexOf("{");
-      const jsonEnd = rawJson.lastIndexOf("}");
-      const cleanJson = jsonStart >= 0 && jsonEnd > jsonStart ? rawJson.slice(jsonStart, jsonEnd + 1) : rawJson;
-
-      const parsed = JSON.parse(cleanJson) as AppraisalAnalysis;
-
-      // Validate response — throw before caching so we never store a partial.
-      if (
-        !parsed.marketValueEstimate ||
-        !parsed.appealStrengthScore ||
-        !parsed.recommendedApproach ||
-        !parsed.executiveSummary
-      ) {
-        throw new Error("Incomplete analysis response");
-      }
-
-      return parsed;
-    });
+    );
 
     return analysis;
   } catch (error) {
@@ -338,12 +383,20 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
       assessmentGap: gap,
       assessmentGapPercent: gapPercent,
       appealStrengthScore: gapPercent > 10 ? 65 : 35,
-      appealStrengthFactors: ["Assessment appears higher than market comparables", "Recent market data available"],
+      appealStrengthFactors: [
+        "Assessment appears higher than market comparables",
+        "Recent market data available",
+      ],
       recommendedApproach: gapPercent > 10 ? "poa" : "not-recommended",
       executiveSummary: `Property assessed at $${assessed.toLocaleString()} but estimated market value is $${market.toLocaleString()}.`,
-      valuationJustification: "Analysis based on comparable sales and market data from multiple sources.",
+      valuationJustification:
+        "Analysis based on comparable sales and market data from multiple sources.",
       potentialSavings: (gap * 0.012) / 1, // Rough estimate: 1.2% annual tax rate
-      nextSteps: ["Review detailed comparable sales", "Consider filing appeal", "Contact our team for consultation"],
+      nextSteps: [
+        "Review detailed comparable sales",
+        "Consider filing appeal",
+        "Contact our team for consultation",
+      ],
     };
   }
 }
@@ -352,6 +405,9 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
  * Calculate potential annual tax savings
  * Assumes ~1.2% average property tax rate in US
  */
-export function calculatePotentialSavings(assessmentGap: number, taxRate: number = 0.012): number {
+export function calculatePotentialSavings(
+  assessmentGap: number,
+  taxRate: number = 0.012
+): number {
   return Math.round(assessmentGap * taxRate);
 }
