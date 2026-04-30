@@ -149,11 +149,11 @@ export function buildSuccessRecipe(
   propertyType: string,
   scenario: UserScenario = "none"
 ): SuccessRecipe {
-  const state = propertyData.state || "US";
+  const state = (propertyData.state || "US").toUpperCase();
   const county = propertyData.county;
   const rules = getJurisdictionRules(state, county);
   const scenarioContext = getScenarioContext(scenario);
-  const countyPlaybook = getCountyPlaybook(state.toUpperCase(), county);
+  const countyPlaybook = getCountyPlaybook(state, county);
   const typeGuidance =
     PROPERTY_TYPE_GUIDANCE[normalizePropertyType(propertyType)];
   const assessedValue = propertyData.assessedValue || 0;
