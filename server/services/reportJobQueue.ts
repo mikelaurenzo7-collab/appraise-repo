@@ -17,6 +17,9 @@ import {
 } from "../db";
 import { buildAppUrl } from "../_core/appUrl";
 import { sendAnalysisConfirmationEmail, sendReportCompletionEmail } from "../_core/emailService";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("ReportQueue");
 
 // Prevent duplicate concurrent jobs
 const activeJobs = new Set<number>();
@@ -45,11 +48,11 @@ export async function queueReportGeneration(
 
     if (!job) throw new Error("Failed to create report job");
 
-    console.log(`[ReportQueue] Job queued: #${job.id} for submission #${submissionId}`);
+    log.info("Job queued", { jobId: job.id, submissionId });
 
     // Queue background processing (non-blocking)
     processReportJobAsync(job.id).catch((err) => {
-      console.error(`[ReportQueue] Unhandled error in async processing:`, err);
+      log.error("Unhandled error in async processing", { jobId: job.id, err: (err as Error).message });
     });
 
     return {
@@ -57,7 +60,7 @@ export async function queueReportGeneration(
       status: "queued",
     };
   } catch (error) {
-    console.error(`[ReportQueue] Failed to queue report:`, error);
+    log.error("Failed to queue report", { submissionId, err: (error as Error).message });
     throw error;
   }
 }
@@ -67,7 +70,7 @@ export async function queueReportGeneration(
  */
 async function processReportJobAsync(jobId: number): Promise<void> {
   if (activeJobs.has(jobId)) {
-    console.log(`[ReportQueue] Job ${jobId} already processing — skipping duplicate`);
+    log.info("Job already processing — skipping duplicate", { jobId });
     return;
   }
 
@@ -77,14 +80,14 @@ async function processReportJobAsync(jobId: number): Promise<void> {
   try {
     const job = await getReportJobById(jobId);
     if (!job) {
-      console.error(`[ReportQueue] Job ${jobId} not found`);
+      log.error("Job not found", { jobId });
       return;
     }
 
     // Check if job has expired
     if (new Date() > job.expiresAt) {
       await updateReportJob(jobId, { status: "expired" });
-      console.warn(`[ReportQueue] Job ${jobId} expired before processing`);
+      log.warn("Job expired before processing", { jobId });
       return;
     }
 
@@ -131,11 +134,11 @@ async function processReportJobAsync(jobId: number): Promise<void> {
         ].filter(Boolean);
         if (sections.length > 0) {
           enrichedJustification = sections.join("\n\n");
-          console.log(`[ReportQueue] Job ${jobId} narrative enriched via Claude (${enrichedJustification.length} chars)`);
+          log.info("Job narrative enriched via Claude", { jobId, chars: enrichedJustification.length });
         }
       }
     } catch (err) {
-      console.warn(`[ReportQueue] Job ${jobId} narrative enrichment skipped:`, (err as Error).message);
+      log.warn("Job narrative enrichment skipped", { jobId, err: (err as Error).message });
     }
 
     const reportData: AppraisalReportData = {
@@ -221,13 +224,13 @@ async function processReportJobAsync(jobId: number): Promise<void> {
         downloadExpiresAt: expiresAtStr,
       });
     } catch (emailErr) {
-      console.warn(`[ReportQueue] Failed to send email for job ${jobId}:`, emailErr);
+      log.warn("Failed to send email for job", { jobId, err: (emailErr as Error).message });
     }
 
-    console.log(`[ReportQueue] ✓ Job ${jobId} completed in ${(durationMs / 1000).toFixed(1)}s`);
+    log.info("Job completed", { jobId, durationMs });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error(`[ReportQueue] ✗ Job ${jobId} failed:`, errMsg);
+    log.error("Job failed", { jobId, err: errMsg });
 
     const job = await getReportJobById(jobId);
     if (job && job.retryCount < job.maxRetries) {
@@ -243,11 +246,11 @@ async function processReportJobAsync(jobId: number): Promise<void> {
         retryCount: job.retryCount + 1,
         errorMessage: errMsg,
       });
-      console.log(`[ReportQueue] Job ${jobId} retry ${job.retryCount + 2}/${job.maxRetries + 1} in ${Math.round(delayMs)}ms`);
+      log.info("Job retry scheduled", { jobId, attempt: job.retryCount + 2, maxRetries: job.maxRetries + 1, delayMs: Math.round(delayMs) });
 
       setTimeout(() => {
         processReportJobAsync(jobId).catch((err) => {
-          console.error(`[ReportQueue] Retry error:`, err);
+          log.error("Retry error", { jobId, err: (err as Error).message });
         });
       }, delayMs);
     } else {
@@ -278,13 +281,15 @@ async function processReportJobAsync(jobId: number): Promise<void> {
 export async function processPendingReportJobs(limit = 5): Promise<number> {
   try {
     const jobs = await listPendingReportJobs(limit);
-    console.log(`[ReportQueue] Processing ${jobs.length} pending jobs...`);
+    if (jobs.length > 0) {
+      log.info("Processing pending jobs", { count: jobs.length });
+    }
 
     let processed = 0;
     for (const job of jobs) {
       if (!activeJobs.has(job.id)) {
         processReportJobAsync(job.id).catch((err) => {
-          console.error(`[ReportQueue] Error processing job ${job.id}:`, err);
+          log.error("Error processing job", { jobId: job.id, err: (err as Error).message });
         });
         processed++;
       }
@@ -292,7 +297,7 @@ export async function processPendingReportJobs(limit = 5): Promise<number> {
 
     return processed;
   } catch (error) {
-    console.error(`[ReportQueue] Failed to process pending jobs:`, error);
+    log.error("Failed to process pending jobs", { err: (error as Error).message });
     return 0;
   }
 }
