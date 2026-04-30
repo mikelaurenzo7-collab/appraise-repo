@@ -32,7 +32,6 @@ export interface AppraisalAnalysis {
 }
 
 // Stable system prompt — prompt-cached by Claude across all analysis calls.
-// Exported so batchProcessor can reuse it for the Batch API requests.
 //
 // Posture: We are an independent valuation analyst whose client is the
 // property owner in an appeal context. The standard is *fair market value*,
