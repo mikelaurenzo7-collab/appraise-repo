@@ -958,6 +958,11 @@ export const appRouter = router({
 
         const reportData: AppraisalReportData = {
           submissionId: input.submissionId,
+          // Sync /generateReport path produces the same assessor exhibit as
+          // the async queue. Owner-only content (appeal score, savings,
+          // Tax Impact Analysis) is suppressed; the owner sees it on the
+          // /analysis dashboard.
+          reportAudience: "assessor",
           address: submission.address,
           city: submission.city ?? undefined,
           state: submission.state ?? undefined,

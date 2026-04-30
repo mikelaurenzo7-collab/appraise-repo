@@ -102,6 +102,26 @@ export interface AppraisalReportData {
   appealDeadline?: string;
   reportDate?: string;
   reportType?: string;
+  /**
+   * Audience the rendered PDF is for.
+   *
+   *   "assessor" — clinical USPAP-style exhibit attached to a tax-appeal
+   *                filing. Strips owner-facing content: appeal-strength
+   *                score badge, potential savings line, recommended POA/
+   *                pro-se strategy, filing method, appeal deadline, next-
+   *                steps checklist. Keeps property data, comps,
+   *                methodology, photos + condition findings.
+   *
+   *   "owner"    — owner-facing personal copy with all of the above plus
+   *                strategy + savings + next-steps. Mirrors the dashboard.
+   *
+   * Default: "assessor" — the legitimate use case for the rendered PDF
+   * is being filed with the appeal, where owner-facing content hurts
+   * credibility (and broadcasts "we picked this case because we think
+   * we can win"). Owner sees the full strategy + savings + next steps
+   * on the /analysis dashboard.
+   */
+  reportAudience?: "assessor" | "owner";
   comparableSales?: Array<{
     address: string;
     salePrice: number;
@@ -313,6 +333,17 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
   // All paid tiers (pro_se, automated_standard, automated_express, poa legacy) get the full 40-page report.
   const isFree = !data.tier || data.tier === "none" || data.tier === "free";
 
+  // isAssessor: when true (default), suppress owner-facing content from the
+  // PDF — appeal strength score, "Estimated Annual Tax Savings" line, the
+  // entire Tax Impact Analysis section, and the recommended POA/pro-se
+  // strategy paragraph. The PDF is the formal exhibit attached to appeal
+  // filings; surfacing the owner's projected savings or our internal
+  // appeal-winnability score in front of the assessor is counterproductive.
+  // The owner sees all of that on the /analysis dashboard. Set
+  // reportAudience: "owner" on the AppraisalReportData to render the
+  // owner-facing copy with the full projection content.
+  const isAssessor = data.reportAudience !== "owner";
+
   // Instance-scoped page counter (fixes concurrent generation bug)
   const pageCounter = { n: 1 };
 
@@ -461,10 +492,20 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       const metricsRows: [string, string][] = [
         ["County Assessed Value", fmt(data.assessedValue)],
         ["AppraiseAI Market Value Estimate", fmt(data.marketValueEstimate)],
-        ["Over-Assessment Amount", fmt(data.assessmentGap)],
-        ["Estimated Annual Tax Savings", fmt(data.potentialSavings)],
-        ["Appeal Strength Score", scoreLabel(data.appealStrengthScore)],
+        // Use neutral phrasing on the assessor exhibit; "Over-Assessment"
+        // is advocacy framing.
+        [
+          isAssessor ? "Indicated Reduction in Assessed Value" : "Over-Assessment Amount",
+          fmt(data.assessmentGap),
+        ],
       ];
+      // Owner-only rows: financial outcome + internal winnability score.
+      if (!isAssessor) {
+        metricsRows.push(
+          ["Estimated Annual Tax Savings", fmt(data.potentialSavings)],
+          ["Appeal Strength Score", scoreLabel(data.appealStrengthScore)],
+        );
+      }
       y = kvTable(doc, metricsRows, y, cw, { highlight: true });
 
       // Show top 3 comps (summary only)
@@ -761,16 +802,30 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
 
     y += 4;
     y = subHeader(doc, "Key Valuation Metrics", y, cw);
+    // Owner-only rows (savings + strength score) suppressed in the assessor
+    // exhibit; gap label switched to neutral "Indicated Reduction" phrasing.
     const keyMetrics: [string, string][] = [
       ["County Assessed Value", fmt(data.assessedValue)],
       ["AppraiseAI Market Value Estimate", fmt(data.marketValueEstimate)],
-      ["Over-Assessment Amount", fmt(data.assessmentGap)],
-      ["Over-Assessment Percentage", overAssessmentPct],
-      ["Estimated Annual Tax Savings", fmt(data.potentialSavings)],
-      ["Appeal Strength Score", scoreLabel(data.appealStrengthScore)],
+      [
+        isAssessor ? "Indicated Reduction in Assessed Value" : "Over-Assessment Amount",
+        fmt(data.assessmentGap),
+      ],
+      [
+        isAssessor ? "Indicated Reduction Percentage" : "Over-Assessment Percentage",
+        overAssessmentPct,
+      ],
+    ];
+    if (!isAssessor) {
+      keyMetrics.push(
+        ["Estimated Annual Tax Savings", fmt(data.potentialSavings)],
+        ["Appeal Strength Score", scoreLabel(data.appealStrengthScore)],
+      );
+    }
+    keyMetrics.push(
       ["Number of Comparable Sales Analyzed", `${data.comparableSales?.length || 0}`],
       ["Effective Date of Value", reportDate],
-    ];
+    );
     y = kvTable(doc, keyMetrics, y, cw, { highlight: true });
 
     // Valuation Justification narrative
@@ -881,17 +936,34 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       ["Current Tax Year", `${new Date().getFullYear()}`],
       ["Current Assessed Value", fmt(data.assessedValue)],
       ["AppraiseAI Market Value Opinion", fmt(data.marketValueEstimate)],
-      ["Over-Assessment Amount", fmt(data.assessmentGap)],
-      ["Over-Assessment Percentage", overAssessmentPct],
+      [
+        isAssessor ? "Indicated Reduction in Assessed Value" : "Over-Assessment Amount",
+        fmt(data.assessmentGap),
+      ],
+      [
+        isAssessor ? "Indicated Reduction Percentage" : "Over-Assessment Percentage",
+        overAssessmentPct,
+      ],
       ["Assessment Ratio (Assessed / Market)", data.marketValueEstimate && data.assessedValue ? `${((data.assessedValue / data.marketValueEstimate) * 100).toFixed(1)}%` : "N/A"],
     ];
     y = kvTable(doc, assessHistoryRows, y, cw);
 
+    // Two flavors of the same paragraph: the assessor exhibit states the
+    // gap analytically and asks for a review; the owner copy adds the
+    // tax-overpayment dollar figure (owner financial outcome).
     y = bodyText(doc,
-      `Based on the analysis presented in this report, the current assessed value of ${fmt(data.assessedValue)} exceeds the estimated market value ` +
-      `of ${fmt(data.marketValueEstimate)} by ${fmt(data.assessmentGap)}, representing an over-assessment of ${overAssessmentPct}. ` +
-      `This level of over-assessment results in an estimated annual tax overpayment of ${fmt(data.potentialSavings)} and warrants ` +
-      `a formal appeal to the ${data.county ? data.county + " County" : "local"} Board of Review or equivalent assessment authority.`,
+      isAssessor
+        ? (
+            `Based on the analysis presented in this report, the current assessed value of ${fmt(data.assessedValue)} exceeds the estimated market value ` +
+            `of ${fmt(data.marketValueEstimate)} by ${fmt(data.assessmentGap)}, an indicated reduction of ${overAssessmentPct}. ` +
+            `The owner respectfully requests a review by the ${data.county ? data.county + " County" : "local"} Board of Review or equivalent assessment authority.`
+          )
+        : (
+            `Based on the analysis presented in this report, the current assessed value of ${fmt(data.assessedValue)} exceeds the estimated market value ` +
+            `of ${fmt(data.marketValueEstimate)} by ${fmt(data.assessmentGap)}, representing an over-assessment of ${overAssessmentPct}. ` +
+            `This level of over-assessment results in an estimated annual tax overpayment of ${fmt(data.potentialSavings)} and warrants ` +
+            `a formal appeal to the ${data.county ? data.county + " County" : "local"} Board of Review or equivalent assessment authority.`
+          ),
       y, cw
     );
 
@@ -1781,18 +1853,25 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       }
     }
 
-     // ─── TAX IMPACT ANALYSIS ─────────────────────────────────────
-    y = newPage(doc, reportId, pageCounter);
-    sectionNum++;
-    y = sectionHeader(doc, "TAX IMPACT ANALYSIS", y, cw, sectionNum);
+     // ─── TAX IMPACT ANALYSIS (owner-facing only) ─────────────────
+    // Quantifies the dollar impact on the OWNER. Skipped in the assessor
+    // exhibit — the assessor cares about market-value evidence, not the
+    // owner's projected savings or 10-year cumulative tax delta. The
+    // owner sees this content on the /analysis dashboard. Nested inside
+    // the !isAssessor gate so we don't even bump sectionNum or open a
+    // new page in the assessor PDF.
+    if (!isAssessor) {
+      y = newPage(doc, reportId, pageCounter);
+      sectionNum++;
+      y = sectionHeader(doc, "TAX IMPACT ANALYSIS", y, cw, sectionNum);
 
-    y = bodyText(doc,
-      `This section quantifies the financial impact of the over-assessment on the property owner's tax liability. ` +
-      `The calculations below demonstrate the potential tax savings if the assessed value is reduced to the market value indicated by this analysis.`,
-      y, cw
-    );
+      y = bodyText(doc,
+        `This section quantifies the financial impact of the over-assessment on the property owner's tax liability. ` +
+        `The calculations below demonstrate the potential tax savings if the assessed value is reduced to the market value indicated by this analysis.`,
+        y, cw
+      );
 
-    if (data.potentialSavings && data.assessedValue && data.marketValueEstimate && data.assessmentGap) {
+      if (data.potentialSavings && data.assessedValue && data.marketValueEstimate && data.assessmentGap) {
       // Derive effective tax rate from the savings and gap
       const taxRate = data.assessmentGap > 0
         ? (data.potentialSavings / data.assessmentGap)
@@ -1874,6 +1953,7 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         `a total savings of ${fmt(data.potentialSavings * 10)}, assuming stable tax rates.`,
         y, cw
       );
+      }
     }
 
     // ─── PROPERTY CONDITION FINDINGS ───────────────────────────────────

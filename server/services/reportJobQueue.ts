@@ -149,6 +149,11 @@ async function processReportJobAsync(jobId: number): Promise<void> {
 
     const reportData: AppraisalReportData = {
       submissionId: job.submissionId,
+      // The PDF emitted by this queue is the formal exhibit owners attach
+      // to their appeal filing — assessor-facing by design. Owner-only
+      // content (appeal-strength score, savings line, Tax Impact
+      // Analysis section, etc.) stays on the /analysis dashboard.
+      reportAudience: "assessor",
       address: submission.address,
       city: submission.city ?? undefined,
       state: submission.state ?? undefined,
