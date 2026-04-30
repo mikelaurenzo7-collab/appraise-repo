@@ -478,7 +478,7 @@ export async function generateEnhancedReportNarrative(
       conclusionAndRecommendation: extract("Conclusion and Recommendation"),
     };
   } catch (err) {
-    log.error("Claude narrative generation failed", { err: (err as Error).message });
+    log.error("Claude narrative generation failed", { err: err as Error });
     return null;
   }
 }
