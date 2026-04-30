@@ -227,8 +227,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       log.warn("Failed to send email for job", { jobId, err: (emailErr as Error).message });
     }
 
-    const durationMs2 = Date.now() - startTime;
-    log.info("Job completed", { jobId, durationMs: durationMs2 });
+    log.info("Job completed", { jobId, durationMs });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     log.error("Job failed", { jobId, err: errMsg });

@@ -36,6 +36,7 @@ import {
 import { sendAnalysisConfirmationEmail } from "../_core/emailService";
 import { broadcastAnalysisUpdate } from "../_core/sseBroadcaster";
 import { scopedLogger } from "../_core/logger";
+import { randomBytes } from "crypto";
 
 const log = scopedLogger("AnalysisJob");
 
@@ -45,20 +46,26 @@ const activeJobs = new Set<number>();
 /**
  * Queue a background analysis job with optional delay.
  * Safe to call multiple times — duplicate jobs are silently dropped.
+ * @param traceId - Caller-supplied trace ID for log correlation. Falls back to a
+ *                  freshly generated ID so every job always has a trace ID.
  */
 export function queueAnalysisJob(submissionId: number, delayMs = 1000, traceId?: string): void {
+  const tid = traceId ?? randomBytes(4).toString("hex");
   if (activeJobs.has(submissionId)) {
-    log.info("Job already queued/running — skipping duplicate", { submissionId, traceId });
+    log.info("Job already queued/running — skipping duplicate", { submissionId, traceId: tid });
     return;
   }
   setTimeout(() => {
-    analyzePropertySubmission(submissionId, traceId).catch((err: unknown) => {
-      log.error("Unhandled error in analysis job", { submissionId, traceId, err: (err as Error).message });
+    analyzePropertySubmission(submissionId, tid).catch((err: unknown) => {
+      log.error("Unhandled error in analysis job", { submissionId, traceId: tid, err: (err as Error).message });
     });
   }, delayMs);
 }
 
 export async function analyzePropertySubmission(submissionId: number, traceId?: string): Promise<void> {
+  // Ensure every execution has a trace ID for log correlation even when called
+  // directly (e.g., from a recovery sweep or test harness).
+  const tid = traceId ?? randomBytes(4).toString("hex");
   if (activeJobs.has(submissionId)) return;
   activeJobs.add(submissionId);
   const startTime = Date.now();
@@ -66,11 +73,11 @@ export async function analyzePropertySubmission(submissionId: number, traceId?: 
   try {
     const submission = await getPropertySubmissionById(submissionId);
     if (!submission) {
-      log.error("Submission not found", { submissionId, traceId });
+      log.error("Submission not found", { submissionId, traceId: tid });
       return;
     }
 
-    log.info("Starting analysis", { submissionId, traceId, address: submission.address });
+    log.info("Starting analysis", { submissionId, traceId: tid, address: submission.address });
 
     // ── Mark as analyzing ────────────────────────────────────────────────────
     await updatePropertySubmission(submissionId, { status: "analyzing" });
@@ -199,14 +206,14 @@ export async function analyzePropertySubmission(submissionId: number, traceId?: 
       comparableSales: filteredComps.length > 0 ? filteredComps : rawComps, // fail-safe: don't analyze with zero comps
     };
     if (rawComps.length !== filteredComps.length && filteredComps.length > 0) {
-      log.info("Comp filter applied", { submissionId, traceId, scenario: userScenario, before: rawComps.length, after: filteredComps.length });
+      log.info("Comp filter applied", { submissionId, traceId: tid, scenario: userScenario, before: rawComps.length, after: filteredComps.length });
     }
 
     const [analysis, photoSummaryParallel] = await Promise.all([
       analyzeProperty(filteredPropertyData, propertyType, userScenario),
       photosForAnalysis.length > 0
         ? analyzePropertyPhotos(photosForAnalysis).catch((err) => {
-            log.warn("Photo analysis failed (non-blocking)", { submissionId, traceId, err: (err as Error).message });
+            log.warn("Photo analysis failed (non-blocking)", { submissionId, traceId: tid, err: (err as Error).message });
             return null;
           })
         : Promise.resolve(null as PhotoAnalysisSummary | null),
@@ -453,7 +460,7 @@ export async function analyzePropertySubmission(submissionId: number, traceId?: 
     await notifyOwner({
       title: `Analysis Complete — ${strengthLabel} (${scenarioContext.scenarioLabel})`,
       content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${appealStrengthAfterPhotos}/100\nPotential Savings: $${scenarioTaxSavings.toLocaleString()}/yr\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
-    }).catch((err: unknown) => log.error("Failed to notify owner", { submissionId, traceId, err: (err as Error).message }));
+    }).catch((err: unknown) => log.error("Failed to notify owner", { submissionId, traceId: tid, err: (err as Error).message }));
     // Queue report generation (24-hour SLA)
 
     // ── Step 9b: Send user email confirmation ────────────────────────────────
@@ -463,14 +470,14 @@ export async function analyzePropertySubmission(submissionId: number, traceId?: 
         userName: submission.email.split("@")[0],
         propertyAddress: submission.address,
         appealStrengthScore: appealStrengthAfterPhotos,
-      }).catch((err: unknown) => log.error("Failed to send confirmation email", { submissionId, traceId, err: (err as Error).message }));
+      }).catch((err: unknown) => log.error("Failed to send confirmation email", { submissionId, traceId: tid, err: (err as Error).message }));
     }
 
-    log.info("Analysis completed", { submissionId, traceId, durationMs, score: appealStrengthAfterPhotos, scenario: userScenario });
+    log.info("Analysis completed", { submissionId, traceId: tid, durationMs, score: appealStrengthAfterPhotos, scenario: userScenario });
 
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    log.error("Analysis pipeline error", { submissionId, traceId, err: errMsg });
+    log.error("Analysis pipeline error", { submissionId, traceId: tid, err: errMsg });
 
     await persistActivityLog({
       submissionId,

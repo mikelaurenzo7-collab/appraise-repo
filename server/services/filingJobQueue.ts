@@ -32,6 +32,18 @@ import { scopedLogger } from "../_core/logger";
 
 const log = scopedLogger("FilingQueue");
 
+/**
+ * Retry backoff parameters.
+ *
+ * Retry philosophy: only exceptions thrown during dispatch are retried
+ * (transient errors — network blips, portal downtime, Lob API unavailability).
+ * Validation / configuration failures (auth missing, county unsupported) use
+ * early-return paths inside executeFilingJob and are NOT exceptions, so they
+ * are never retried. This mirrors the behaviour in reportJobQueue.ts.
+ */
+const BASE_BACKOFF_MS = 2_000;
+const MAX_BACKOFF_MS = 60_000;
+
 export type QueuedFilingJob = {
   jobId: number;
   submissionId: number;
@@ -269,7 +281,7 @@ async function executeFilingJob(jobId: number): Promise<void> {
  */
 async function scheduleFilingRetry(jobId: number, retryCount: number, maxRetries: number, errMsg: string): Promise<void> {
   if (retryCount < maxRetries) {
-    const backoffMs = Math.min(2_000 * Math.pow(2, retryCount), 60_000);
+    const backoffMs = Math.min(BASE_BACKOFF_MS * Math.pow(2, retryCount), MAX_BACKOFF_MS);
     const jitterMs = Math.random() * 2_000;
     const delayMs = backoffMs + jitterMs;
 
