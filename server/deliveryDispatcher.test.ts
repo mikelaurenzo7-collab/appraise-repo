@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { County } from "../drizzle/schema";
+import type { County } from "../drizzle/schema.pg";
 import { sendLobLetter, getLobLetterStatus } from "./services/lobDelivery";
 import { sendAppealEmail, buildAppealEmailBody } from "./services/emailDelivery";
 

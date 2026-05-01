@@ -14,7 +14,7 @@
  */
 
 import { getDb } from "../db";
-import { jurisdictionRules } from "../../drizzle/schema";
+import { jurisdictionRules } from "../../drizzle/schema.pg";
 import { eq, and } from "drizzle-orm";
 
 interface SyncSource {

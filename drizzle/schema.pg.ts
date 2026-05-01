@@ -34,12 +34,17 @@ export const userScenarioEnum = pgEnum("user_scenario", [
   "distressed_condition",
   "new_construction",
   "recently_renovated",
+  "senior_homestead",
+  "veteran_disability",
+  "financial_hardship",
+  "mixed_use",
   "none",
 ]);
 export const submissionStatusEnum = pgEnum("submission_status", [
   "pending",
   "analyzing",
   "analyzed",
+  "error",
   "contacted",
   "appeal-filed",
   "hearing-scheduled",
@@ -48,10 +53,18 @@ export const submissionStatusEnum = pgEnum("submission_status", [
   "withdrawn",
   "archived",
 ]);
-export const filingMethodEnum = pgEnum("filing_method", ["poa", "pro-se", "none"]);
+export const filingMethodEnum = pgEnum("filing_method", [
+  "poa",
+  "pro-se",
+  "none",
+  "automated_standard",
+  "automated_express",
+]);
 export const recommendedApproachEnum = pgEnum("recommended_approach", [
   "poa",
   "pro-se",
+  "automated_standard",
+  "automated_express",
   "not-recommended",
 ]);
 export const appealOutcomeEnum = pgEnum("appeal_outcome", [
@@ -172,7 +185,12 @@ export const proSeFilingStatusEnum = pgEnum("pro_se_filing_status", [
   "completed",
   "abandoned",
 ]);
-export const filingTierEnum = pgEnum("filing_tier", ["pro-se", "poa"]);
+export const filingTierEnum = pgEnum("filing_tier", [
+  "pro-se",
+  "poa",
+  "automated_standard",
+  "automated_express",
+]);
 export const paymentStatusEnum = pgEnum("payment_status", [
   "pending",
   "paid",
@@ -192,19 +210,50 @@ export const paralegalQueueStatusEnum = pgEnum("paralegal_queue_status", [
   "completed",
   "blocked",
 ]);
+export const jurisdictionAppealDeadlineTypeEnum = pgEnum(
+  "jurisdiction_appeal_deadline_type",
+  ["from_notice", "calendar_year", "fiscal_year", "rolling"]
+);
+export const referralTierEnum = pgEnum("referral_tier", [
+  "bronze",
+  "silver",
+  "gold",
+  "platinum",
+]);
+export const referralStatusEnum = pgEnum("referral_status", [
+  "clicked",
+  "signed_up",
+  "submitted",
+  "paid",
+  "credited",
+  "reversed",
+]);
+export const referralPayoutMethodEnum = pgEnum("referral_payout_method", [
+  "stripe_transfer",
+  "manual",
+]);
+export const referralPayoutStatusEnum = pgEnum("referral_payout_status", [
+  "pending",
+  "processing",
+  "completed",
+  "failed",
+]);
 
 // =============================================================================
 // TABLES
 // =============================================================================
 
 export const users = pgTable("users", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   openId: varchar("open_id", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("login_method", { length: 64 }),
   role: userRoleEnum("role").default("user").notNull(),
   stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+  // SMS Notifications
+  phoneNumber: varchar("phone_number", { length: 20 }),
+  smsOptIn: boolean("sms_opt_in").default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -220,7 +269,7 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 export const propertySubmissions = pgTable("property_submissions", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   address: varchar("address", { length: 255 }).notNull(),
   city: varchar("city", { length: 100 }),
   state: varchar("state", { length: 2 }),
@@ -247,6 +296,12 @@ export const propertySubmissions = pgTable("property_submissions", {
   county: varchar("county", { length: 100 }),
   assessor: varchar("assessor", { length: 255 }),
   appealDeadline: timestamp("appeal_deadline", { withTimezone: true }),
+  // Google Maps imagery (captured async after submission)
+  streetViewUrl: varchar("street_view_url", { length: 500 }),
+  satelliteUrl: varchar("satellite_url", { length: 500 }),
+  roadmapUrl: varchar("roadmap_url", { length: 500 }),
+  lat: varchar("lat", { length: 20 }),
+  lng: varchar("lng", { length: 20 }),
   status: submissionStatusEnum("status").default("pending").notNull(),
   filingMethod: filingMethodEnum("filing_method"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -261,7 +316,7 @@ export type PropertySubmission = typeof propertySubmissions.$inferSelect;
 export type InsertPropertySubmission = typeof propertySubmissions.$inferInsert;
 
 export const propertyAnalysis = pgTable("property_analysis", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   lightboxData: text("lightbox_data"),
   rentcastData: text("rentcast_data"),
@@ -278,6 +333,12 @@ export const propertyAnalysis = pgTable("property_analysis", {
   scenarioContext: text("scenario_context"),
   valuationApproachWeights: text("valuation_approach_weights"),
   compQualityBreakdown: text("comp_quality_breakdown"),
+  // Detailed valuation data (persisted for report generation)
+  adjustmentGrid: text("adjustment_grid"),
+  costApproachData: text("cost_approach_data"),
+  incomeApproachData: text("income_approach_data"),
+  marketTrendData: text("market_trend_data"),
+  reconciliationNarrative: text("reconciliation_narrative"),
   reportUrl: varchar("report_url", { length: 500 }),
   reportGeneratedAt: timestamp("report_generated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -292,7 +353,7 @@ export type PropertyAnalysis = typeof propertyAnalysis.$inferSelect;
 export type InsertPropertyAnalysis = typeof propertyAnalysis.$inferInsert;
 
 export const appealOutcomes = pgTable("appeal_outcomes", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   outcome: appealOutcomeEnum("outcome").notNull(),
   originalAssessedValue: integer("original_assessed_value"),
@@ -333,7 +394,7 @@ export type AppealOutcome = typeof appealOutcomes.$inferSelect;
 export type InsertAppealOutcome = typeof appealOutcomes.$inferInsert;
 
 export const activityLogs = pgTable("activity_logs", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id"),
   type: varchar("type", { length: 64 }).notNull(),
   actor: activityActorEnum("actor").default("system").notNull(),
@@ -351,7 +412,7 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
 export const apiCache = pgTable("api_cache", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   cacheKey: varchar("cache_key", { length: 255 }).notNull().unique(),
   source: varchar("source", { length: 64 }).notNull(),
   responseData: text("response_data").notNull(),
@@ -366,7 +427,7 @@ export type ApiCache = typeof apiCache.$inferSelect;
 export type InsertApiCache = typeof apiCache.$inferInsert;
 
 export const propertyPhotos = pgTable("property_photos", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   photoUrl: varchar("photo_url", { length: 500 }).notNull(),
   photoKey: varchar("photo_key", { length: 255 }).notNull(),
@@ -382,7 +443,7 @@ export type PropertyPhoto = typeof propertyPhotos.$inferSelect;
 export type InsertPropertyPhoto = typeof propertyPhotos.$inferInsert;
 
 export const reportPreferences = pgTable("report_preferences", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull().unique(),
   includeCostApproach: includeOptionEnum("include_cost_approach").default(
     "auto"
@@ -417,7 +478,7 @@ export type ReportPreference = typeof reportPreferences.$inferSelect;
 export type InsertReportPreference = typeof reportPreferences.$inferInsert;
 
 export const reportJobs = pgTable("report_jobs", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   userId: integer("user_id").notNull(),
   status: reportJobStatusEnum("status").default("queued").notNull(),
@@ -443,7 +504,7 @@ export type ReportJob = typeof reportJobs.$inferSelect;
 export type InsertReportJob = typeof reportJobs.$inferInsert;
 
 export const counties = pgTable("counties", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   state: varchar("state", { length: 2 }).notNull(),
   countyName: varchar("county_name", { length: 100 }).notNull(),
   countyCode: varchar("county_code", { length: 10 }),
@@ -498,7 +559,7 @@ export type County = typeof counties.$inferSelect;
 export type InsertCounty = typeof counties.$inferInsert;
 
 export const filingRecipes = pgTable("filing_recipes", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   countyId: integer("county_id").notNull(),
   version: integer("version").notNull().default(1),
   portalUrl: varchar("portal_url", { length: 500 }).notNull(),
@@ -523,7 +584,7 @@ export type FilingRecipe = typeof filingRecipes.$inferSelect;
 export type InsertFilingRecipe = typeof filingRecipes.$inferInsert;
 
 export const scrivenerAuthorizations = pgTable("scrivener_authorizations", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   userId: integer("user_id"),
   typedName: varchar("typed_name", { length: 255 }).notNull(),
@@ -542,7 +603,7 @@ export type InsertScrivenerAuthorization =
   typeof scrivenerAuthorizations.$inferInsert;
 
 export const filingJobs = pgTable("filing_jobs", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   userId: integer("user_id").notNull(),
   recipeId: integer("recipe_id"),
@@ -584,7 +645,7 @@ export type FilingJob = typeof filingJobs.$inferSelect;
 export type InsertFilingJob = typeof filingJobs.$inferInsert;
 
 export const refundRequests = pgTable("refund_requests", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   userId: integer("user_id").notNull(),
   stripeChargeId: varchar("stripe_charge_id", { length: 255 }),
@@ -624,7 +685,7 @@ export type InsertStripeEventProcessed =
   typeof stripeEventsProcessed.$inferInsert;
 
 export const countyWaitlist = pgTable("county_waitlist", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   email: varchar("email", { length: 320 }).notNull(),
   state: varchar("state", { length: 2 }),
   countyName: varchar("county_name", { length: 100 }),
@@ -640,7 +701,7 @@ export type CountyWaitlistEntry = typeof countyWaitlist.$inferSelect;
 export type InsertCountyWaitlistEntry = typeof countyWaitlist.$inferInsert;
 
 export const poaFilings = pgTable("poa_filings", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   countyId: integer("county_id").notNull(),
   status: poaFilingStatusEnum("status").default("pending").notNull(),
@@ -668,7 +729,7 @@ export type POAFiling = typeof poaFilings.$inferSelect;
 export type InsertPOAFiling = typeof poaFilings.$inferInsert;
 
 export const proSeFilings = pgTable("pro_se_filings", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   countyId: integer("county_id").notNull(),
   status: proSeFilingStatusEnum("status").default("started").notNull(),
@@ -695,7 +756,7 @@ export type ProSeFiling = typeof proSeFilings.$inferSelect;
 export type InsertProSeFiling = typeof proSeFilings.$inferInsert;
 
 export const filingTiers = pgTable("filing_tiers", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   submissionId: integer("submission_id").notNull(),
   tier: filingTierEnum("tier").notNull(),
   proSePrice: integer("pro_se_price"),
@@ -719,7 +780,7 @@ export type FilingTier = typeof filingTiers.$inferSelect;
 export type InsertFilingTier = typeof filingTiers.$inferInsert;
 
 export const paralegalsQueue = pgTable("paralegals_queue", {
-  id: serial("id").primaryKey().autoincrement(),
+  id: serial("id").primaryKey(),
   poaFilingId: integer("poa_filing_id").notNull(),
   assignedTo: varchar("assigned_to", { length: 255 }),
   priority: paralegalQueuePriorityEnum("priority")
@@ -727,9 +788,11 @@ export const paralegalsQueue = pgTable("paralegals_queue", {
     .notNull(),
   status: paralegalQueueStatusEnum("status").default("queued").notNull(),
   notes: text("notes"),
+  blockers: text("blockers"),
   queuedAt: timestamp("queued_at", { withTimezone: true }).defaultNow().notNull(),
   startedAt: timestamp("started_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  deadline: timestamp("deadline", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -740,3 +803,98 @@ export const paralegalsQueue = pgTable("paralegals_queue", {
 
 export type ParalegalsQueue = typeof paralegalsQueue.$inferSelect;
 export type InsertParalegalsQueue = typeof paralegalsQueue.$inferInsert;
+// Aliases for back-compat with code referencing the old names
+export type ParalegalsQueueItem = ParalegalsQueue;
+export type InsertParalegalsQueueItem = InsertParalegalsQueue;
+
+// =============================================================================
+// REFERRAL TABLES
+// =============================================================================
+
+export const referralCodes = pgTable("referral_codes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().unique(),
+  code: varchar("code", { length: 20 }).notNull().unique(),
+  tier: referralTierEnum("tier").default("bronze").notNull(),
+  lifetimeReferrals: integer("lifetime_referrals").default(0).notNull(),
+  lifetimeEarningsCents: integer("lifetime_earnings_cents").default(0).notNull(),
+  pendingBalanceCents: integer("pending_balance_cents").default(0).notNull(),
+  paidOutCents: integer("paid_out_cents").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type ReferralCode = typeof referralCodes.$inferSelect;
+export type InsertReferralCode = typeof referralCodes.$inferInsert;
+
+export const referralTracking = pgTable("referral_tracking", {
+  id: serial("id").primaryKey(),
+  referrerUserId: integer("referrer_user_id").notNull(),
+  referredUserId: integer("referred_user_id"),
+  referredEmail: varchar("referred_email", { length: 320 }),
+  submissionId: integer("submission_id"),
+  referralCode: varchar("referral_code", { length: 20 }).notNull(),
+  status: referralStatusEnum("status").default("clicked").notNull(),
+  commissionCents: integer("commission_cents").default(0).notNull(),
+  commissionTier: referralTierEnum("commission_tier"),
+  stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+  clickedAt: timestamp("clicked_at", { withTimezone: true }),
+  signedUpAt: timestamp("signed_up_at", { withTimezone: true }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  creditedAt: timestamp("credited_at", { withTimezone: true }),
+  reversedAt: timestamp("reversed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type ReferralTrackingEntry = typeof referralTracking.$inferSelect;
+export type InsertReferralTrackingEntry = typeof referralTracking.$inferInsert;
+
+export const referralPayouts = pgTable("referral_payouts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  status: referralPayoutStatusEnum("status").default("pending").notNull(),
+  method: referralPayoutMethodEnum("method").default("stripe_transfer").notNull(),
+  stripeTransferId: varchar("stripe_transfer_id", { length: 255 }),
+  notes: text("notes"),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type ReferralPayout = typeof referralPayouts.$inferSelect;
+export type InsertReferralPayout = typeof referralPayouts.$inferInsert;
+
+// =============================================================================
+// JURISDICTION RULES
+// =============================================================================
+
+export const jurisdictionRules = pgTable("jurisdiction_rules", {
+  id: serial("id").primaryKey(),
+  state: varchar("state", { length: 2 }).notNull(),
+  county: varchar("county", { length: 100 }).notNull(),
+  assessmentRate: decimal("assessment_rate", { precision: 5, scale: 2 }).notNull(),
+  appealDeadlineDays: integer("appeal_deadline_days").notNull(),
+  appealDeadlineType: jurisdictionAppealDeadlineTypeEnum("appeal_deadline_type").notNull(),
+  minAssessmentDifference: integer("min_assessment_difference"),
+  minAssessmentPercentage: decimal("min_assessment_percentage", { precision: 5, scale: 2 }),
+  successRate: integer("success_rate"),
+  averageResolutionDays: integer("average_resolution_days"),
+  filingMethods: varchar("filing_methods", { length: 255 }),
+  documentationRequired: text("documentation_required"),
+  hearingRequired: boolean("hearing_required").default(false),
+  contingencyFeeAllowed: boolean("contingency_fee_allowed").default(false),
+  maxContingencyFee: decimal("max_contingency_fee", { precision: 5, scale: 2 }),
+  notes: text("notes"),
+  source: varchar("source", { length: 255 }),
+  sourceUrl: varchar("source_url", { length: 500 }),
+  lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }).notNull(),
+  lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type JurisdictionRule = typeof jurisdictionRules.$inferSelect;
+export type InsertJurisdictionRule = typeof jurisdictionRules.$inferInsert;

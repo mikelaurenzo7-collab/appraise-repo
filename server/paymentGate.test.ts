@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
-import type { User } from "../drizzle/schema";
+import type { User } from "../drizzle/schema.pg";
 
 const mockGetSubmissionById = vi.fn();
 const mockGetFilingTierBySubmission = vi.fn();

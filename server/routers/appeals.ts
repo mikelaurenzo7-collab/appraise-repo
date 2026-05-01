@@ -14,7 +14,7 @@ import {
   formatDeadlineCalendar,
 } from "../services/comprehensiveAppealService";
 import { getDb } from "../db";
-import { propertySubmissions } from "../../drizzle/schema";
+import { propertySubmissions } from "../../drizzle/schema.pg";
 import { eq } from "drizzle-orm";
 
 export const appealsRouter = router({

@@ -4,7 +4,7 @@
  * Run this via: import { seedJurisdictionRules } from "./db-seed-jurisdiction-rules"; await seedJurisdictionRules();
  */
 import { getDb } from "./db";
-import { jurisdictionRules } from "../drizzle/schema";
+import { jurisdictionRules } from "../drizzle/schema.pg";
 
 export async function seedJurisdictionRules() {
   try {

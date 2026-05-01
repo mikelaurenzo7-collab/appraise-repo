@@ -6,7 +6,7 @@
 import { router, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { getDb } from "../db";
-import { users } from "../../drizzle/schema";
+import { users } from "../../drizzle/schema.pg";
 import { eq } from "drizzle-orm";
 import { formatPhoneNumber, isValidPhoneNumber } from "../_core/smsService";
 import { TRPCError } from "@trpc/server";

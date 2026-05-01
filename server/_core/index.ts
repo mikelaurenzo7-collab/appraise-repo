@@ -39,7 +39,7 @@ if (process.env.VERCEL !== "1") {
  * blocked by, e.g., not having a Stripe key.
  */
 function validateEnvOrExit() {
-  const required = ["DATABASE_URL", "JWT_SECRET"];
+  const required = ["DATABASE_URL", "JWT_SECRET", "SUPABASE_URL", "SUPABASE_ANON_KEY"];
   const productionOnly = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"];
   const missing = required.filter((k) => !process.env[k]);
   const missingProd =

@@ -1,5 +1,5 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import type { User } from "../../drizzle/schema";
+import type { User } from "../../drizzle/schema.pg";
 import { verifyJWT } from "./auth";
 
 export type TrpcContext = {

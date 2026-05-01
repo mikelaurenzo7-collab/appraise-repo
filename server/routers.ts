@@ -46,7 +46,7 @@ import {
   getFilingStats,
 } from "./db";
 import { eq } from "drizzle-orm";
-import { filingTiers } from "../drizzle/schema";
+import { filingTiers } from "../drizzle/schema.pg";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 import { queueReportGeneration } from "./services/reportJobQueue";
@@ -1398,7 +1398,7 @@ export const appRouter = router({
       if (!db) throw new Error("Database unavailable");
       const { COUNTY_SEED } = await import("./routers/admin");
       let seeded = 0;
-      const { counties: countiesTable } = await import("../drizzle/schema");
+      const { counties: countiesTable } = await import("../drizzle/schema.pg");
       for (const county of COUNTY_SEED) {
         const update: Record<string, unknown> = {
           portalUrl: county.portalUrl,
@@ -1415,7 +1415,7 @@ export const appRouter = router({
           const v = (county as Record<string, unknown>)[f];
           if (v !== undefined) update[f] = v;
         }
-        await db.insert(countiesTable).values(county as any).onDuplicateKeyUpdate({ set: update });
+        await db.insert(countiesTable).values(county as any).onConflictDoUpdate({ target: countiesTable.id, set: update });
         seeded++;
       }
       return { success: true, message: `Seeded ${seeded} counties`, count: seeded };
@@ -1427,7 +1427,7 @@ export const appRouter = router({
       if (!db) throw new Error("Database unavailable");
       const { RECIPE_SEEDS } = await import("./seeds/filingRecipes.seed");
       const { RECIPE_SEEDS_EXPANSION } = await import("./seeds/filingRecipesExpansion.seed");
-      const { counties: countiesTable, filingRecipes: filingRecipesTable } = await import("../drizzle/schema");
+      const { counties: countiesTable, filingRecipes: filingRecipesTable } = await import("../drizzle/schema.pg");
       const { eq } = await import("drizzle-orm");
       const allRecipes = [...RECIPE_SEEDS, ...RECIPE_SEEDS_EXPANSION];
       let seeded = 0; let skipped = 0; const errors: string[] = [];

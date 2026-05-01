@@ -16,7 +16,7 @@
  */
 
 import { and, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
-import { filingJobs } from "../../drizzle/schema";
+import { filingJobs } from "../../drizzle/schema.pg";
 import { getDb, persistActivityLog } from "../db";
 import { getLobLetterStatus } from "./lobDelivery";
 

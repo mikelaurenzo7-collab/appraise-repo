@@ -4,7 +4,7 @@
  */
 
 import { getCountyById } from "../db";
-import { County } from "../../drizzle/schema";
+import { County } from "../../drizzle/schema.pg";
 
 export interface FormField {
   name: string;

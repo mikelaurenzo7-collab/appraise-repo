@@ -24,7 +24,7 @@ import {
   getActiveRecipeForCounty,
 } from "../db";
 import { storageGet } from "../storage";
-import type { County, FilingJob } from "../../drizzle/schema";
+import type { County, FilingJob } from "../../drizzle/schema.pg";
 import { sendLobLetter, type LobServiceLevel } from "./lobDelivery";
 import { sendAppealEmail, buildAppealEmailBody } from "./emailDelivery";
 
@@ -38,6 +38,12 @@ export interface DispatchRequest {
   job: FilingJob;
   countyId: number;
   perRunInputs: Record<string, string | number | null>;
+  /**
+   * When true, forces mail channel to mail_certified (Lob Certified Mail with
+   * Return Receipt). Used by the automated_express tier. When false / omitted,
+   * county's configured channel is used as-is.
+   */
+  preferCertified?: boolean;
 }
 
 export interface DispatchResult {
@@ -69,23 +75,37 @@ export class DispatchError extends Error {
  *   - preferred=email but no intake email on file → fallbackChannel
  *   - preferred=mail_* but no mailing address on file → throws (bug)
  */
-export async function resolveChannel(county: County): Promise<DeliveryChannel | "unsupported"> {
-  const preferred = county.preferredChannel;
+export async function resolveChannel(
+  county: County,
+  options?: { preferCertified?: boolean }
+): Promise<DeliveryChannel | "unsupported"> {
+  let preferred: typeof county.preferredChannel | "mail_certified" = county.preferredChannel;
   if (preferred === "unsupported") return "unsupported";
 
   if (preferred === "portal") {
-    const recipe = await getActiveRecipeForCounty(county.id);
-    const recipeUsable =
-      recipe &&
-      (recipe.verificationStatus === "verified" ||
-        recipe.verificationStatus === "staging" ||
-        process.env.ALLOW_DRAFT_RECIPES === "1");
-    if (recipeUsable) return "portal";
+    // Portal filing requires Playwright / Chromium. On Vercel serverless this
+    // is not viable (60 s limit, no system libs). Gate behind ALLOW_PLAYWRIGHT
+    // so the fallback mail path runs on Vercel while a self-hosted worker can
+    // still use this path in the future by setting the env var.
+    if (process.env.ALLOW_PLAYWRIGHT === "1") {
+      const recipe = await getActiveRecipeForCounty(county.id);
+      const recipeUsable =
+        recipe &&
+        (recipe.verificationStatus === "verified" ||
+          recipe.verificationStatus === "staging" ||
+          process.env.ALLOW_DRAFT_RECIPES === "1");
+      if (recipeUsable) return "portal";
+    }
     // Fall through to fallback.
   }
 
   if (preferred === "email") {
     if (county.intakeEmail && county.intakeEmail.includes("@")) return "email";
+  }
+
+  if (options?.preferCertified && (preferred === "mail_first_class")) {
+    // Upgrade first-class to certified when the caller explicitly requests it.
+    preferred = "mail_certified";
   }
 
   if (preferred === "mail_certified" || preferred === "mail_first_class") {
@@ -149,7 +169,7 @@ export async function dispatchFiling(req: DispatchRequest): Promise<DispatchResu
     };
   }
 
-  const channel = await resolveChannel(county);
+  const channel = await resolveChannel(county, { preferCertified: req.preferCertified });
   if (channel === "unsupported") {
     return {
       success: false,

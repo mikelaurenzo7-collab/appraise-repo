@@ -141,6 +141,8 @@ export async function processOnePendingJob(): Promise<boolean> {
       job: row,
       countyId,
       perRunInputs,
+      // Automated Express tier → force Lob Certified Mail with Return Receipt.
+      preferCertified: submission.filingMethod === "automated_express",
     });
 
     // Persist channel-specific artifacts.
@@ -326,7 +328,7 @@ async function resolveCountyIdForJob(row: { id: number; submissionId: number; re
     const dbHelpers = await import("../db");
     const dbInstance = await dbHelpers.getDb();
     if (dbInstance) {
-      const { filingRecipes } = await import("../../drizzle/schema");
+      const { filingRecipes } = await import("../../drizzle/schema.pg");
       const { eq } = await import("drizzle-orm");
       const recipe = await dbInstance
         .select()
@@ -344,7 +346,7 @@ async function resolveCountyIdForJob(row: { id: number; submissionId: number; re
   if (submission?.county && submission.state) {
     const dbInstance = await dbHelpers.getDb();
     if (dbInstance) {
-      const { counties } = await import("../../drizzle/schema");
+      const { counties } = await import("../../drizzle/schema.pg");
       const { and, eq } = await import("drizzle-orm");
       const match = await dbInstance
         .select()

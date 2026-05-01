@@ -17,7 +17,7 @@ import {
   counties,
   filingJobs,
   propertySubmissions,
-} from "../../drizzle/schema";
+} from "../../drizzle/schema.pg";
 import { buildAppUrl } from "../_core/appUrl";
 import { getDb, persistActivityLog } from "../db";
 import { sendFilingDeadlineReminderEmail } from "../_core/emailService";

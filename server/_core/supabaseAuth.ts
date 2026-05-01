@@ -18,8 +18,15 @@ import { signJWT, verifyJWT, COOKIE_NAME, ONE_YEAR_MS } from "./auth";
 import { getSessionCookieOptions } from "./cookies";
 import * as db from "../db";
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "[Startup] Missing required environment variables: SUPABASE_URL, SUPABASE_ANON_KEY. " +
+    "Set them in your Vercel project settings or .env file."
+  );
+}
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];

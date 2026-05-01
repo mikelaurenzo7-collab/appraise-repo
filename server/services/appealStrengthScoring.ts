@@ -20,7 +20,7 @@
 
 import { getDb } from "../db";
 import { eq, and } from "drizzle-orm";
-import { appealOutcomes, propertySubmissions, propertyAnalysis } from "../../drizzle/schema";
+import { appealOutcomes, propertySubmissions, propertyAnalysis } from "../../drizzle/schema.pg";
 
 export interface AppealStrengthScore {
   overallScore: number; // 0-100

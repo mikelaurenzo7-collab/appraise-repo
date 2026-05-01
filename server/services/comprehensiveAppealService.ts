@@ -8,7 +8,7 @@ import { safeJsonParse } from "../_core/safeJson";
 import { storagePut } from "../storage";
 import { getDb } from "../db";
 import { eq } from "drizzle-orm";
-import { propertySubmissions, propertyPhotos, propertyAnalysis, reportJobs } from "../../drizzle/schema";
+import { propertySubmissions, propertyPhotos, propertyAnalysis, reportJobs } from "../../drizzle/schema.pg";
 
 /**
  * PART 1: COUNTY DEADLINE CALENDAR

@@ -19,7 +19,7 @@
 import express, { Request, Response } from "express";
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
-import { filingJobs } from "../../drizzle/schema";
+import { filingJobs } from "../../drizzle/schema.pg";
 import { getDb, persistActivityLog } from "../db";
 
 const LOB_RAW_LIMIT = "2mb";

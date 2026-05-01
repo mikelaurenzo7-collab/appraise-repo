@@ -6,7 +6,7 @@
  * prompt caching to produce richer multi-section narratives for the PDF.
  */
 
-import { PropertyAnalysis, PropertySubmission } from "../../drizzle/schema";
+import { PropertyAnalysis, PropertySubmission } from "../../drizzle/schema.pg";
 import { generateNarrativeWithClaude, isClaudeAvailable } from "../_core/claude";
 
 export interface AppraisalReportData {

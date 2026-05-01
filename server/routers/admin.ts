@@ -8,7 +8,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { counties, filingRecipes } from "../../drizzle/schema";
+import { counties, filingRecipes } from "../../drizzle/schema.pg";
 import { COUNTY_SEED_EXPANSION } from "../seeds/countySeedExpansion";
 import { COUNTY_SEED_PHASE3 } from "../seeds/countySeedPhase3";
 import { RECIPE_SEEDS } from "../seeds/filingRecipes.seed";
@@ -2830,7 +2830,7 @@ export const adminRouter = router({
     try {
       let seeded = 0;
       for (const county of COUNTY_SEED) {
-        // onDuplicateKeyUpdate now backfills the channel-routing fields too,
+        // onConflictDoUpdate backfills the channel-routing fields too,
         // so adding mailing addresses for previously-portal-only counties
         // takes effect on the next admin seed run without a manual SQL
         // migration. Every field explicitly listed below is one we want to
@@ -2860,7 +2860,8 @@ export const adminRouter = router({
           const v = (county as Record<string, unknown>)[f];
           if (v !== undefined) update[f] = v;
         }
-        await db.insert(counties).values(county as any).onDuplicateKeyUpdate({
+        await db.insert(counties).values(county as any).onConflictDoUpdate({
+          target: counties.id,
           set: update,
         });
         seeded++;

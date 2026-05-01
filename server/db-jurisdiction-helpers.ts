@@ -4,7 +4,7 @@
  * Provides fallback to default rules if county not found
  */
 import { getDb } from "./db";
-import { jurisdictionRules } from "../drizzle/schema";
+import { jurisdictionRules } from "../drizzle/schema.pg";
 import { eq, and } from "drizzle-orm";
 import { safeJsonParse } from "./_core/safeJson";
 
