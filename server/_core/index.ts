@@ -25,8 +25,11 @@ import { checkRateLimit } from "./rateLimit";
 // In-memory SSE clients for real-time analysis streaming
 const sseClients = new Map<number, express.Response[]>();
 
-// Periodic cleanup of old SSE queues
-setInterval(() => cleanupOldQueues(), 5 * 60 * 1000);
+// Periodic cleanup of old SSE queues — only meaningful in a long-running
+// process (local dev / self-host). Skip in Vercel serverless functions.
+if (process.env.VERCEL !== "1") {
+  setInterval(() => cleanupOldQueues(), 5 * 60 * 1000);
+}
 
 /**
  * Fail-fast validation of critical env vars. In production we refuse to
@@ -72,14 +75,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
-async function startServer() {
-  validateEnvOrExit();
-
+/**
+ * Build the Express application with all routes registered.
+ * Reusable from both the local long-running server and a Vercel serverless
+ * function entrypoint. Does NOT call `listen()` or start background timers.
+ */
+export async function createApp(): Promise<express.Application> {
   const app = express();
-  // Trust the first proxy in the chain (Manus reverse proxy / Cloud Run ingress)
-  // Required for express-rate-limit to correctly read X-Forwarded-For headers
   app.set('trust proxy', 1);
-  const server = createServer(app);
 
   // Stripe + Lob webhooks must be registered before the JSON body parser so
   // signature verification receives the original raw payload bytes.
@@ -309,6 +312,16 @@ async function startServer() {
       createContext,
     })
   );
+
+  return app;
+}
+
+async function startServer() {
+  validateEnvOrExit();
+
+  const app = await createApp();
+  const server = createServer(app);
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
@@ -461,7 +474,12 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+// Only auto-start when this file is the entrypoint (e.g. local dev / Node host).
+// When imported by a Vercel serverless function, the importer calls createApp()
+// directly and we must NOT call listen() or schedule cron intervals.
+if (process.env.VERCEL !== "1") {
+  startServer().catch(console.error);
+}
 
 // Export for use by analysisJob to broadcast updates
 export function broadcastAnalysisUpdate(submissionId: number, event: string, data: unknown): void {

@@ -38,49 +38,16 @@ export type GenerateImageResponse = {
 };
 
 export async function generateImage(
-  options: GenerateImageOptions
+  _options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
-  if (!ENV.forgeApiUrl) {
-    throw new Error("BUILT_IN_FORGE_API_URL is not configured");
-  }
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
-  }
-
-  // Validate any external image URLs to prevent SSRF
-  if (options.originalImages) {
-    for (const img of options.originalImages) {
-      if (img.url) {
-        const check = validateImageUrl(img.url);
-        if (!check.ok) {
-          throw new Error(`Invalid image URL: ${check.error}`);
-        }
-      }
-    }
-  }
-
-  // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/")
-    ? ENV.forgeApiUrl
-    : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL(
-    "images.v1.ImageService/GenerateImage",
-    baseUrl
-  ).toString();
-
-  const response = await fetch(fullUrl, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify({
-      prompt: options.prompt,
-      original_images: options.originalImages || [],
-    }),
-  });
+  // Image generation was previously backed by the Manus Forge ImageService.
+  // It is not yet wired to a replacement provider in this deployment.
+  throw new Error(
+    "Image generation is not available in this deployment. Configure a provider (e.g. OpenAI Images / Gemini) to enable it."
+  );
+  // Unreachable — kept so callers in the legacy code path still type-check.
+  // eslint-disable-next-line no-unreachable
+  const response = await fetch("about:blank", { method: "POST" });
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
