@@ -139,8 +139,8 @@ describe("cache TTL helpers", () => {
     expect(dbSource).toContain("expiresAt");
     // Must store the response data
     expect(dbSource).toContain("responseData");
-    // Must handle upsert (update on duplicate key)
-    expect(dbSource).toContain("onDuplicateKeyUpdate");
+    // Must handle upsert (PostgreSQL: onConflictDoUpdate)
+    expect(dbSource).toContain("onConflictDoUpdate");
   });
 
   it("evictExpiredCache removes entries past their TTL", async () => {

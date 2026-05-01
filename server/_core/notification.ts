@@ -61,14 +61,33 @@ const validatePayload = (input: NotificationPayload): NotificationPayload => {
  * Dispatches a project-owner notification.
  *
  * Originally backed by the Manus WebDevService. Since the migration to
- * Vercel/Supabase, owner notifications are best-effort no-ops — callers
- * already handle a `false` return by falling back to email. We keep
- * payload validation so callers still fail fast on bad input.
+ * Vercel/Supabase, owner notifications fall back to Resend email when
+ * OWNER_EMAIL is configured. If neither a notification backend nor
+ * OWNER_EMAIL is set, this is a best-effort no-op — callers already
+ * handle a `false` return by logging and moving on.
  */
 export async function notifyOwner(
   payload: NotificationPayload
 ): Promise<boolean> {
-  validatePayload(payload);
-  // No notification backend is wired up in this deployment.
+  const validated = validatePayload(payload);
+
+  // Try Resend email fallback when OWNER_EMAIL is configured
+  const ownerEmail = process.env.OWNER_EMAIL;
+  if (ownerEmail && process.env.RESEND_API_KEY) {
+    try {
+      const { sendMail } = await import("./mailer");
+      await sendMail({
+        to: ownerEmail,
+        subject: `[AppraiseAI] ${validated.title}`,
+        text: validated.content,
+      });
+      return true;
+    } catch (err) {
+      console.warn("[Notification] Resend email fallback failed:", err);
+      return false;
+    }
+  }
+
+  // No notification backend is wired up
   return false;
 }

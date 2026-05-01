@@ -32,7 +32,19 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      const client = postgres(process.env.DATABASE_URL, { max: 1, ssl: "require" });
+      // Supabase pooler (port 6543) uses transaction-mode pooling which
+      // is incompatible with prepared statements. Disable them so queries
+      // don't fail with "prepared statement does not exist" errors.
+      // The pooler handles connection reuse across serverless invocations.
+      const client = postgres(process.env.DATABASE_URL, {
+        max: 1,
+        ssl: "require",
+        prepare: false,
+        // Serverless-friendly timeouts
+        connect_timeout: 5,
+        idle_timeout: 20,
+        max_lifetime: 60 * 30,
+      });
       _db = drizzle(client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
@@ -506,7 +518,7 @@ export async function evictExpiredCache() {
   try {
     const now = new Date();
     const result = await db.delete(apiCache).where(lt(apiCache.expiresAt, now));
-    return 0;
+    return Number((result as unknown as { count?: number })?.count ?? 0);
   } catch (error) {
     console.error("[Cache] Failed to evict expired cache:", error);
     return 0;
@@ -610,7 +622,7 @@ export async function cleanupExpiredReportJobs(): Promise<number> {
         lt(reportJobs.expiresAt, now),
         eq(reportJobs.status, "queued")
       ));
-    return 0;
+    return Number((result as unknown as { count?: number })?.count ?? 0);
   } catch (error) {
     console.error("[ReportJob] Failed to cleanup expired:", error);
     return 0;

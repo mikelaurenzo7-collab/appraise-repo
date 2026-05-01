@@ -85,18 +85,25 @@ function makeCounty(overrides: Partial<County> = {}): County {
 }
 
 describe("resolveChannel", () => {
-  it("returns portal when preferred=portal and recipe is verified", async () => {
-    mockGetActiveRecipe.mockResolvedValueOnce({
-      id: 1,
-      verificationStatus: "verified",
-      steps: "[]",
-      portalUrl: "https://example.test",
-      version: 1,
-      countyId: 1,
-    });
-    const { resolveChannel } = await import("./services/deliveryDispatcher");
-    const c = makeCounty({ preferredChannel: "portal" });
-    expect(await resolveChannel(c)).toBe("portal");
+  it("returns portal when preferred=portal and recipe is verified (with ALLOW_PLAYWRIGHT)", async () => {
+    const prev = process.env.ALLOW_PLAYWRIGHT;
+    process.env.ALLOW_PLAYWRIGHT = "1";
+    try {
+      mockGetActiveRecipe.mockResolvedValueOnce({
+        id: 1,
+        verificationStatus: "verified",
+        steps: "[]",
+        portalUrl: "https://example.test",
+        version: 1,
+        countyId: 1,
+      });
+      const { resolveChannel } = await import("./services/deliveryDispatcher");
+      const c = makeCounty({ preferredChannel: "portal" });
+      expect(await resolveChannel(c)).toBe("portal");
+    } finally {
+      if (prev === undefined) delete process.env.ALLOW_PLAYWRIGHT;
+      else process.env.ALLOW_PLAYWRIGHT = prev;
+    }
   });
 
   it("falls back to mail_certified when portal has only a draft recipe", async () => {

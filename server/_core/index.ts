@@ -164,7 +164,7 @@ export async function createApp(): Promise<Express> {
     // Authenticate the request — SSE carries the same session cookie as tRPC.
     // Unauthenticated callers and callers who don't own the submission are
     // rejected before any data is streamed.
-    let user: import("../../drizzle/schema").User | null = null;
+    let user: import("../../drizzle/schema.pg").User | null = null;
     try {
       const { getUserFromRequest } = await import("./context");
       user = await getUserFromRequest(req);
