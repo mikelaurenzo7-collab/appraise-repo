@@ -3,9 +3,9 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
 import { registerStripeWebhook } from "./stripeWebhook";
 import { registerLobWebhook } from "./lobWebhook";
+import { registerAuthRoutes } from "./supabaseAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -86,6 +86,9 @@ async function startServer() {
   registerStripeWebhook(app);
   registerLobWebhook(app);
 
+  // Supabase Auth (replaces Manus OAuth)
+  registerAuthRoutes(app);
+
   // Liveness: cheap check that the Node process is responsive. Use this for
   // "is the pod alive" probes — no DB round-trip.
   app.get("/healthz", (_req, res) => {
@@ -143,11 +146,9 @@ async function startServer() {
   // Global: 100 req / 15 min per IP (all routes)
   app.use(globalLimiter);
   // Auth: 5 req / 15 min per IP (brute-force protection)
-  app.use("/api/oauth", authLimiter);
+  app.use("/api/auth", authLimiter);
   // API: 50 req / min per user or IP (tRPC)
-  app.use("/api/trpc", apiLimiter);
-  // OAuth callback under /api/oauth/callback
-  registerOAuthRoutes(app);
+  app.use("/api/trpc", apiLimiter);)
 
   // ── SSE: Real-time analysis status streaming ─────────────────────────────
   app.get("/api/stream/analysis/:submissionId", async (req, res) => {

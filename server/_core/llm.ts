@@ -1,4 +1,58 @@
-import { ENV } from "./env";
+/**
+ * LLM Bridge — delegates to Gemini/Anthropic providers
+ *
+ * This file is kept as a thin bridge so that existing callers inside the
+ * codebase (routers.ts, services/*.ts) don't need to change their import path.
+ * The actual Manus Forge logic is replaced by callGemini / callAnthropic
+ * from "./llmProviders".
+ *
+ * InvokeResult shape is preserved for backwards compatibility with any
+ * code that destructures `.choices[0].message.content`.
+ */
+import { invokeLLM as invokeGeminiOrAnthropic } from "./llmProviders";
+import type { InvokeParams, InvokeResult } from "./llmProviders";
+
+export type { Role, TextContent, ImageContent, FileContent, MessageContent, Message, Tool, ToolChoice, InvokeParams, InvokeResult };
+
+// Re-export the new provider-level types alongside the legacy names
+export type { LLMMessage } from "./llmProviders";
+
+export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+  const { messages, maxTokens = 32768 } = params;
+
+  // Normalize messages to the flat LLMMessage format
+  const flatMessages = messages.map((m) => ({
+    role: m.role as "system" | "user" | "assistant",
+    content:
+      typeof m.content === "string"
+        ? m.content
+        : Array.isArray(m.content)
+          ? (m.content as Array<{ type: string; text?: string }>)
+              .filter((p) => p.type === "text" && p.text)
+              .map((p) => p.text as string)
+              .join("")
+          : "",
+  }));
+
+  const text = await invokeGeminiOrAnthropic({
+    messages: flatMessages,
+    maxTokens,
+    provider: params.provider as "gemini" | "anthropic" | undefined,
+  });
+
+  return {
+    id: `bridge-${Date.now()}`,
+    created: Math.floor(Date.now() / 1000),
+    model: params.model ?? "gemini-2.5-flash",
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: text },
+        finish_reason: "stop",
+      },
+    ],
+  };
+}
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 

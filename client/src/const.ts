@@ -1,35 +1,20 @@
-import { encodeManusAuthState, sanitizeReturnTo } from "@shared/manusAuth";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-// Generate login URL at runtime so redirect URI reflects the current origin.
-function getCurrentReturnTo() {
-  if (typeof window === "undefined") {
-    return "/";
-  }
-
-  const nextPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  return sanitizeReturnTo(nextPath) ?? "/";
-}
-
+/**
+ * Build the Supabase Auth login URL.
+ * The backend handles the actual OAuth exchange at /api/auth/callback.
+ */
 export const getLoginUrl = (returnTo?: string) => {
   if (typeof window === "undefined") {
     throw new Error("getLoginUrl must be called in a browser context");
   }
 
-  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
-  const appId = import.meta.env.VITE_APP_ID;
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
-  const state = encodeManusAuthState({
-    redirectUri,
-    returnTo: sanitizeReturnTo(returnTo) ?? getCurrentReturnTo(),
-  });
+  const dest = returnTo ?? `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const safeDest = dest.startsWith("/") && !dest.startsWith("//") ? dest : "/";
+  const redirectUri = `${window.location.origin}/api/auth/callback`;
 
-  const url = new URL(`${oauthPortalUrl}/app-auth`);
-  url.searchParams.set("appId", appId);
-  url.searchParams.set("redirectUri", redirectUri);
-  url.searchParams.set("state", state);
-  url.searchParams.set("type", "signIn");
-
-  return url.toString();
+  // Point to our backend auth route — it redirects to Supabase
+  return `/api/auth/login?returnTo=${encodeURIComponent(safeDest)}`;
 };

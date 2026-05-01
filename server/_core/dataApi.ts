@@ -1,8 +1,6 @@
 /**
- * Quick example (matches curl usage):
- *   await callDataApi("Youtube/search", {
- *     query: { gl: "US", hl: "en", q: "manus" },
- *   })
+ * Generic data API caller — used for third-party APIs like Google Places.
+ * Now uses MAPBOX_ACCESS_TOKEN or direct API keys from ENV.
  */
 import { ENV } from "./env";
 
@@ -13,52 +11,40 @@ export type DataApiCallOptions = {
   formData?: Record<string, unknown>;
 };
 
+// Google Places API — direct call (no Manus proxy needed)
+export async function callGooglePlaces(
+  input: string,
+  sessionToken?: string
+): Promise<unknown> {
+  if (!ENV.googleMapsApiKey) {
+    throw new Error("GOOGLE_MAPS_PLATFORM_API_KEY is not configured");
+  }
+
+  const params = new URLSearchParams({
+    input,
+    key: ENV.googleMapsApiKey,
+    types: "address",
+    components: "country:us",
+  });
+  if (sessionToken) params.set("sessiontoken", sessionToken);
+
+  const res = await fetch(
+    `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`,
+    { headers: { Authorization: `Bearer ${ENV.mapboxAccessToken}` } }
+  );
+
+  if (!res.ok) throw new Error(`Google Places error: ${res.status}`);
+  return res.json();
+}
+
+// Generic passthrough — for future API integrations
 export async function callDataApi(
   apiId: string,
   options: DataApiCallOptions = {}
 ): Promise<unknown> {
-  if (!ENV.forgeApiUrl) {
-    throw new Error("BUILT_IN_FORGE_API_URL is not configured");
-  }
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
-  }
-
-  // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/") ? ENV.forgeApiUrl : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL("webdevtoken.v1.WebDevService/CallApi", baseUrl).toString();
-
-  const response = await fetch(fullUrl, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify({
-      apiId,
-      query: options.query,
-      body: options.body,
-      path_params: options.pathParams,
-      multipart_form_data: options.formData,
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(
-      `Data API request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
-    );
-  }
-
-  const payload = await response.json().catch(() => ({}));
-  if (payload && typeof payload === "object" && "jsonData" in payload) {
-    try {
-      return JSON.parse((payload as Record<string, string>).jsonData ?? "{}");
-    } catch {
-      return (payload as Record<string, unknown>).jsonData;
-    }
-  }
-  return payload;
+  // This function is a placeholder. For the Vercel pivot, all data API calls
+  // should go through their native providers (Google Places, Mapbox, etc.)
+  // which now have direct keys in ENV.
+  console.warn(`[dataApi] callDataApi called with "${apiId}" — verify this is still needed`);
+  return {};
 }

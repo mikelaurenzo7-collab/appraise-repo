@@ -1,0 +1,195 @@
+/**
+ * LLM Provider — Gemini & Anthropic
+ * Replaces Manus Forge (invokeLLM) with direct API calls to Gemini and Anthropic.
+ * Set GEMINI_API_KEY and/or ANTHROPIC_API_KEY in environment variables.
+ */
+import { ENV } from "./env";
+
+export type LLMMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+export type Role = "system" | "user" | "assistant" | "tool" | "function";
+
+export type TextContent = {
+  type: "text";
+  text: string;
+};
+
+export type ImageContent = {
+  type: "image_url";
+  image_url: { url: string; detail?: "auto" | "low" | "high" };
+};
+
+export type FileContent = {
+  type: "file_url";
+  file_url: {
+    url: string;
+    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4";
+  };
+};
+
+export type MessageContent = string | TextContent | ImageContent | FileContent;
+
+export type Message = {
+  role: Role;
+  content: MessageContent | MessageContent[];
+  name?: string;
+  tool_call_id?: string;
+};
+
+export type Tool = {
+  type: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+  };
+};
+
+export type ToolChoice =
+  | "none"
+  | "auto"
+  | "required"
+  | { name: string }
+  | { type: "function"; function: { name: string } };
+
+export type InvokeParams = {
+  messages: Message[];
+  tools?: Tool[];
+  toolChoice?: ToolChoice;
+  tool_choice?: ToolChoice;
+  maxTokens?: number;
+  max_tokens?: number;
+  outputSchema?: OutputSchema;
+  output_schema?: OutputSchema;
+  responseFormat?: ResponseFormat;
+  response_format?: ResponseFormat;
+  provider?: "gemini" | "anthropic";
+  model?: string;
+};
+
+export type ToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
+export type JsonSchema = {
+  name: string;
+  schema: Record<string, unknown>;
+  strict?: boolean;
+};
+
+export type OutputSchema = JsonSchema;
+
+export type ResponseFormat =
+  | { type: "text" }
+  | { type: "json_object" }
+  | { type: "json_schema"; json_schema: JsonSchema };
+
+export type InvokeResult = {
+  id: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: { role: Role; content: string | Array<TextContent | ImageContent | FileContent>; tool_calls?: ToolCall[] };
+    finish_reason: string | null;
+  }>;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+};
+
+// =============================================================================
+// Gemini
+// =============================================================================
+
+export async function callGemini(
+  messages: LLMMessage[],
+  model = "gemini-2.5-flash",
+  maxTokens = 32768
+): Promise<string> {
+  const apiKey = ENV.geminiApiKey;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured");
+  }
+
+  const systemMsg = messages.find((m) => m.role === "system");
+  const conversationMsgs = messages.filter((m) => m.role !== "system");
+
+  const contents = conversationMsgs.map((m) => ({
+    role: m.role === "user" ? "user" : "model",
+    parts: [{ text: m.content }],
+  }));
+
+  const payload: Record<string, unknown> = {
+    contents,
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+    },
+  };
+
+  if (systemMsg) {
+    payload.systemInstruction = {
+      parts: [{ text: systemMsg.content }],
+    };
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error: ${response.status} ${response.statusText} – ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+}
+
+// =============================================================================
+// Anthropic
+// =============================================================================
+
+export async function callAnthropic(
+  messages: LLMMessage[],
+  model = "claude-sonnet-4-20250514",
+  maxTokens = 32768
+): Promise<string> {
+  const apiKey = ENV.anthropicApiKey;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not configured");
+  }
+
+  const systemMsg = messages.find((m) => m.role === "system");
+  const conversationMsgs = messages.filter((m) => m.role !== "system");
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      system: systemMsg?.content,
+      messages: conversationMsgs.map((m) => ({ role: m.role, content: m.content })),
+    }),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Anthropic API error: ${res.status} ${res.statusText} – ${errorText}`);
+  }
+
+  const data = await res.json();
+  return data.content?.[0]?.text ?? "";
+}
