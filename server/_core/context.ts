@@ -27,7 +27,7 @@ export async function createContext(
   };
 }
 
-async function getUserFromRequest(
+export async function getUserFromRequest(
   req: CreateExpressContextOptions["req"]
 ): Promise<User | null> {
   const cookieHeader = req.headers.cookie;
@@ -48,5 +48,5 @@ async function getUserFromRequest(
 
   const { getUserByOpenId } = await import("../db");
   const user = await getUserByOpenId(session.openId);
-  return user;
+  return user ?? null;
 }

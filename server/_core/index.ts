@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { type Express } from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -80,7 +80,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
  * Reusable from both the local long-running server and a Vercel serverless
  * function entrypoint. Does NOT call `listen()` or start background timers.
  */
-export async function createApp(): Promise<express.Application> {
+export async function createApp(): Promise<Express> {
   const app = express();
   app.set('trust proxy', 1);
 
@@ -166,9 +166,12 @@ export async function createApp(): Promise<express.Application> {
     // rejected before any data is streamed.
     let user: import("../../drizzle/schema").User | null = null;
     try {
-      const { sdk: authSdk } = await import("./sdk");
-      user = await authSdk.authenticateRequest(req);
+      const { getUserFromRequest } = await import("./context");
+      user = await getUserFromRequest(req);
     } catch {
+      user = null;
+    }
+    if (!user) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }

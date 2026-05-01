@@ -169,10 +169,11 @@ export async function transcribeAudio(
         };
       }
     } catch (error) {
+      const errMsg = error instanceof Error ? (error as Error).message : "Unknown error";
       return {
         error: "Failed to fetch audio file",
         code: "SERVICE_ERROR",
-        details: error instanceof Error ? error.message : "Unknown error"
+        details: errMsg
       };
     }
 
