@@ -491,7 +491,22 @@ export default function AnalysisResults() {
               zipCode={submission.zipCode || undefined}
               marketValue={submission.marketValue || undefined}
               assessedValue={submission.assessedValue || undefined}
-              comparableSales={analysis.comparableSales ? (() => { try { return JSON.parse(analysis.comparableSales); } catch { return []; } })() : []}
+              comparableSales={
+                // The server returns comparableSales already parsed as an
+                // array via safeJsonParse. Earlier this code tried to
+                // JSON.parse it again — which always threw and silently
+                // returned [], so the map has not been showing comps.
+                (Array.isArray(analysis.comparableSales)
+                  ? analysis.comparableSales
+                  : []) as Array<{
+                    address: string;
+                    salePrice: number;
+                    saleDate: string;
+                    similarity?: number;
+                    lat?: number;
+                    lng?: number;
+                  }>
+              }
             />
           </div>
         </section>
@@ -888,12 +903,12 @@ export default function AnalysisResults() {
             <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
               <div className="text-xs text-[#64748B] uppercase tracking-widest mb-4">Recommended Next Steps</div>
               <div className="space-y-3">
-                {analysis.nextSteps.map((step: string, i: number) => (
+                {(analysis.nextSteps as unknown[]).map((step, i) => (
                   <div key={i} className="flex items-start gap-3 p-4 rounded-lg bg-[#F1F5F9]">
                     <div className="w-6 h-6 rounded-full bg-[#0F172A] text-[#7C3AED] flex items-center justify-center shrink-0 text-xs font-bold">
                       {i + 1}
                     </div>
-                    <span className="text-sm text-[#0F172A]">{step}</span>
+                    <span className="text-sm text-[#0F172A]">{String(step)}</span>
                   </div>
                 ))}
               </div>

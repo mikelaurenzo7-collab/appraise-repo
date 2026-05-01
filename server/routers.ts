@@ -7,6 +7,7 @@ import { appealsRouter } from "./routers/appeals";
 import { reportsRouter } from "./routers/reports";
 import { guidesRouter } from "./routers/guides";
 import { adminProcedure as trpcAdminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { safeJsonParse } from "./_core/safeJson";
 import { z } from "zod";
 import {
   createPropertySubmission,
@@ -50,7 +51,14 @@ import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 import { queueReportGeneration } from "./services/reportJobQueue";
 import { getReportJobById, getReportJobBySubmissionId, getDb as getDbForReports } from "./db";
-import { generateAppraisalPDF, type AppraisalReportData } from "./services/pdfGenerator";
+import {
+  generateAppraisalPDF,
+  type AppraisalReportData,
+  type AdjustmentGridEntry,
+  type CostApproachData,
+  type IncomeApproachSummary,
+  type MarketTrendData,
+} from "./services/pdfGenerator";
 import { storagePut, storageGet } from "./storage";
 import {
   CHAT_MAX_CHARS_PER_MESSAGE,
@@ -399,9 +407,9 @@ export const appRouter = router({
             submission,
             analysis: analysis ? {
               ...analysis,
-              comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-              appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
-              nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+              comparableSales: safeJsonParse<unknown[]>(analysis.comparableSales, [], "routers.analysis.comparableSales"),
+              appealStrengthFactors: safeJsonParse<string[]>(analysis.appealStrengthFactors, [], "routers.analysis.appealStrengthFactors"),
+              nextSteps: safeJsonParse<unknown[]>(analysis.nextSteps, [], "routers.analysis.nextSteps"),
             } : null,
             outcome: outcome || null,
             activityLogs: activityLogs || [],
@@ -469,9 +477,9 @@ export const appRouter = router({
           submission,
           analysis: analysis ? {
             ...analysis,
-            comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-            appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
-            nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+            comparableSales: safeJsonParse<unknown[]>(analysis.comparableSales, [], "routers.analysis.comparableSales"),
+            appealStrengthFactors: safeJsonParse<string[]>(analysis.appealStrengthFactors, [], "routers.analysis.appealStrengthFactors"),
+            nextSteps: safeJsonParse<unknown[]>(analysis.nextSteps, [], "routers.analysis.nextSteps"),
           } : null,
           outcome: outcome || null,
           activityLogs: logs,
@@ -942,15 +950,25 @@ export const appRouter = router({
         const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
         if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
 
-        const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
+        const comparableSales = safeJsonParse<NonNullable<AppraisalReportData["comparableSales"]>>(
+          analysis.comparableSales, [], "routers.generateReport.comparableSales",
+        );
         const photos = await getSubmissionPhotos(input.submissionId);
         const photoAnalysis = await getLatestPhotoAnalysis(input.submissionId);
 
         // Parse new analysis columns (JSON stored as text)
-        const adjustmentGrid = analysis.adjustmentGrid ? JSON.parse(analysis.adjustmentGrid) : undefined;
-        const costApproachData = analysis.costApproachData ? JSON.parse(analysis.costApproachData) : undefined;
-        const incomeApproachData = analysis.incomeApproachData ? JSON.parse(analysis.incomeApproachData) : undefined;
-        const marketTrendData = analysis.marketTrendData ? JSON.parse(analysis.marketTrendData) : undefined;
+        const adjustmentGrid = safeJsonParse<AdjustmentGridEntry[] | undefined>(
+          analysis.adjustmentGrid, undefined, "routers.generateReport.adjustmentGrid",
+        );
+        const costApproachData = safeJsonParse<CostApproachData | undefined>(
+          analysis.costApproachData, undefined, "routers.generateReport.costApproachData",
+        );
+        const incomeApproachData = safeJsonParse<IncomeApproachSummary | undefined>(
+          analysis.incomeApproachData, undefined, "routers.generateReport.incomeApproachData",
+        );
+        const marketTrendData = safeJsonParse<MarketTrendData | undefined>(
+          analysis.marketTrendData, undefined, "routers.generateReport.marketTrendData",
+        );
 
         // Determine report tier from filingMethod
         // Maps filing method to PDF tier: null/undefined=free, all paid methods=full 40-page report
@@ -1475,9 +1493,9 @@ export const appRouter = router({
           submission,
           analysis: analysis ? {
             ...analysis,
-            comparableSales: analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [],
-            appealStrengthFactors: analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [],
-            nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+            comparableSales: safeJsonParse<unknown[]>(analysis.comparableSales, [], "routers.analysis.comparableSales"),
+            appealStrengthFactors: safeJsonParse<string[]>(analysis.appealStrengthFactors, [], "routers.analysis.appealStrengthFactors"),
+            nextSteps: safeJsonParse<unknown[]>(analysis.nextSteps, [], "routers.analysis.nextSteps"),
           } : null,
           outcome: outcome || null,
           activityLogs: logs,

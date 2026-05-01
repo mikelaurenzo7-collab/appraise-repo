@@ -3,7 +3,14 @@
  * Handles background report generation with retry logic and email notifications
  */
 
-import { generateAppraisalPDF, type AppraisalReportData } from "./pdfGenerator";
+import {
+  generateAppraisalPDF,
+  type AppraisalReportData,
+  type AdjustmentGridEntry,
+  type CostApproachData,
+  type IncomeApproachSummary,
+  type MarketTrendData,
+} from "./pdfGenerator";
 import { generateEnhancedReportNarrative } from "./pdfReportGenerator";
 import {
   getReportJobById,
@@ -18,6 +25,7 @@ import {
 } from "../db";
 import { buildAppUrl } from "../_core/appUrl";
 import { sendAnalysisConfirmationEmail, sendReportCompletionEmail } from "../_core/emailService";
+import { safeJsonParse } from "../_core/safeJson";
 
 // Prevent duplicate concurrent jobs
 const activeJobs = new Set<number>();
@@ -101,15 +109,30 @@ async function processReportJobAsync(jobId: number): Promise<void> {
 
     const photos = await getSubmissionPhotos(job.submissionId);
 
-    // Prepare report data
-    const comparableSales = analysis.comparableSales ? JSON.parse(analysis.comparableSales) : [];
-    const appealStrengthFactors = analysis.appealStrengthFactors ? JSON.parse(analysis.appealStrengthFactors) : [];
+    // Prepare report data — every JSON parse is guarded so a single
+    // corrupt or schema-evolved DB row can't crash the whole job. The
+    // safeJsonParse helper logs the failure with a scope tag so the
+    // underlying corruption is still tracked down.
+    const comparableSales = safeJsonParse<NonNullable<AppraisalReportData["comparableSales"]>>(
+      analysis.comparableSales, [], "reportJobQueue.comparableSales",
+    );
+    const appealStrengthFactors = safeJsonParse<string[]>(
+      analysis.appealStrengthFactors, [], "reportJobQueue.appealStrengthFactors",
+    );
     const photoAnalysis = await getLatestPhotoAnalysis(job.submissionId);
     // Parse new analysis columns (JSON stored as text)
-    const adjustmentGrid = analysis.adjustmentGrid ? JSON.parse(analysis.adjustmentGrid) : undefined;
-    const costApproachData = analysis.costApproachData ? JSON.parse(analysis.costApproachData) : undefined;
-    const incomeApproachData = analysis.incomeApproachData ? JSON.parse(analysis.incomeApproachData) : undefined;
-    const marketTrendData = analysis.marketTrendData ? JSON.parse(analysis.marketTrendData) : undefined;
+    const adjustmentGrid = safeJsonParse<AdjustmentGridEntry[] | undefined>(
+      analysis.adjustmentGrid, undefined, "reportJobQueue.adjustmentGrid",
+    );
+    const costApproachData = safeJsonParse<CostApproachData | undefined>(
+      analysis.costApproachData, undefined, "reportJobQueue.costApproachData",
+    );
+    const incomeApproachData = safeJsonParse<IncomeApproachSummary | undefined>(
+      analysis.incomeApproachData, undefined, "reportJobQueue.incomeApproachData",
+    );
+    const marketTrendData = safeJsonParse<MarketTrendData | undefined>(
+      analysis.marketTrendData, undefined, "reportJobQueue.marketTrendData",
+    );
     // Determine report tier from filingMethod
     const tier = submission.filingMethod === "none" ? "free" : (submission.filingMethod || "free");
 
@@ -129,7 +152,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
           pricePerSqft: c.pricePerSqft ?? (c.squareFeet || c.sqft ? Math.round(c.salePrice / (c.squareFeet ?? c.sqft ?? 1)) : 0),
         })),
         appealStrengthFactors,
-        nextSteps: analysis.nextSteps ? JSON.parse(analysis.nextSteps) : [],
+        nextSteps: safeJsonParse<string[]>(analysis.nextSteps, [], "reportJobQueue.nextSteps"),
       });
       if (narrative) {
         const sections = [
