@@ -21,7 +21,7 @@ import {
   updatePropertySubmission,
 } from "../db";
 import { buildAppUrl } from "../_core/appUrl";
-import { sendFilingSubmittedEmail } from "../_core/emailService";
+import { sendFilingSubmittedEmail, sendFilingFailedEmail } from "../_core/emailService";
 import { storagePut } from "../storage";
 import { dispatchFiling, resolveChannel } from "./deliveryDispatcher";
 import { safeJsonParse } from "../_core/safeJson";
@@ -267,20 +267,49 @@ export async function processOnePendingJob(): Promise<boolean> {
       });
     } else {
       // Exhausted all retries — permanently failed
+      const totalAttempts = maxRetries + 1;
       await updateFilingJob(row.id, {
         status: "failed",
         completedAt: new Date(),
         retryCount: currentRetry,
-        errorMessage: `All ${maxRetries + 1} attempts failed. Last error: ${message}`,
+        errorMessage: `All ${totalAttempts} attempts failed. Last error: ${message}`,
       });
       await persistActivityLog({
         submissionId: row.submissionId,
         type: "filing_failed",
         actor: "system",
-        description: `Filing #${row.id} permanently failed after ${maxRetries + 1} attempts: ${message}`,
+        description: `Filing #${row.id} permanently failed after ${totalAttempts} attempts: ${message}`,
         metadata: JSON.stringify({ jobId: row.id, retryCount: currentRetry, maxRetries }),
         status: "error",
       });
+
+      // Notify the paid-tier owner — this closes the silent-failure gap
+      // where customers paid $99-$129 and only discovered the failure by
+      // checking the dashboard. Best-effort: we already failed the job,
+      // so an email-send error shouldn't compound things.
+      try {
+        // Resolve the county name for the email body. Best-effort: the
+        // submission already has the county on it; fall back to "your county"
+        // if we can't read it.
+        const countyName = submission.county
+          ? `${submission.county} County`
+          : "your county";
+        await sendFilingFailedEmail({
+          userEmail: submission.email,
+          userName: submission.email.split("@")[0],
+          propertyAddress: submission.address,
+          countyName,
+          attemptsMade: totalAttempts,
+          failureReason: message,
+          dashboardUrl: buildAppUrl(`/filing-status?id=${row.submissionId}`),
+        });
+      } catch (emailErr) {
+        console.error(
+          `[FilingQueue] CRITICAL: filing #${row.id} failed AND failure email failed to send. ` +
+          `Customer ${submission.email} may not know about the failure. ` +
+          `Original error: ${message}. Email error: ${(emailErr as Error).message}`,
+        );
+      }
     }
     return true;
   }

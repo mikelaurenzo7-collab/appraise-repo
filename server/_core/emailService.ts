@@ -64,6 +64,30 @@ export interface FilingSubmittedEmail {
   dashboardUrl: string;
 }
 
+/**
+ * Filing failed after exhausting all retries. Sent to the paid-tier owner
+ * so they're not left in the dark — paying $99–$129 for automated filing
+ * and discovering the failure only by checking the dashboard is the
+ * worst-quality experience this product can deliver.
+ *
+ * The email is honest about what failed, explains we already tried (with
+ * the attempt count), tells them their data is safe, links to the
+ * dashboard for full details, and explains the 60-day money-back
+ * guarantee path. Support contact is included so they have a human path.
+ */
+export interface FilingFailedEmail {
+  userEmail: string;
+  userName: string;
+  propertyAddress: string;
+  countyName: string;
+  attemptsMade: number;
+  /** Sanitized one-line summary suitable for an email body. */
+  failureReason: string;
+  dashboardUrl: string;
+  /** Optional support email override; defaults to support@appraiseai.com. */
+  supportEmail?: string;
+}
+
 export interface FilingDeadlineReminderEmail {
   userEmail: string;
   userName: string;
@@ -501,6 +525,120 @@ export async function sendFilingSubmittedEmail(data: FilingSubmittedEmail): Prom
   return sendEmail({
     to: data.userEmail,
     subject: `Your property tax appeal was filed — ${data.propertyAddress}`,
+    html,
+  });
+}
+
+/**
+ * Report-generation FAILED notification — sent once when a report job
+ * exhausts retries. Same silent-failure rationale as
+ * sendFilingFailedEmail: paid-tier customers waiting for their PDF
+ * report shouldn't have to discover the failure by checking the
+ * dashboard.
+ */
+export interface ReportFailedEmail {
+  userEmail: string;
+  userName: string;
+  propertyAddress: string;
+  attemptsMade: number;
+  failureReason: string;
+  dashboardUrl: string;
+  supportEmail?: string;
+}
+
+export async function sendReportFailedEmail(data: ReportFailedEmail): Promise<boolean> {
+  const supportEmail = data.supportEmail ?? "support@appraiseai.com";
+  const safeReason = data.failureReason.replace(/[<>]/g, "").slice(0, 240);
+
+  const html = `
+    <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #DC2626 0%, #F59E0B 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">Report generation failed.</h1>
+        <p style="margin: 10px 0 0 0; opacity: 0.95;">We'll get this sorted — your analysis data is safe.</p>
+      </div>
+      <div style="background: #F8FAFC; padding: 40px 20px; border-radius: 0 0 12px 12px;">
+        <p style="margin: 0 0 20px 0; color: #0F172A;">Hi ${data.userName},</p>
+        <p style="margin: 0 0 20px 0; color: #475569; line-height: 1.6;">
+          We tried <strong>${data.attemptsMade} time${data.attemptsMade === 1 ? "" : "s"}</strong>
+          to generate your full PDF appraisal report for <strong>${data.propertyAddress}</strong>,
+          but each attempt failed. Your underlying analysis (comparable sales, market value
+          conclusion, condition findings) is intact in your dashboard — only the PDF render step
+          didn't complete.
+        </p>
+        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0 0 6px 0; color: #991B1B; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">What went wrong</p>
+          <p style="margin: 0; color: #7F1D1D; font-size: 14px;">${safeReason}</p>
+        </div>
+        <p style="margin: 0 0 8px 0; color: #0F172A; font-weight: 600;">What happens next:</p>
+        <ol style="margin: 0 0 24px 0; padding-left: 20px; color: #475569; line-height: 1.8;">
+          <li>Reply to this email or write to <a href="mailto:${supportEmail}" style="color: #7C3AED;">${supportEmail}</a> and we'll regenerate it manually within one business day.</li>
+          <li>If you'd rather have a refund, our 60-day money-back guarantee covers it — just say the word.</li>
+        </ol>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.dashboardUrl}" style="background: #7C3AED; color: white; padding: 14px 36px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">View analysis</a>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: data.userEmail,
+    subject: `We hit a snag generating your appraisal report — what to do next`,
+    html,
+  });
+}
+
+/**
+ * Filing FAILED notification — sent once when a filing job exhausts all
+ * retries. Closes the silent-failure gap where a paid-tier owner pays
+ * $99–$129 for automated filing and only discovers the failure by
+ * checking the dashboard. Honest about what failed, transparent about
+ * the retry attempts, and points them to support + the money-back
+ * guarantee so they have a clear next step.
+ */
+export async function sendFilingFailedEmail(data: FilingFailedEmail): Promise<boolean> {
+  const supportEmail = data.supportEmail ?? "support@appraiseai.com";
+  const safeReason = data.failureReason
+    .replace(/[<>]/g, "")
+    .slice(0, 240);
+
+  const html = `
+    <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #DC2626 0%, #F59E0B 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">We couldn't file your appeal.</h1>
+        <p style="margin: 10px 0 0 0; opacity: 0.95;">${data.countyName} — automated filing didn't go through</p>
+      </div>
+      <div style="background: #F8FAFC; padding: 40px 20px; border-radius: 0 0 12px 12px;">
+        <p style="margin: 0 0 20px 0; color: #0F172A;">Hi ${data.userName},</p>
+        <p style="margin: 0 0 20px 0; color: #475569; line-height: 1.6;">
+          We tried <strong>${data.attemptsMade} time${data.attemptsMade === 1 ? "" : "s"}</strong>
+          to file your appeal for <strong>${data.propertyAddress}</strong> with ${data.countyName}, but
+          the submission didn't complete. Your appraisal report is safe — only the automated
+          filing step failed.
+        </p>
+        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0 0 6px 0; color: #991B1B; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">What went wrong</p>
+          <p style="margin: 0; color: #7F1D1D; font-size: 14px;">${safeReason}</p>
+        </div>
+        <p style="margin: 0 0 8px 0; color: #0F172A; font-weight: 600;">What happens next:</p>
+        <ol style="margin: 0 0 24px 0; padding-left: 20px; color: #475569; line-height: 1.8;">
+          <li>Your dashboard has the full appraisal report — you can download it and file pro se directly with the county.</li>
+          <li>Reply to this email or write to <a href="mailto:${supportEmail}" style="color: #7C3AED;">${supportEmail}</a> if you want us to retry, switch filing methods, or process a refund.</li>
+          <li>Our 60-day money-back guarantee covers this — if we can't get it filed, you don't pay.</li>
+        </ol>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.dashboardUrl}" style="background: #7C3AED; color: white; padding: 14px 36px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">View report &amp; next steps</a>
+        </div>
+        <p style="margin: 30px 0 0 0; color: #94A3B8; font-size: 12px; text-align: center;">
+          We're sorry about this. Most filings go through on the first try; the few that don't usually involve a county portal change or an unexpected validation rule. Either way, we're on it.
+        </p>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: data.userEmail,
+    subject: `Couldn't file your ${data.countyName} appeal — what to do next`,
     html,
   });
 }

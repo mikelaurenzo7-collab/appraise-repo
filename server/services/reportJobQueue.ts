@@ -24,7 +24,7 @@ import {
   getLatestPhotoAnalysis,
 } from "../db";
 import { buildAppUrl } from "../_core/appUrl";
-import { sendAnalysisConfirmationEmail, sendReportCompletionEmail } from "../_core/emailService";
+import { sendAnalysisConfirmationEmail, sendReportCompletionEmail, sendReportFailedEmail } from "../_core/emailService";
 import { safeJsonParse } from "../_core/safeJson";
 
 // Prevent duplicate concurrent jobs
@@ -306,7 +306,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
         });
       }, delayMs);
     } else {
-      // Final failure
+      // Final failure — exhausted retries.
       await updateReportJob(jobId, {
         status: "failed",
         errorMessage: errMsg,
@@ -321,6 +321,32 @@ async function processReportJobAsync(jobId: number): Promise<void> {
         status: "error",
         durationMs: Date.now() - startTime,
       }).catch(() => {});
+
+      // Notify the paid-tier customer — closes the silent-failure gap
+      // where a customer waits for their PDF and only discovers the
+      // failure by checking the dashboard. Best-effort; we already failed
+      // the job so an email-send error shouldn't compound things.
+      if (job?.submissionId) {
+        try {
+          const submission = await getPropertySubmissionById(job.submissionId);
+          if (submission?.email) {
+            const totalAttempts = (job.maxRetries ?? 0) + 1;
+            await sendReportFailedEmail({
+              userEmail: submission.email,
+              userName: submission.email.split("@")[0],
+              propertyAddress: submission.address,
+              attemptsMade: totalAttempts,
+              failureReason: errMsg,
+              dashboardUrl: buildAppUrl(`/analysis?id=${job.submissionId}`),
+            });
+          }
+        } catch (emailErr) {
+          console.error(
+            `[ReportQueue] CRITICAL: report job ${jobId} failed AND failure email failed to send. ` +
+            `Original error: ${errMsg}. Email error: ${(emailErr as Error).message}`,
+          );
+        }
+      }
     }
   } finally {
     activeJobs.delete(jobId);
