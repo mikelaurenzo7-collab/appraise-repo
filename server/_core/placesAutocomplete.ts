@@ -134,27 +134,8 @@ function formatPhotonFeature(f: PhotonFeature): string | null {
   return parts.join(", ");
 }
 
-// ─── Google Places (via Forge proxy) ─────────────────────────────────────────
-// Auth: BUILT_IN_FORGE_API_KEY passed as ?key= query param (NOT Bearer token).
-// Endpoint: Forge proxy at /v1/maps/proxy/maps/api/place/autocomplete/json
-
-const FORGE_BASE = (process.env.BUILT_IN_FORGE_API_URL || "https://forge.manus.ai").replace(/\/+$/, "");
-const FORGE_KEY = process.env.BUILT_IN_FORGE_API_KEY || "";
-
-async function fetchFromGoogle(
-  input: string,
-  opts: PlacesAutocompleteOptions
-): Promise<string[]> {
-  const params = new URLSearchParams({
-    key: FORGE_KEY,
-    input,
-    key: ENV.googleMapsApiKey,
-    components: "country:us",
-    types: "address",
-    location: `${US_CENTER_LAT},${US_CENTER_LNG}`,
-    radius: "3500000",
-  });
-  if (opts.sessionToken) params.set("sessiontoken", opts.sessionToken);
+// ─── Google Places ────────────────────────────────────────────────────────────
+// Auth: GOOGLE_MAPS_PLATFORM_API_KEY passed as ?key= query param.
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_API_KEY ?? "";
 
@@ -173,7 +154,7 @@ async function fetchFromGoogle(
   if (opts.sessionToken) params.set("sessiontoken", opts.sessionToken);
 
   const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params.toString()}`;
-  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });)
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) {
     console.error("[PlacesAutocomplete:google] HTTP", response.status);
     return [];

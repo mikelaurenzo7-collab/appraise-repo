@@ -148,7 +148,7 @@ async function startServer() {
   // Auth: 5 req / 15 min per IP (brute-force protection)
   app.use("/api/auth", authLimiter);
   // API: 50 req / min per user or IP (tRPC)
-  app.use("/api/trpc", apiLimiter);)
+  app.use("/api/trpc", apiLimiter);
 
   // ── SSE: Real-time analysis status streaming ─────────────────────────────
   app.get("/api/stream/analysis/:submissionId", async (req, res) => {
