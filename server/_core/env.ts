@@ -15,4 +15,12 @@ export const ENV = {
   googleCseApiKey: process.env.GOOGLE_CSE_API_KEY ?? "",
   googleCseCx: process.env.GOOGLE_CSE_CX ?? "",
   realieApiKey: process.env.REALIE_API_KEY ?? "",
+  // Owner identity (for admin escalation in legacy paths). With Supabase
+  // Auth this maps to the Supabase user id of the workspace owner.
+  ownerOpenId: process.env.OWNER_OPEN_ID ?? process.env.OWNER_ID ?? "",
+  // Legacy Manus OAuth SDK fields — kept as empty strings so the old
+  // _core/sdk.ts module still type-checks. The Supabase auth path in
+  // _core/supabaseAuth.ts is the real auth surface.
+  oAuthServerUrl: process.env.MANUS_OAUTH_SERVER_URL ?? "",
+  appId: process.env.MANUS_APP_ID ?? "",
 };

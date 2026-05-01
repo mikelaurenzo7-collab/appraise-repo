@@ -176,66 +176,18 @@ export async function transcribeAudio(
       };
     }
 
-    // Step 3: Create FormData for multipart upload to Whisper API
-    const formData = new FormData();
-    
-    // Create a Blob from the buffer and append to form
-    const filename = `audio.${getFileExtension(mimeType)}`;
-    const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
-    formData.append("file", audioBlob, filename);
-    
-    formData.append("model", "whisper-1");
-    formData.append("response_format", "verbose_json");
-    
-    // Add prompt - use custom prompt if provided, otherwise generate based on language
-    const prompt = options.prompt || (
-      options.language 
-        ? `Transcribe the user's voice to text, the user's working language is ${getLanguageName(options.language)}`
-        : "Transcribe the user's voice to text"
-    );
-    formData.append("prompt", prompt);
-
-    // Step 4: Call the transcription service
-    const baseUrl = ENV.forgeApiUrl.endsWith("/")
-      ? ENV.forgeApiUrl
-      : `${ENV.forgeApiUrl}/`;
-    
-    const fullUrl = new URL(
-      "v1/audio/transcriptions",
-      baseUrl
-    ).toString();
-
-    const response = await fetch(fullUrl, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${ENV.forgeApiKey}`,
-        "Accept-Encoding": "identity",
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      return {
-        error: "Transcription service request failed",
-        code: "TRANSCRIPTION_FAILED",
-        details: `${response.status} ${response.statusText}${errorText ? `: ${errorText}` : ""}`
-      };
-    }
-
-    // Step 5: Parse and return the transcription result
-    const whisperResponse = await response.json() as WhisperResponse;
-    
-    // Validate response structure
-    if (!whisperResponse.text || typeof whisperResponse.text !== 'string') {
-      return {
-        error: "Invalid transcription response",
-        code: "SERVICE_ERROR",
-        details: "Transcription service returned an invalid response format"
-      };
-    }
-
-    return whisperResponse; // Return native Whisper API response directly
+    // Step 3: Voice transcription is not configured in this deployment.
+    // The previous Manus Forge integration has been removed. To re-enable,
+    // wire up a Whisper-compatible provider (OpenAI, Deepgram, etc.) and
+    // POST the audioBuffer to its transcriptions endpoint.
+    void audioBuffer;
+    void mimeType;
+    void options;
+    return {
+      error: "Voice transcription is not configured in this deployment.",
+      code: "SERVICE_ERROR",
+      details: "Configure RESEND-style transcription provider and update voiceTranscription.ts.",
+    };
 
   } catch (error) {
     // Handle unexpected errors

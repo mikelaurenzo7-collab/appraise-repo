@@ -1,5 +1,6 @@
 import { invokeLLM } from "./llm";
 import { buildAppUrl } from "./appUrl";
+import { sendMail } from "./mailer";
 
 export interface EmailTemplate {
   to: string;
@@ -388,42 +389,19 @@ export async function sendAppealResultEmail(data: AppealResultEmail): Promise<bo
 }
 
 /**
- * Generic email sending function
- * In production, this would integrate with SendGrid, Mailgun, or AWS SES
+ * Generic email sending function (Resend-backed via mailer.ts).
+ * Falls back to STUB mode (logs only) if RESEND_API_KEY is not configured.
  */
 async function sendEmail(template: EmailTemplate): Promise<boolean> {
   try {
-    // Use Manus built-in email service via Forge API
-    const forgeApiUrl = process.env.BUILT_IN_FORGE_API_URL;
-    const forgeApiKey = process.env.BUILT_IN_FORGE_API_KEY;
-
-    if (!forgeApiUrl || !forgeApiKey) {
-      console.warn("[Email] Forge API credentials not configured, logging email only");
-      console.log(`[Email] To: ${template.to}`);
-      console.log(`[Email] Subject: ${template.subject}`);
-      return true;
-    }
-
-    const response = await fetch(`${forgeApiUrl}/email/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${forgeApiKey}`,
-      },
-      body: JSON.stringify({
-        to: template.to,
-        subject: template.subject,
-        html: template.html,
-      }),
+    const result = await sendMail({
+      to: template.to,
+      subject: template.subject,
+      html: template.html,
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error(`[Email] Failed to send: ${response.status} ${error}`);
-      return false;
-    }
-
-    console.log(`[Email] Successfully sent to ${template.to}: ${template.subject}`);
+    console.log(
+      `[Email] ${result.stubbed ? "STUB" : "Sent"} to ${template.to}: ${template.subject} (id=${result.messageId})`
+    );
     return true;
   } catch (error) {
     console.error("[Email] Error sending email:", error);

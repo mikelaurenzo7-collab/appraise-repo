@@ -159,6 +159,27 @@ export async function findStuckAnalysisSubmissions(thresholdMs = 10 * 60 * 1000)
   }
 }
 
+/**
+ * List submissions that are queued but not yet analyzed. Used by the
+ * Vercel cron to pick up work since serverless functions can't keep
+ * setInterval running.
+ */
+export async function listPendingAnalysisSubmissions(limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db
+      .select()
+      .from(propertySubmissions)
+      .where(eq(propertySubmissions.status, "pending"))
+      .orderBy(propertySubmissions.createdAt)
+      .limit(limit);
+  } catch (error) {
+    console.error("[Database] Failed to list pending submissions:", error);
+    return [];
+  }
+}
+
 export async function listAllSubmissions(limit: number, offset: number) {
   const db = await getDb();
   if (!db) return { submissions: [], total: 0 };

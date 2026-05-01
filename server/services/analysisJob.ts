@@ -43,12 +43,41 @@ const activeJobs = new Set<number>();
 /**
  * Queue a background analysis job with optional delay.
  * Safe to call multiple times — duplicate jobs are silently dropped.
+ *
+ * On Vercel (serverless) we cannot rely on setTimeout — the function may
+ * exit before it fires. Instead we mark the submission as "pending" and
+ * let the /api/cron?task=process-analysis endpoint pick it up.
+ * On long-running runtimes (local dev / self-host) we still kick off the
+ * in-process timeout for the snappiest user experience.
  */
 export function queueAnalysisJob(submissionId: number, delayMs = 1000): void {
   if (activeJobs.has(submissionId)) {
     console.log(`[AnalysisJob] Job ${submissionId} already queued/running — skipping duplicate`);
     return;
   }
+
+  // Always ensure DB state reflects "queued" so the cron can recover the
+  // job if the in-process scheduler never gets to fire (Vercel cold start
+  // exits, local crash, etc.). Best-effort — don't block the request.
+  void (async () => {
+    try {
+      const { updatePropertySubmission, getPropertySubmissionById } = await import("../db");
+      const submission = await getPropertySubmissionById(submissionId);
+      if (submission && submission.status !== "analyzing" && submission.status !== "analyzed") {
+        await updatePropertySubmission(submissionId, { status: "pending" });
+      }
+    } catch (err) {
+      console.error(`[AnalysisJob] Failed to mark #${submissionId} pending:`, err);
+    }
+  })();
+
+  // On Vercel we don't try to run analysis in-process — the function will
+  // exit before LLM calls finish. Cron will pick it up within ~30s.
+  if (process.env.VERCEL === "1") {
+    console.log(`[AnalysisJob] #${submissionId} queued for cron pickup (Vercel serverless)`);
+    return;
+  }
+
   setTimeout(() => {
     analyzePropertySubmission(submissionId).catch((err: unknown) => {
       console.error(`[AnalysisJob] Unhandled error for submission ${submissionId}:`, err);

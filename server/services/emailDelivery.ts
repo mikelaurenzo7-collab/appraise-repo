@@ -7,14 +7,12 @@
  * appeal PDF as an attachment, with a short professional body and the
  * user's contact info in the body so the assessor's mailroom can reply.
  *
- * Provider is abstracted behind a thin send function. We prefer the
- * existing Forge email integration (BUILT_IN_FORGE_API_URL /
- * BUILT_IN_FORGE_API_KEY) when configured; otherwise the stub mode logs
- * the email and returns a synthetic message id so tests and dev
- * environments work without credentials.
+ * Backed by the unified Resend mailer (server/_core/mailer.ts). Falls
+ * back to STUB mode when RESEND_API_KEY is not configured.
  */
 
 import crypto from "crypto";
+import { sendMail } from "../_core/mailer";
 
 export interface AppealEmailParams {
   toEmail: string; // county intake email
@@ -38,71 +36,37 @@ export class EmailDeliveryError extends Error {
   }
 }
 
-function isStubMode(): boolean {
-  return (
-    process.env.EMAIL_DELIVERY_STUB === "1" ||
-    !process.env.BUILT_IN_FORGE_API_URL ||
-    !process.env.BUILT_IN_FORGE_API_KEY
-  );
-}
-
 export async function sendAppealEmail(
   params: AppealEmailParams
 ): Promise<AppealEmailResult> {
-  if (isStubMode()) {
-    const hash = crypto
-      .createHash("sha1")
-      .update(params.pdfBuffer)
-      .update(params.toEmail)
-      .digest("hex");
-    console.log(
-      `[EmailDelivery] STUB: would send ${params.pdfBuffer.length}-byte PDF to ${params.toEmail}`
-    );
-    return {
-      messageId: `stub-${hash.slice(0, 24)}@appraiseai.local`,
-      stubbed: true,
-    };
-  }
-
-  const forgeApiUrl = process.env.BUILT_IN_FORGE_API_URL!;
-  const forgeApiKey = process.env.BUILT_IN_FORGE_API_KEY!;
-
-  // Forge's email endpoint is JSON with a base64-encoded attachment payload.
-  const resp = await fetch(`${forgeApiUrl}/email/send`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${forgeApiKey}`,
-    },
-    body: JSON.stringify({
+  try {
+    const result = await sendMail({
       to: params.toEmail,
-      ...(params.ccEmail ? { cc: params.ccEmail } : {}),
+      cc: params.ccEmail,
       subject: params.subject,
       text: params.bodyText,
       attachments: [
         {
           filename: params.pdfFilename,
-          content: params.pdfBuffer.toString("base64"),
+          content: params.pdfBuffer,
           contentType: "application/pdf",
         },
       ],
-      metadata: params.metadata ?? {},
-    }),
-  });
-
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => "");
+      tags: params.metadata,
+    });
+    return {
+      messageId: result.messageId,
+      stubbed: result.stubbed,
+    };
+  } catch (err) {
     throw new EmailDeliveryError(
-      `Email delivery failed (${resp.status}): ${body.slice(0, 500)}`
+      err instanceof Error ? err.message : "Email delivery failed"
     );
   }
-
-  const json = (await resp.json().catch(() => ({}))) as { messageId?: string };
-  return {
-    messageId: json.messageId || `sent-${crypto.randomBytes(6).toString("hex")}@appraiseai`,
-    stubbed: false,
-  };
 }
+
+// kept for backward-compat with tests that may import crypto-using helpers
+void crypto;
 
 /**
  * Build the canonical email body used for every emailed appeal filing.

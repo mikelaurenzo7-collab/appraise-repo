@@ -56,10 +56,15 @@ export async function queueReportGeneration(
 
     console.log(`[ReportQueue] Job queued: #${job.id} for submission #${submissionId}`);
 
-    // Queue background processing (non-blocking)
-    processReportJobAsync(job.id).catch((err) => {
-      console.error(`[ReportQueue] Unhandled error in async processing:`, err);
-    });
+    // On Vercel serverless we cannot fire-and-forget — the function exits
+    // before the PDF generator finishes. The cron task `process-reports`
+    // will pick it up within ~30s. On long-running runtimes (local dev /
+    // self-host) we still kick off in-process processing for snappiness.
+    if (process.env.VERCEL !== "1") {
+      processReportJobAsync(job.id).catch((err) => {
+        console.error(`[ReportQueue] Unhandled error in async processing:`, err);
+      });
+    }
 
     return {
       jobId: job.id,

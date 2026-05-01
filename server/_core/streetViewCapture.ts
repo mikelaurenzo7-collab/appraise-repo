@@ -2,23 +2,25 @@
  * Street View & Satellite Capture Service
  * ────────────────────────────────────────────────────────────────────────────
  * Captures Street View, Satellite, and Road Map images for properties to
- * enhance PDF reports. Uses Google Maps Static API via Forge proxy.
- *
- * Auth: BUILT_IN_FORGE_API_KEY passed as ?key= query param (NOT Bearer token).
+ * enhance PDF reports. Calls Google Maps Platform APIs directly using
+ * GOOGLE_MAPS_PLATFORM_API_KEY (no proxy).
  * ────────────────────────────────────────────────────────────────────────────
  */
 import { ENV } from "./env";
 import { storagePut } from "../storage";
 
-const FORGE_BASE_URL = (ENV.forgeApiUrl || "https://forge.manus.ai").replace(/\/+$/, "");
-const API_KEY = ENV.forgeApiKey;
+const GOOGLE_BASE_URL = "https://maps.googleapis.com";
 
-function forgeUrl(endpoint: string, params: Record<string, string | number>): string {
+function googleUrl(endpoint: string, params: Record<string, string | number>): string {
+  const apiKey = ENV.googleMapsApiKey;
+  if (!apiKey) {
+    throw new Error("GOOGLE_MAPS_PLATFORM_API_KEY is not configured");
+  }
   const p = new URLSearchParams({
-    key: API_KEY,
+    key: apiKey,
     ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])),
   });
-  return `${FORGE_BASE_URL}/v1/maps/proxy${endpoint}?${p.toString()}`;
+  return `${GOOGLE_BASE_URL}${endpoint}?${p.toString()}`;
 }
 
 export interface StreetViewCaptureOptions {
@@ -49,7 +51,7 @@ export async function captureStreetView(
     const { address, size = "600x400", heading = 0, pitch = 0, fov = 90 } = options;
 
     // Check metadata first to confirm Street View is available
-    const metaUrl = forgeUrl("/maps/api/streetview/metadata", { location: address });
+    const metaUrl = googleUrl("/maps/api/streetview/metadata", { location: address });
     const metaRes = await fetch(metaUrl, { signal: AbortSignal.timeout(8000) });
     if (!metaRes.ok) return null;
     const meta = await metaRes.json() as { status?: string };
@@ -58,7 +60,7 @@ export async function captureStreetView(
       return null;
     }
 
-    const imageUrl = forgeUrl("/maps/api/streetview", {
+    const imageUrl = googleUrl("/maps/api/streetview", {
       location: address,
       size,
       heading,
@@ -89,7 +91,7 @@ export async function captureMultipleAngles(
   const results: Record<string, string> = {};
 
   // Check availability once before firing 4 requests
-  const metaUrl = forgeUrl("/maps/api/streetview/metadata", { location: address });
+  const metaUrl = googleUrl("/maps/api/streetview/metadata", { location: address });
   try {
     const metaRes = await fetch(metaUrl, { signal: AbortSignal.timeout(8000) });
     if (metaRes.ok) {
@@ -126,7 +128,7 @@ export async function captureSatelliteImage(
   size = "640x480"
 ): Promise<CapturedImage | null> {
   try {
-    const imageUrl = forgeUrl("/maps/api/staticmap", {
+    const imageUrl = googleUrl("/maps/api/staticmap", {
       center: address,
       zoom,
       size,
@@ -157,7 +159,7 @@ export async function captureRoadMapImage(
   size = "640x480"
 ): Promise<CapturedImage | null> {
   try {
-    const imageUrl = forgeUrl("/maps/api/staticmap", {
+    const imageUrl = googleUrl("/maps/api/staticmap", {
       center: address,
       zoom,
       size,
@@ -200,7 +202,7 @@ export interface GeocodedAddress {
  */
 export async function geocodeAddress(address: string): Promise<GeocodedAddress | null> {
   try {
-    const url = forgeUrl("/maps/api/geocode/json", { address });
+    const url = googleUrl("/maps/api/geocode/json", { address });
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) return null;
 
