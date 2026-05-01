@@ -108,7 +108,20 @@ const VALID_ACTIONS = new Set<string>([
 ]);
 
 export function parseRecipe(raw: string | Recipe): Recipe {
-  const obj = typeof raw === "string" ? (JSON.parse(raw) as Recipe) : raw;
+  let obj: Recipe;
+  if (typeof raw === "string") {
+    try {
+      obj = JSON.parse(raw) as Recipe;
+    } catch (err) {
+      // Convert JSON.parse SyntaxError to RecipeValidationError so callers
+      // that already handle RecipeValidationError also catch malformed JSON.
+      throw new RecipeValidationError(
+        `Recipe JSON is malformed: ${(err as Error).message}`,
+      );
+    }
+  } else {
+    obj = raw;
+  }
   if (!obj || typeof obj !== "object") throw new RecipeValidationError("Recipe must be an object");
   if (typeof obj.portalUrl !== "string" || !/^https:\/\//i.test(obj.portalUrl)) {
     throw new RecipeValidationError("portalUrl must be an https URL");

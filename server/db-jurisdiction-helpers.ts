@@ -6,6 +6,7 @@
 import { getDb } from "./db";
 import { jurisdictionRules } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+import { safeJsonParse } from "./_core/safeJson";
 
 export interface JurisdictionRuleData {
   state: string;
@@ -82,8 +83,8 @@ export async function getJurisdictionRule(
         minAssessmentDifference: rule.minAssessmentDifference || 5000,
         minAssessmentPercentage: rule.minAssessmentPercentage ? parseFloat(rule.minAssessmentPercentage.toString()) : 3,
         successRate: rule.successRate || 40,
-        filingMethods: JSON.parse(rule.filingMethods || "[]"),
-        documentationRequired: JSON.parse(rule.documentationRequired || "[]"),
+        filingMethods: safeJsonParse<string[]>(rule.filingMethods, [], "jurisdiction.filingMethods"),
+        documentationRequired: safeJsonParse<string[]>(rule.documentationRequired, [], "jurisdiction.documentationRequired"),
         hearingRequired: rule.hearingRequired || false,
         averageResolutionDays: rule.averageResolutionDays || 120,
         contingencyFeeAllowed: rule.contingencyFeeAllowed || false,
@@ -125,8 +126,8 @@ export async function getStateRules(state: string): Promise<JurisdictionRuleData
       minAssessmentDifference: rule.minAssessmentDifference || 5000,
       minAssessmentPercentage: rule.minAssessmentPercentage ? parseFloat(rule.minAssessmentPercentage.toString()) : 3,
       successRate: rule.successRate || 40,
-      filingMethods: JSON.parse(rule.filingMethods || "[]"),
-      documentationRequired: JSON.parse(rule.documentationRequired || "[]"),
+      filingMethods: safeJsonParse<string[]>(rule.filingMethods, [], "jurisdiction.filingMethods"),
+      documentationRequired: safeJsonParse<string[]>(rule.documentationRequired, [], "jurisdiction.documentationRequired"),
       hearingRequired: rule.hearingRequired || false,
       averageResolutionDays: rule.averageResolutionDays || 120,
       contingencyFeeAllowed: rule.contingencyFeeAllowed || false,

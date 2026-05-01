@@ -4,6 +4,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
+import { safeJsonParse } from "../_core/safeJson";
 import { storagePut } from "../storage";
 import { getDb } from "../db";
 import { eq } from "drizzle-orm";
@@ -170,7 +171,15 @@ Return as JSON with structure: { defects: [{type, description, severity, estimat
     throw new Error("Invalid LLM response");
   }
 
-  const parsed = JSON.parse(content);
+  // LLM output can be malformed (truncated, ill-formed, etc.). Parse safely
+  // and validate the shape — surface a clear error rather than a cryptic
+  // SyntaxError to the caller.
+  const parsed = safeJsonParse<{ defects?: Defect[]; summary?: string } | null>(
+    content, null, "comprehensiveAppealService.parseDefects",
+  );
+  if (!parsed || !Array.isArray(parsed.defects)) {
+    throw new Error("LLM returned invalid defect analysis (no defects array)");
+  }
   const totalCostToCure = parsed.defects.reduce(
     (sum: number, d: Defect) => sum + d.estimatedRepairCost,
     0
@@ -180,7 +189,7 @@ Return as JSON with structure: { defects: [{type, description, severity, estimat
     photoId: 0, // Will be set by caller
     defects: parsed.defects,
     totalCostToCure,
-    summary: parsed.summary,
+    summary: parsed.summary ?? "",
     recommendations: generatePhotoRecommendations(parsed.defects),
   };
 }

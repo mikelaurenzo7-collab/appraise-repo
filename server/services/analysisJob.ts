@@ -565,8 +565,19 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     }).catch(() => {});
 
     // Mark as error so the submission is not re-triggered in an infinite loop.
-    // The user or admin can manually re-queue if needed.
-    await updatePropertySubmission(submissionId, { status: "error" }).catch(() => {});
+    // The user or admin can manually re-queue if needed. If the status update
+    // ITSELF fails (DB hiccup, lost connection), the submission stays
+    // "analyzing" forever and the user sees a stuck spinner — log the
+    // failure so ops can detect and recover instead of silently swallowing.
+    try {
+      await updatePropertySubmission(submissionId, { status: "error" });
+    } catch (statusErr) {
+      console.error(
+        `[AnalysisJob] CRITICAL: failed to mark submission ${submissionId} as errored — ` +
+        `submission may appear stuck in "analyzing" until manually re-queued. ` +
+        `Original analysis error: ${errMsg}. Status-update error: ${(statusErr as Error).message}`,
+      );
+    }
   } finally {
     activeJobs.delete(submissionId);
   }

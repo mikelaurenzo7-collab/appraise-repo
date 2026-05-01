@@ -24,6 +24,7 @@ import { buildAppUrl } from "../_core/appUrl";
 import { sendFilingSubmittedEmail } from "../_core/emailService";
 import { storagePut } from "../storage";
 import { dispatchFiling, resolveChannel } from "./deliveryDispatcher";
+import { safeJsonParse } from "../_core/safeJson";
 
 export type QueuedFilingJob = {
   jobId: number;
@@ -118,9 +119,9 @@ export async function processOnePendingJob(): Promise<boolean> {
     return true;
   }
 
-  const perRunInputs: Record<string, string | number | null> = row.inputs
-    ? (JSON.parse(row.inputs) as Record<string, string | number | null>)
-    : {};
+  const perRunInputs = safeJsonParse<Record<string, string | number | null>>(
+    row.inputs, {}, "filingJobQueue.perRunInputs",
+  );
 
   try {
     // Resolve the channel once for logging, then dispatch.
