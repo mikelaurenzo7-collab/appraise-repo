@@ -39,6 +39,7 @@
 import { generateNarrativeWithClaude, isClaudeAvailable } from "../_core/claude";
 import type { UniformityResult } from "./uniformityAnalyzer";
 import type { RecordErrorReport } from "./recordErrorDetector";
+import { getStatutoryCitations, type StatutoryCitations } from "./statutoryCitations";
 import { scopedLogger } from "../_core/logger";
 
 const log = scopedLogger("AssessorPersuasion");
@@ -80,6 +81,13 @@ export interface PersuasionBriefInput {
   functionalObsolescence: string[];
   /** Appeal deadline ISO string, when known. */
   appealDeadline?: string | null;
+  /**
+   * Two-letter state postal code (e.g. "TX", "IL"). Drives the statutory-
+   * citation lookup for the attorney-audience brief. When omitted, the
+   * brief falls back to a generic "consult local counsel" stance — never
+   * fabricates a citation.
+   */
+  stateCode?: string | null;
 }
 
 export interface PersuasionBrief {
@@ -283,8 +291,10 @@ const AUDIENCE_TONE_OVERLAYS: Record<BriefAudience, string> = {
 
   attorney:
     "AUDIENCE: An attorney representing the owner at a hearing. Tone: densest, most formal. " +
-    "Include statutory ground references in placeholder form like [STATE STATUTE: cite uniformity " +
-    "clause] for the attorney to fill in. Include an explicit prayer for relief in legal form. " +
+    "When the user prompt supplies a STATUTORY CITATIONS section, weave the cited code " +
+    "sections into the relevant ground (e.g., 'pursuant to [cite] the property is over-valued'). " +
+    "When no citations are supplied, write '[verify with local counsel for [STATE] citation]' " +
+    "rather than inventing a cite. Include an explicit prayer for relief in legal form. " +
     "Reference the precise comparable sale dates and per-comp adjustments.",
 
   owner:
@@ -364,6 +374,28 @@ export async function generateAssessorPersuasionBrief(
   };
 }
 
+/**
+ * Build a citation block when the audience is "attorney" AND a state code
+ * resolves to curated citations. We ONLY include this block when both
+ * conditions hold; otherwise the brief defaults to the conservative
+ * "verify with local counsel" placeholder instead of fabricating cites.
+ */
+function buildCitationBlock(input: PersuasionBriefInput): string {
+  if (input.audience !== "attorney") return "";
+  const cites = getStatutoryCitations(input.stateCode);
+  if (!cites) return "";
+  const lines: string[] = [
+    "",
+    `## Statutory Citations (${cites.state} — verify against current published code before filing)`,
+    `- Excessive Market Value: ${cites.marketValueGround}`,
+    `- Lack of Uniformity: ${cites.uniformityGround}`,
+    `- Errors of Fact: ${cites.recordErrorGround}`,
+  ];
+  if (cites.filingForm) lines.push(`- Filing Form: ${cites.filingForm}`);
+  if (cites.practitionerNotes) lines.push(`- Practitioner Note: ${cites.practitionerNotes}`);
+  return lines.join("\n");
+}
+
 function buildUserPrompt(
   input: PersuasionBriefInput,
   exhibitIndex: PersuasionBrief["exhibitIndex"],
@@ -411,6 +443,7 @@ function buildUserPrompt(
     "",
     `## Exhibit Index (already prepared, do not invent additions)`,
     exhibitIndex.map((e) => `${e.tag}: ${e.title} — ${e.description}`).join("\n"),
+    buildCitationBlock(input),
     "",
     `## Output Instructions`,
     `Produce the JSON object specified in your system prompt. Use ONLY the facts above. ` +
@@ -510,6 +543,36 @@ function buildFallbackFormal(
   lines.push(`## Evidence Index`);
   for (const e of exhibitIndex) lines.push(`- **${e.tag}:** ${e.title} — ${e.description}`);
   lines.push("");
+
+  // Statutory citations — only emitted for the attorney audience and only
+  // when the state has curated citations on file. We never invent cites.
+  if (input.audience === "attorney") {
+    const cites = getStatutoryCitations(input.stateCode);
+    lines.push(`## Statutory Bases for Relief`);
+    if (cites) {
+      lines.push(
+        `*${cites.state} — verify against current published code before filing.*`,
+      );
+      lines.push("");
+      lines.push(`- **Excessive Market Value:** ${cites.marketValueGround}`);
+      lines.push(`- **Lack of Uniformity:** ${cites.uniformityGround}`);
+      lines.push(`- **Errors of Fact:** ${cites.recordErrorGround}`);
+      if (cites.filingForm) lines.push(`- **Filing Form:** ${cites.filingForm}`);
+      if (cites.practitionerNotes) {
+        lines.push(`- **Practitioner Note:** ${cites.practitionerNotes}`);
+      }
+    } else {
+      lines.push(
+        `Statutory citations for ${input.stateCode ? input.stateCode.toUpperCase() : "this state"} ` +
+          `have not been curated; verify the operative code sections with local counsel before filing. ` +
+          `Citations should be located for: (a) the market-value standard, (b) the uniformity / ` +
+          `equality clause, and (c) the procedural ground for correction of errors of fact in the ` +
+          `assessor's record.`,
+      );
+    }
+    lines.push("");
+  }
+
   lines.push(`## Conclusion`);
   lines.push(
     `Based on the comparable-sales analysis, the uniformity / equalization data, and the ` +

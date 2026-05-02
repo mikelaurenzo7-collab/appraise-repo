@@ -638,14 +638,28 @@ export function getScenarioContext(scenario: UserScenario): ScenarioContext {
  *   • allowDistressedComps — when false AND >5 comps remain, trims the
  *     top + bottom 10% as likely outliers (preserves the meaningful core)
  *
- * Note: foreclosure/short-sale tagging isn't reliably present in the
- * upstream data sources today, so excludeForeclosures/excludeShortSales
- * are treated as soft signals (logged but not enforced) until the
- * aggregator surfaces saleType. This is documented intentionally so we
- * don't silently filter on metadata that isn't there.
+ * Arms-length filtering: when the upstream aggregator (currently RentCast)
+ * tags a comp's transactionType as foreclosure / REO / short_sale / family /
+ * auction, those comps are dropped from the valuation set when the
+ * strategy says so. Boards routinely dismiss non-arm's-length comps as
+ * "non-market," so including one is worse than including none. Comps
+ * tagged "unknown" are kept (no false negatives on missing metadata).
  */
 export function applyCompFilterStrategy<
-  C extends { saleDate: string; similarity?: number; salePrice: number; squareFeet: number },
+  C extends {
+    saleDate: string;
+    similarity?: number;
+    salePrice: number;
+    squareFeet: number;
+    transactionType?:
+      | "arms_length"
+      | "foreclosure"
+      | "reo"
+      | "short_sale"
+      | "family_transfer"
+      | "auction"
+      | "unknown";
+  },
 >(comps: C[], strategy: CompFilterStrategy): C[] {
   if (!comps || comps.length === 0) return [];
 
@@ -661,6 +675,23 @@ export function applyCompFilterStrategy<
   if (strategy.requireSimilarCondition) {
     filtered = filtered.filter((c) => c.similarity === undefined || c.similarity >= 0.6);
   }
+
+  // Arms-length filter — drops transactions the assessor would dismiss.
+  // Foreclosure / REO / short sales are dropped when the strategy says
+  // excludeForeclosures (most scenarios). Family transfers and auctions
+  // are dropped whenever the strategy enforces arms-length, since both
+  // categories are categorically non-market for assessment purposes.
+  if (strategy.excludeForeclosures || !strategy.allowDistressedComps) {
+    filtered = filtered.filter((c) => {
+      const t = c.transactionType;
+      if (t === "foreclosure" || t === "reo" || t === "auction") return false;
+      if (strategy.excludeShortSales && t === "short_sale") return false;
+      return true;
+    });
+  }
+  // Family transfers are categorically non-arm's-length under any
+  // strategy that filters comps; assessors will reject them on sight.
+  filtered = filtered.filter((c) => c.transactionType !== "family_transfer");
 
   // Outlier trim: when distressed comps are not welcome AND we have enough
   // data to spare, drop the extremes of the price-per-sqft distribution.

@@ -44,6 +44,7 @@ import {
   type BriefAudience,
   type PersuasionBrief,
 } from "./assessorPersuasionBrief";
+import { generateHearingPrepDocument, type HearingPrepDocument } from "./hearingPrepDocument";
 import { scopedLogger } from "../_core/logger";
 
 const log = scopedLogger("AnalysisJob");
@@ -452,16 +453,16 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
 
     // (b) UNIFORMITY: subject's assessment ratio vs. peer parcels.
     // Today most aggregator comps don't carry assessed-value data, so the
-    // analyzer correctly produces hasUniformityClaim=false and we say nothing
-    // (the brief lead with market-value instead). When the data layer starts
-    // returning comp assessed values, this immediately becomes a real second
-    // ground without further wiring.
+    // analyzer correctly produces hasUniformityClaim=false and we say nothing.
+    // RentCast now populates ComparableSale.assessedValue when present, so
+    // this fires automatically on properties whose comps have assessment-
+    // roll data attached. Comps without an assessed value are silently
+    // ignored (the analyzer requires ≥3 usable ratios).
     const uniformity = analyzeUniformity(
       subjectAssessedValue,
       subjectMarketValue,
       filteredPropertyData.comparableSales ?? [],
-      // No assessor lookup wired yet; comps without ratios are simply ignored.
-      undefined,
+      (c) => c.assessedValue,
     );
 
     // (c) RECORD ERRORS: assessor record (tax bill OCR + aggregator) vs.
@@ -560,6 +561,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         photoFindings: photoFindingsForBrief,
         functionalObsolescence: obsolescenceForBrief,
         appealDeadline: undefined, // populated downstream when known
+        stateCode: submission.state ?? null,
       });
 
       await persistActivityLog({
@@ -580,6 +582,69 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       });
     } catch (briefErr) {
       log.warn("Persuasion brief generation failed (non-fatal)", { submissionId, err: (briefErr as Error).message });
+    }
+
+    // ── Step 4e: Hearing prep document — owner-only ─────────────────────────
+    // Bundles opening / closing scripts, anticipated assessor questions with
+    // response templates, per-comp walkthrough, and pre-hearing checklist.
+    // Practitioners say this single document is the largest determinant of
+    // hearing outcome at the board level. Wrapped in try/catch so failure
+    // never blocks the pipeline. Stored in scenarioContext.hearingPrep.
+    let hearingPrep: HearingPrepDocument | null = null;
+    try {
+      const compSummariesForPrep = (filteredPropertyData.comparableSales ?? [])
+        .slice(0, 5)
+        .map((c) => {
+          const ppsf =
+            c.squareFeet && c.salePrice ? Math.round(c.salePrice / c.squareFeet) : null;
+          return {
+            address: c.address,
+            adjustedPrice: c.salePrice, // Pre-adjustment price; the LLM brief uses adjusted values upstream
+            saleDate: c.saleDate || "(date unknown)",
+            keyAttribute:
+              `${c.squareFeet ? `${c.squareFeet.toLocaleString()} sqft` : "size unknown"}` +
+              `${ppsf ? `, $${ppsf}/sqft` : ""}` +
+              `${c.transactionType ? `, ${c.transactionType.replace("_", "-")}` : ""}`,
+          };
+        });
+      hearingPrep = await generateHearingPrepDocument({
+        ownerName: submission.email?.split("@")[0],
+        propertyAddress: `${submission.address}${submission.city ? `, ${submission.city}` : ""}${submission.state ? `, ${submission.state}` : ""}`,
+        parcelId:
+          (taxBillNumber("apn") as unknown as string | undefined) ??
+          ((tb.apn as string | undefined) ?? null),
+        taxYear:
+          (taxBillNumber("taxYear") as number | undefined) ?? new Date().getFullYear(),
+        jurisdiction: `${propertyData.county ?? submission.county ?? "Unknown County"}, ${submission.state ?? ""}`.trim(),
+        hearingBody: appealStrategyForPrep(submission.state ?? null, propertyData.county ?? submission.county ?? null),
+        hearingFormat: "in-person",
+        currentAssessedValue: subjectAssessedValue,
+        requestedAssessedValue: subjectMarketValue,
+        evidenceSupportedMarketValue: subjectMarketValue,
+        comparableSummaries: compSummariesForPrep,
+        uniformity,
+        recordErrors,
+        photoFindings: photoSummary?.topValueIssues?.slice(0, 5) ?? [],
+        functionalObsolescence: photoSummary?.functionalObsolescenceItems?.slice(0, 5) ?? [],
+      });
+      await persistActivityLog({
+        submissionId,
+        type: "hearing_prep_generated",
+        actor: "system",
+        description: `Hearing prep document generated (source: ${hearingPrep.source}, ${hearingPrep.anticipatedQuestions.length} anticipated questions, ${hearingPrep.preHearingChecklist.length} checklist items).`,
+        metadata: JSON.stringify({
+          source: hearingPrep.source,
+          anticipatedQuestionCount: hearingPrep.anticipatedQuestions.length,
+          checklistLength: hearingPrep.preHearingChecklist.length,
+          activeGrounds: hearingPrep.groundsTalkingPoints.map((g) => g.ground),
+        }),
+        status: "success",
+      });
+    } catch (prepErr) {
+      log.warn("Hearing prep generation failed (non-fatal)", {
+        submissionId,
+        err: (prepErr as Error).message,
+      });
     }
 
     // ── Step 5: Generate appeal strategy ─────────────────────────────────────
@@ -695,6 +760,21 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
                 prayerForRelief: persuasionBrief.prayerForRelief,
                 rankedGrounds: persuasionBrief.rankedGrounds,
                 exhibitIndex: persuasionBrief.exhibitIndex,
+              }
+            : null,
+          // Owner-only hearing prep document — script + Q&A + walkthrough.
+          // Never include in the assessor-facing PDF; the renderer gates
+          // on reportAudience === "owner".
+          hearingPrep: hearingPrep
+            ? {
+                source: hearingPrep.source,
+                openingStatement: hearingPrep.openingStatement,
+                groundsTalkingPoints: hearingPrep.groundsTalkingPoints,
+                anticipatedQuestions: hearingPrep.anticipatedQuestions,
+                comparableWalkthrough: hearingPrep.comparableWalkthrough,
+                recordErrorWalkthrough: hearingPrep.recordErrorWalkthrough,
+                closingStatement: hearingPrep.closingStatement,
+                preHearingChecklist: hearingPrep.preHearingChecklist,
               }
             : null,
         }),
@@ -867,6 +947,29 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
  * The DB query is best-effort — never blocks the analysis pipeline. If the
  * query fails or no preference exists, we fall back to "board".
  */
+/**
+ * Best-effort hearing-body lookup. The persuasion brief and hearing prep
+ * doc display this on the cover ("you will be heard by …"). Falls back
+ * to a generic label when the jurisdiction is unknown so the script
+ * still flows naturally — no fabrication, just defaulted phrasing.
+ */
+function appealStrategyForPrep(state: string | null, county: string | null): string {
+  if (!state) return "the local board of equalization";
+  const s = state.toUpperCase();
+  if (s === "IL" && county?.toLowerCase().includes("cook")) {
+    return "the Cook County Board of Review";
+  }
+  if (s === "TX") return "the county Appraisal Review Board (ARB)";
+  if (s === "CA") return "the county Assessment Appeals Board";
+  if (s === "NY") return "the local Board of Assessment Review";
+  if (s === "FL") return "the county Value Adjustment Board (VAB)";
+  if (s === "GA") return "the county Board of Equalization";
+  if (s === "MA") return "the local Board of Assessors / Appellate Tax Board";
+  return county
+    ? `the ${county} County Board of Equalization`
+    : "the local board of equalization";
+}
+
 async function resolveBriefAudience(submissionId: number): Promise<BriefAudience> {
   try {
     const { getDb } = await import("../db");

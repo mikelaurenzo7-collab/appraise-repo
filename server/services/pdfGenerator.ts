@@ -171,6 +171,36 @@ export interface AppraisalReportData {
     }>;
     summaryLine: string;
   };
+  /**
+   * Hearing prep document — OWNER-FACING ONLY. The renderer gates this
+   * section on `reportAudience === "owner"` so it never lands in front of
+   * the assessor or the board (it would broadcast our anticipated questions
+   * and coaching to the opposing party).
+   */
+  hearingPrep?: {
+    source: "claude" | "fallback";
+    openingStatement: string;
+    groundsTalkingPoints: Array<{
+      ground: "market_value" | "uniformity" | "record_errors";
+      headline: string;
+      bullets: string[];
+    }>;
+    anticipatedQuestions: Array<{
+      category:
+        | "comp_admissibility"
+        | "valuation_method"
+        | "condition_evidence"
+        | "record_errors"
+        | "uniformity"
+        | "general";
+      question: string;
+      response: string;
+    }>;
+    comparableWalkthrough: Array<{ address: string; line: string }>;
+    recordErrorWalkthrough: string[];
+    closingStatement: string;
+    preHearingChecklist: string[];
+  };
   comparableSales?: Array<{
     address: string;
     salePrice: number;
@@ -2279,6 +2309,120 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         photoSummaryRows.push(["Evidence Strength", `${data.photoFindings.overallEvidenceStrength}/100`]);
       }
       y = kvTable(doc, photoSummaryRows, y, cw);
+    }
+
+    // ─── HEARING PREP — OWNER-ONLY ─────────────────────────────────────
+    // Rendered only on the owner-facing copy. Contains opening / closing
+    // scripts, anticipated assessor questions with verbatim response
+    // templates, per-comp walkthrough, and a pre-hearing checklist.
+    // Hard gate on !isAssessor — never put this in front of the opposing
+    // party. They would learn exactly which questions we're prepared for.
+    if (!isAssessor && data.hearingPrep) {
+      const hp = data.hearingPrep;
+      y = newPage(doc, reportId, pageCounter);
+      sectionNum++;
+      y = sectionHeader(doc, "HEARING PREP — OWNER STUDY GUIDE", y, cw, sectionNum);
+
+      y = bodyText(
+        doc,
+        "This section is for your eyes only. Do not include it in the packet you hand to the " +
+          "assessor or the board. Read it the night before the hearing — twice — and bring a printed " +
+          "copy with you. Speak slowly. Pause at the end of each ground.",
+        y, cw,
+      );
+
+      // ── Opening Statement ──
+      y = ensureSpace(doc, y, 60, reportId, pageCounter);
+      y = subHeader(doc, "Opening Statement (60-90 seconds)", y, cw);
+      y = bodyText(doc, hp.openingStatement, y, cw);
+
+      // ── Per-Ground Talking Points ──
+      if (hp.groundsTalkingPoints.length > 0) {
+        y = ensureSpace(doc, y, 60, reportId, pageCounter);
+        y = subHeader(doc, "Talking Points by Ground (ranked strongest-first)", y, cw);
+        for (const g of hp.groundsTalkingPoints) {
+          y = ensureSpace(doc, y, 60, reportId, pageCounter);
+          const label =
+            g.ground === "market_value"
+              ? "Excessive Market Value"
+              : g.ground === "uniformity"
+                ? "Lack of Uniformity"
+                : "Errors of Fact in Assessor's Record";
+          doc.fontSize(10).fillColor(NAVY).font("Helvetica-Bold")
+            .text(`Ground: ${label}`, LM, y, { width: cw });
+          y = doc.y + 4;
+          doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica-Oblique")
+            .text(g.headline, LM, y, { width: cw, lineGap: 3 });
+          y = doc.y + 6;
+          for (const b of g.bullets) {
+            y = ensureSpace(doc, y, 20, reportId, pageCounter);
+            doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica")
+              .text(`-  ${b}`, LM + 12, y, { width: cw - 24, lineGap: 2 });
+            y = doc.y + 3;
+          }
+          y += 6;
+        }
+      }
+
+      // ── Anticipated Questions ──
+      if (hp.anticipatedQuestions.length > 0) {
+        y = ensureSpace(doc, y, 60, reportId, pageCounter);
+        y = subHeader(doc, "Anticipated Questions & Response Templates", y, cw);
+        for (let i = 0; i < hp.anticipatedQuestions.length; i++) {
+          const q = hp.anticipatedQuestions[i];
+          y = ensureSpace(doc, y, 70, reportId, pageCounter);
+          doc.fontSize(9).fillColor(NAVY).font("Helvetica-Bold")
+            .text(`Q${i + 1}. ${q.question}`, LM, y, { width: cw, lineGap: 2 });
+          y = doc.y + 4;
+          doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica")
+            .text(`A. ${q.response}`, LM + 12, y, { width: cw - 24, lineGap: 3 });
+          y = doc.y + 8;
+        }
+      }
+
+      // ── Comparable Walkthrough ──
+      if (hp.comparableWalkthrough.length > 0) {
+        y = ensureSpace(doc, y, 60, reportId, pageCounter);
+        y = subHeader(doc, "Per-Comparable Walkthrough", y, cw);
+        for (const c of hp.comparableWalkthrough) {
+          y = ensureSpace(doc, y, 30, reportId, pageCounter);
+          doc.fontSize(9).fillColor(NAVY).font("Helvetica-Bold")
+            .text(c.address, LM, y, { width: cw });
+          y = doc.y + 2;
+          doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica")
+            .text(c.line, LM + 12, y, { width: cw - 24, lineGap: 2 });
+          y = doc.y + 6;
+        }
+      }
+
+      // ── Record Error Walkthrough ──
+      if (hp.recordErrorWalkthrough.length > 0) {
+        y = ensureSpace(doc, y, 50, reportId, pageCounter);
+        y = subHeader(doc, "Record-Card Discrepancies — 30-Second Read", y, cw);
+        for (const r of hp.recordErrorWalkthrough) {
+          y = ensureSpace(doc, y, 24, reportId, pageCounter);
+          doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica")
+            .text(`-  ${r}`, LM + 12, y, { width: cw - 24, lineGap: 2 });
+          y = doc.y + 4;
+        }
+      }
+
+      // ── Closing Statement ──
+      y = ensureSpace(doc, y, 50, reportId, pageCounter);
+      y = subHeader(doc, "Closing Statement (30-45 seconds)", y, cw);
+      y = bodyText(doc, hp.closingStatement, y, cw);
+
+      // ── Pre-Hearing Checklist ──
+      if (hp.preHearingChecklist.length > 0) {
+        y = ensureSpace(doc, y, 50, reportId, pageCounter);
+        y = subHeader(doc, "Pre-Hearing Checklist", y, cw);
+        for (const item of hp.preHearingChecklist) {
+          y = ensureSpace(doc, y, 22, reportId, pageCounter);
+          doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica")
+            .text(`☐  ${item}`, LM + 8, y, { width: cw - 16, lineGap: 2 });
+          y = doc.y + 4;
+        }
+      }
     }
 
     // ─── APPENDICES ────────────────────────────────────────────────────

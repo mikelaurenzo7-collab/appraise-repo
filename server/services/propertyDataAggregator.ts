@@ -58,6 +58,26 @@ export interface ComparableSale {
   longitude?: number;
   photoUrl?: string;
   similarity: number;
+  /**
+   * Comp parcel's currently-assessed value, when available from the source.
+   * Required for the uniformity / equity argument — without per-parcel
+   * assessment data the analyzer cannot compare ratios across parcels.
+   */
+  assessedValue?: number;
+  /**
+   * Transaction type inferred from the source. Boards routinely dismiss
+   * comparables sourced from foreclosures, REO sales, family transfers,
+   * and short sales as "non-arm's-length." Filtering them upstream prevents
+   * an otherwise-clean appeal from being undercut by a single bad comp.
+   */
+  transactionType?:
+    | "arms_length"
+    | "foreclosure"
+    | "reo"
+    | "short_sale"
+    | "family_transfer"
+    | "auction"
+    | "unknown";
   source: "mls" | "rentcast" | "attom" | "redfin";
 }
 
@@ -133,18 +153,51 @@ async function queryRentCast(address: string, city: string, state: string): Prom
         }
       }
 
-      // Extract comparable sales from history if available
-      const comps: ComparableSale[] = (data.comparables || []).slice(0, 5).map((c: any) => ({
-        address: c.formattedAddress || c.address,
-        salePrice: c.price || c.lastSalePrice,
-        saleDate: c.lastSaleDate,
-        squareFeet: c.squareFootage,
-        bedrooms: c.bedrooms,
-        bathrooms: c.bathrooms,
-        yearBuilt: c.yearBuilt,
-        similarity: c.correlation ? Math.round(c.correlation * 100) : 75,
-        source: "rentcast" as const,
-      }));
+      // Extract comparable sales from history if available.
+      // We pull assessedValue + transactionType when RentCast returns them
+      // so the uniformity analyzer and arms-length filter can do real work.
+      const comps: ComparableSale[] = (data.comparables || []).slice(0, 5).map((c: any) => {
+        // Latest tax-assessment value for this comp, if RentCast provided it.
+        let compAssessed: number | undefined;
+        if (c.taxAssessments && typeof c.taxAssessments === "object") {
+          const yrs = Object.keys(c.taxAssessments).sort().reverse();
+          if (yrs.length > 0) compAssessed = c.taxAssessments[yrs[0]]?.value;
+        }
+        // Best-effort transaction-type inference. RentCast does not
+        // currently expose a single canonical field; we coalesce a few
+        // candidate flags. Anything we cannot confirm stays "unknown".
+        const rawType =
+          (typeof c.lastSaleType === "string" && c.lastSaleType.toLowerCase()) ||
+          (typeof c.transactionType === "string" && c.transactionType.toLowerCase()) ||
+          (typeof c.saleType === "string" && c.saleType.toLowerCase()) ||
+          undefined;
+        const txType: ComparableSale["transactionType"] = rawType
+          ? rawType.includes("foreclos")
+            ? "foreclosure"
+            : rawType.includes("reo") || rawType.includes("bank-owned") || rawType.includes("bank owned")
+              ? "reo"
+              : rawType.includes("short")
+                ? "short_sale"
+                : rawType.includes("auction")
+                  ? "auction"
+                  : rawType.includes("family") || rawType.includes("intra-family") || rawType.includes("relative")
+                    ? "family_transfer"
+                    : "arms_length"
+          : "unknown";
+        return {
+          address: c.formattedAddress || c.address,
+          salePrice: c.price || c.lastSalePrice,
+          saleDate: c.lastSaleDate,
+          squareFeet: c.squareFootage,
+          bedrooms: c.bedrooms,
+          bathrooms: c.bathrooms,
+          yearBuilt: c.yearBuilt,
+          similarity: c.correlation ? Math.round(c.correlation * 100) : 75,
+          assessedValue: compAssessed,
+          transactionType: txType,
+          source: "rentcast" as const,
+        };
+      });
 
       return {
         assessedValue,

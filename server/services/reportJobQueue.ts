@@ -150,10 +150,12 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       uniformity?: NonNullable<AppraisalReportData["uniformityResult"]>;
       recordErrors?: NonNullable<AppraisalReportData["recordErrors"]>;
       persuasionBrief?: NonNullable<AppraisalReportData["persuasionBrief"]>;
+      hearingPrep?: NonNullable<AppraisalReportData["hearingPrep"]>;
     }>(analysis.scenarioContext, {}, "reportJobQueue.scenarioContext");
     const uniformityResult = scenarioCtx.uniformity;
     const recordErrors = scenarioCtx.recordErrors;
     const persuasionBrief = scenarioCtx.persuasionBrief;
+    const hearingPrep = scenarioCtx.hearingPrep;
     // Determine report tier from filingMethod
     const tier = submission.filingMethod === "none" ? "free" : (submission.filingMethod || "free");
 
@@ -249,6 +251,7 @@ async function processReportJobAsync(jobId: number): Promise<void> {
       uniformityResult,
       recordErrors,
       persuasionBrief,
+      hearingPrep,
     };
 
     // Generate PDF

@@ -1241,10 +1241,12 @@ export const appRouter = router({
           uniformity?: NonNullable<AppraisalReportData["uniformityResult"]>;
           recordErrors?: NonNullable<AppraisalReportData["recordErrors"]>;
           persuasionBrief?: NonNullable<AppraisalReportData["persuasionBrief"]>;
+          hearingPrep?: NonNullable<AppraisalReportData["hearingPrep"]>;
         }>(analysis.scenarioContext, {}, "routers.generateReport.scenarioContext");
         const uniformityResult = scenarioCtx.uniformity;
         const recordErrors = scenarioCtx.recordErrors;
         const persuasionBrief = scenarioCtx.persuasionBrief;
+        const hearingPrep = scenarioCtx.hearingPrep;
 
         // Determine report tier from filingMethod
         // Maps filing method to PDF tier: null/undefined=free, all paid methods=full 40-page report
@@ -1304,6 +1306,7 @@ export const appRouter = router({
           uniformityResult,
           recordErrors,
           persuasionBrief,
+          hearingPrep,
         };
 
         const { url, key } = await generateAppraisalPDF(reportData);
