@@ -22,7 +22,7 @@ import {
   persistActivityLog,
 } from "../db";
 import { notifyOwner } from "../_core/notification";
-import { runPropertyResearch } from "./geminiResearch";
+import { runPropertyResearch } from "./webResearch";
 import { getJurisdictionRule } from "../db-jurisdiction-helpers";
 import { capturePropertyImagery } from "../_core/streetViewCapture";
 import {
@@ -702,8 +702,8 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
             ? Math.round(propertyData.comparableSales.reduce((s, c) => s + (c.daysOnMarket || 0), 0) / propertyData.comparableSales.length)
             : null,
           inventoryCount: propertyData.comparableSales?.length || null,
-          priceChangeYoY: null, // Populated by Gemini research if available
-          absorptionRate: null, // Populated by Gemini research if available
+          priceChangeYoY: null, // Populated by web research if available
+          absorptionRate: null, // Populated by web research if available
         }),
         reconciliationNarrative: analysis.valuationJustification || null,
       });

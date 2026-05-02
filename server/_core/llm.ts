@@ -1,14 +1,17 @@
 /**
- * LLM Bridge — delegates to Gemini/Anthropic providers.
+ * LLM Bridge — delegates to Anthropic Claude.
  *
  * Kept as a thin shim so existing callers (routers.ts, services/*.ts)
- * don't need to change their import paths. The actual API calls are made
- * by callGemini / callAnthropic from "./llmProviders".
+ * don't need to change their import paths. The actual API call is made
+ * by callAnthropic from "./llmProviders".
  *
  * The InvokeResult shape mirrors the legacy Manus Forge response so any
  * code destructuring `.choices[0].message.content` keeps working.
+ *
+ * Gemini support has been removed; the `provider` field on InvokeParams
+ * is retained for type compatibility but is ignored.
  */
-import { callGemini, callAnthropic } from "./llmProviders";
+import { callAnthropic } from "./llmProviders";
 import type {
   LLMMessage,
   Message,
@@ -59,7 +62,7 @@ function flattenContent(content: MessageContent | MessageContent[]): string {
 }
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  const { messages, maxTokens, max_tokens, provider, model } = params;
+  const { messages, maxTokens, max_tokens, model } = params;
   const tokenLimit = maxTokens ?? max_tokens ?? 32768;
 
   const flatMessages: LLMMessage[] = messages.map((m: Message) => ({
@@ -69,19 +72,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     content: flattenContent(m.content),
   }));
 
-  let text: string;
-  if (provider === "gemini") {
-    // Explicit opt-in to Gemini (legacy / testing only)
-    text = await callGemini(flatMessages, model, tokenLimit);
-  } else {
-    // Default: Anthropic Claude — fast, reliable, no Gemini credits required
-    text = await callAnthropic(flatMessages, model, tokenLimit);
-  }
+  const text = await callAnthropic(flatMessages, model, tokenLimit);
 
   return {
     id: `bridge-${Date.now()}`,
     created: Math.floor(Date.now() / 1000),
-    model: model ?? (provider === "anthropic" ? "claude-sonnet-4-20250514" : "gemini-2.5-flash"),
+    model: model ?? "claude-sonnet-4-20250514",
     choices: [
       {
         index: 0,

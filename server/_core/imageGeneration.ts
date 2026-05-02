@@ -43,7 +43,7 @@ export async function generateImage(
   // Image generation was previously backed by the Manus Forge ImageService.
   // It is not yet wired to a replacement provider in this deployment.
   throw new Error(
-    "Image generation is not available in this deployment. Configure a provider (e.g. OpenAI Images / Gemini) to enable it."
+    "Image generation is not available in this deployment. Configure an image-generation provider to enable it."
   );
   // Unreachable — kept so callers in the legacy code path still type-check.
   // eslint-disable-next-line no-unreachable

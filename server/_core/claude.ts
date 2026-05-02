@@ -1,7 +1,7 @@
 /**
  * Claude API client — high-value analysis use cases.
  *
- * Sits alongside the Forge/Gemini `invokeLLM` path. Each service that uses
+ * Sits alongside the legacy `invokeLLM` shim. Each service that uses
  * this module falls back to `invokeLLM` when ANTHROPIC_API_KEY is absent,
  * so the pipeline keeps working without any env changes.
  *

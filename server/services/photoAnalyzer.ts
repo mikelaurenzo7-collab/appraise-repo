@@ -174,7 +174,7 @@ async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding 
     const photoCacheKey = `llm:photo:${hashLLMInput([photo.url, photo.category, photo.caption ?? ""])}`;
     const cachedFinding = await withLLMCache<PhotoFinding | null>(
       photoCacheKey,
-      isClaudeAvailable() ? "claude-opus-4-7-vision" : "forge-gemini-vision",
+      isClaudeAvailable() ? "claude-opus-4-7-vision" : "claude-unavailable",
       7 * 24 * 3600,
       async () => analyzeSinglePhotoUncached(photo),
     );
@@ -214,9 +214,9 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
 
     if (isClaudeAvailable()) {
       // Claude Opus 4.7 vision with prompt-cached system prompt.
-      // Claude's vision outperforms Gemini on subtle structural defects
-      // (hairline cracks, granule loss, moisture staining) that matter most
-      // for property-condition appeals.
+      // Claude's vision excels at subtle structural defects (hairline
+      // cracks, granule loss, moisture staining) that matter most for
+      // property-condition appeals.
       const claudePromise = analyzePhotoWithClaude({
         systemPrompt: PHOTO_SYSTEM_PROMPT,
         userInstruction,
@@ -228,7 +228,8 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
       );
       rawJson = await Promise.race([claudePromise, timeoutPromise]);
     } else {
-      // Forge / Gemini fallback
+      // Anthropic API key absent — use the legacy invokeLLM shim, which
+      // also routes to Claude. Schema validation enforced via response_format.
       const llmPromise = invokeLLM({
         maxTokens: 800,
         messages: [

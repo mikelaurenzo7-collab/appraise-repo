@@ -380,7 +380,7 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
 
     // Cache key derived from the property + scenario + evidence inputs.
     // Include a hash of photo/taxBill presence so new evidence busts the cache.
-    const source = isClaudeAvailable() ? "claude-opus-4-7" : "forge-gemini-2.5-flash";
+    const source = isClaudeAvailable() ? "claude-opus-4-7" : "claude-unavailable";
     const evidenceHash = hashLLMInput([
       photoContext ? photoContext.overallConditionScore : null,
       photoContext ? photoContext.uspapRatings : null,
@@ -404,7 +404,8 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
           effort: "xhigh",
         });
       } else {
-        // Forge / Gemini fallback — used when ANTHROPIC_API_KEY is not set.
+        // Anthropic key absent — invokeLLM also routes to Claude via the
+        // shared callAnthropic shim. Will throw if no API key is present.
         const response = await invokeLLM({
           messages: [
             { role: "system", content: APPRAISAL_SYSTEM_PROMPT },

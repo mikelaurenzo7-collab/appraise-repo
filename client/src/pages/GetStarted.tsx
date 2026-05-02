@@ -216,7 +216,7 @@ export default function GetStarted() {
   const [selectedState, setSelectedState] = useState("");
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
-  // County name from geocoding (used for dynamic Gemini lookup when county not in DB)
+  // County name from geocoding (used for dynamic web-research lookup when county not in DB)
   const [detectedCountyName, setDetectedCountyName] = useState("");
 
   // Auto-detect state from address when moving to step 2
@@ -247,8 +247,8 @@ export default function GetStarted() {
     { enabled: !!selectedCountyId && filingMethod !== "none" }
   );
 
-  // Dynamic county lookup via Gemini — fires when no counties found for the selected state
-  // and we have a county name from geocoding
+  // Dynamic county lookup via Claude web research — fires when no counties found
+  // for the selected state and we have a county name from geocoding
   const noCountiesFound =
     !!selectedState &&
     !countiesQuery.isLoading &&
@@ -647,7 +647,7 @@ export default function GetStarted() {
                         </button>
                       ))
                     ) : (
-                      /* No counties seeded — show dynamic Gemini-powered info */
+                      /* No counties seeded — show dynamic web-research info */
                       <div className="col-span-full space-y-3">
                         {dynamicCountyQuery.isLoading ? (
                           <div className="rounded-lg border-2 border-[#E2E8F0] bg-white p-5 flex items-center gap-3">
@@ -724,7 +724,7 @@ export default function GetStarted() {
                             </div>
                           </div>
                         ) : (
-                          /* Gemini lookup failed or returned nothing */
+                          /* Lookup failed or returned nothing */
                           <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-5">
                             <div className="flex items-start gap-3">
                               <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />

@@ -2,8 +2,7 @@ export const ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
   isProduction: process.env.NODE_ENV === "production",
-  // AI Providers — Gemini & Anthropic (replacing Manus Forge)
-  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+  // AI Provider — Anthropic Claude (sole LLM provider)
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   // Supabase Auth
   supabaseUrl: process.env.SUPABASE_URL ?? "",

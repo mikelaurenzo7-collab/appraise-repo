@@ -1,18 +1,17 @@
 /**
- * geminiResearch.ts  (Claude-powered — legacy name retained for import compat)
- * Research engine powered by Claude + Anthropic web_search tool.
+ * webResearch.ts — Claude-powered web research engine.
  *
  * ARCHITECTURE:
- *   • Claude Sonnet 4 + web_search_20250305 — Deep market research with live web grounding
- *     Searches the web, synthesizes findings, returns structured market intelligence.
- *   • Claude Sonnet 4 + web_search_20250305 — Fast county info extraction
- *     Grounded search for county assessor portals, deadlines, filing procedures.
+ *   • Claude Sonnet + web_search_20250305 — Deep market research with live
+ *     web grounding. Searches the web, synthesizes findings, returns
+ *     structured market intelligence.
+ *   • Claude Sonnet + web_search_20250305 — Fast county info extraction.
+ *     Grounded search for county assessor portals, deadlines, filing
+ *     procedures.
  *
  * PIPELINE INTEGRATION:
  *   analysisJob.ts  → runPropertyResearch() → feeds into analyzeProperty()
  *   counties router → lookupCountyInfo()    → feeds into county eligibility
- *
- * EXPORTED INTERFACE: unchanged — GeminiInsight, GeminiResearchResult, CountyInfo
  */
 
 import { getClaudeClient } from "../_core/claude";
@@ -22,7 +21,7 @@ import { getStateRules } from "./stateAssessmentRules";
 // ─── Types (kept for backward compatibility) ─────────────────────────────────
 
 /** A single web source cited in research */
-export interface GeminiSource {
+export interface ResearchSource {
   title: string;
   link: string;
   snippet: string;
@@ -31,10 +30,10 @@ export interface GeminiSource {
 }
 
 /** Structured research insight for one scenario — structured research insight */
-export interface GeminiInsight {
+export interface ResearchInsight {
   scenario: ResearchScenario;
   query: string;
-  results: GeminiSource[];
+  results: ResearchSource[];
   /** LLM-synthesized summary ready for injection into appraisal prompt */
   summary: string;
 }
@@ -94,7 +93,7 @@ function extractHostname(url: string): string {
 async function callClaudeWithWebSearch(
   prompt: string,
   timeoutMs = 30000,
-): Promise<{ text: string; sources: GeminiSource[] }> {
+): Promise<{ text: string; sources: ResearchSource[] }> {
   const client = getClaudeClient();
   if (!client) {
     console.warn("[Research] ANTHROPIC_API_KEY not set — skipping research");
@@ -126,7 +125,7 @@ async function callClaudeWithWebSearch(
     );
 
     let text = "";
-    const sources: GeminiSource[] = [];
+    const sources: ResearchSource[] = [];
 
     for (const block of response.content) {
       if (block["type"] === "text") {
@@ -294,9 +293,9 @@ Only return the JSON object, no other text.`;
 
 function parseResearchIntoInsights(
   rawText: string,
-  sources: GeminiSource[],
+  sources: ResearchSource[],
   ctx: PropertySearchContext
-): GeminiInsight[] {
+): ResearchInsight[] {
   if (!rawText.trim()) return [];
 
   const scenarios: ResearchScenario[] = [
@@ -317,7 +316,7 @@ function parseResearchIntoInsights(
     taxAppealOutcomes: "PRIOR APPEAL OUTCOMES",
   };
 
-  const insights: GeminiInsight[] = [];
+  const insights: ResearchInsight[] = [];
 
   for (const scenario of scenarios) {
     const header = sectionHeaders[scenario];
@@ -367,7 +366,7 @@ function parseResearchIntoInsights(
  */
 export async function runPropertyResearch(
   ctx: PropertySearchContext
-): Promise<GeminiInsight[]> {
+): Promise<ResearchInsight[]> {
   console.log(`[Research] Starting Claude web-search research for ${ctx.address}, ${ctx.state}`);
 
   const prompt = buildResearchPrompt(ctx);
@@ -378,14 +377,14 @@ export async function runPropertyResearch(
   );
 
   if (!text) {
-    console.warn("[Gemini] Property research returned empty — analysis will proceed without web context");
+    console.warn("[Research] Property research returned empty — analysis will proceed without web context");
     return [];
   }
 
   const insights = parseResearchIntoInsights(text, sources, ctx);
 
   const totalSources = sources.length;
-  console.log(`[Gemini] ✓ Property research complete — ${insights.length} scenarios, ${totalSources} grounded sources`);
+  console.log(`[Research] ✓ Property research complete — ${insights.length} scenarios, ${totalSources} grounded sources`);
 
   return insights;
 }
@@ -452,7 +451,7 @@ export async function lookupCountyInfo(
  * Formats all research insights into a single block of text for LLM consumption.
  * Format research insights for LLM context injection
  */
-export function formatInsightsForLLM(insights: GeminiInsight[]): string {
+export function formatInsightsForLLM(insights: ResearchInsight[]): string {
   if (!insights.length) return "";
 
   const sections = insights

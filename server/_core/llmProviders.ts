@@ -1,7 +1,10 @@
 /**
- * LLM Provider — Gemini & Anthropic
- * Replaces Manus Forge (invokeLLM) with direct API calls to Gemini and Anthropic.
- * Set GEMINI_API_KEY and/or ANTHROPIC_API_KEY in environment variables.
+ * LLM Provider — Anthropic Claude (sole provider).
+ *
+ * Set ANTHROPIC_API_KEY in environment variables. Gemini support has been
+ * removed from this codebase; the legacy `provider` field on InvokeParams
+ * is kept for type-stability of in-flight callers but always routes to
+ * Claude.
  */
 import { ENV } from "./env";
 
@@ -66,7 +69,11 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
-  provider?: "gemini" | "anthropic";
+  /**
+   * Retained for caller-source-stability. Only "anthropic" is supported;
+   * any other value is coerced to "anthropic" since Gemini has been removed.
+   */
+  provider?: "anthropic";
   model?: string;
 };
 
@@ -100,58 +107,6 @@ export type InvokeResult = {
   }>;
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 };
-
-// =============================================================================
-// Gemini
-// =============================================================================
-
-export async function callGemini(
-  messages: LLMMessage[],
-  model = "gemini-2.5-flash",
-  maxTokens = 32768
-): Promise<string> {
-  const apiKey = ENV.geminiApiKey;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured");
-  }
-
-  const systemMsg = messages.find((m) => m.role === "system");
-  const conversationMsgs = messages.filter((m) => m.role !== "system");
-
-  const contents = conversationMsgs.map((m) => ({
-    role: m.role === "user" ? "user" : "model",
-    parts: [{ text: m.content }],
-  }));
-
-  const payload: Record<string, unknown> = {
-    contents,
-    generationConfig: {
-      maxOutputTokens: maxTokens,
-    },
-  };
-
-  if (systemMsg) {
-    payload.systemInstruction = {
-      parts: [{ text: systemMsg.content }],
-    };
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API error: ${response.status} ${response.statusText} – ${errorText}`);
-  }
-
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-}
 
 // =============================================================================
 // Anthropic
