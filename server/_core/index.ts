@@ -21,6 +21,9 @@ import {
 import { cleanupOldQueues } from "./sseBroadcaster";
 import { globalLimiter, authLimiter, apiLimiter } from "./rateLimiter";
 import { checkRateLimit } from "./rateLimit";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("Server");
 
 // In-memory SSE clients for real-time analysis streaming
 const sseClients = new Map<number, express.Response[]>();
@@ -397,11 +400,11 @@ async function startServer() {
       try {
         await processPendingFilingJobs(2);
       } catch (err) {
-        console.error("[FilingQueue] Processing error:", err);
+        log.error("FilingQueue processing error", { err: (err as Error).message });
       }
     }, 30 * 1000));
   } catch (err) {
-    console.warn("[FilingQueue] Failed to initialize", err);
+    log.warn("FilingQueue failed to initialize", { err: (err as Error).message });
   }
 
   // Start filing artifact retention cleanup (daily)
@@ -411,7 +414,7 @@ async function startServer() {
     );
     buildCleanupInterval()();
   } catch (err) {
-    console.warn("[FilingCleanup] Failed to initialize", err);
+    log.warn("FilingCleanup failed to initialize", { err: (err as Error).message });
   }
 
   // Start filing deadline reminder cron (daily)
@@ -421,7 +424,7 @@ async function startServer() {
     );
     buildDeadlineReminderInterval()();
   } catch (err) {
-    console.warn("[DeadlineReminders] Failed to initialize", err);
+    log.warn("DeadlineReminders failed to initialize", { err: (err as Error).message });
   }
 
   // Start report job processor
@@ -431,16 +434,16 @@ async function startServer() {
 
     // Process pending jobs immediately on startup
     processPendingReportJobs(5).then((count) => {
-      if (count > 0) console.log(`[ReportQueue] Processing ${count} pending jobs on startup`);
-    }).catch((err) => console.error("[ReportQueue] Startup error:", err));
+      if (count > 0) log.info(`ReportQueue: processing ${count} pending job(s) on startup`, { count });
+    }).catch((err) => log.error("ReportQueue startup error", { err: (err as Error).message }));
 
     // Cleanup expired jobs every 5 minutes
     intervals.push(setInterval(async () => {
       try {
         const cleaned = await cleanupExpiredReportJobs();
-        if (cleaned > 0) console.log(`[ReportQueue] Cleaned up ${cleaned} expired jobs`);
+        if (cleaned > 0) log.info("ReportQueue: cleaned up expired jobs", { count: cleaned });
       } catch (err) {
-        console.error("[ReportQueue] Cleanup error:", err);
+        log.error("ReportQueue cleanup error", { err: (err as Error).message });
       }
     }, 5 * 60 * 1000));
 
@@ -449,11 +452,11 @@ async function startServer() {
       try {
         await processPendingReportJobs(3);
       } catch (err) {
-        console.error("[ReportQueue] Processing error:", err);
+        log.error("ReportQueue processing error", { err: (err as Error).message });
       }
     }, 30 * 1000));
   } catch (err) {
-    console.warn("[ReportQueue] Failed to initialize report job processor:", err);
+    log.warn("ReportQueue failed to initialize report job processor", { err: (err as Error).message });
   }
 
   // Graceful shutdown. On SIGTERM (normal deploy) and SIGINT (Ctrl+C),

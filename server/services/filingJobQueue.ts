@@ -25,6 +25,9 @@ import { sendFilingSubmittedEmail, sendFilingFailedEmail } from "../_core/emailS
 import { storagePut } from "../storage";
 import { dispatchFiling, resolveChannel } from "./deliveryDispatcher";
 import { safeJsonParse } from "../_core/safeJson";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("FilingQueue");
 
 export type QueuedFilingJob = {
   jobId: number;
@@ -221,7 +224,7 @@ export async function processOnePendingJob(): Promise<boolean> {
     // (2) send the confirmation email with the tracking artifact.
     if (dispatchResult.success) {
       await updatePropertySubmission(row.submissionId, { status: "appeal-filed" }).catch(
-        (err) => console.error("[FilingQueue] Failed to update submission status:", err)
+        (err) => log.error("Failed to update submission status", { jobId: row.id, submissionId: row.submissionId, err: (err as Error).message })
       );
       try {
         await sendFilingSubmittedEmail({
@@ -241,7 +244,7 @@ export async function processOnePendingJob(): Promise<boolean> {
           dashboardUrl: buildAppUrl("/dashboard"),
         });
       } catch (err) {
-        console.error("[FilingQueue] Failed to send filing confirmation email:", err);
+        log.error("Failed to send filing confirmation email", { jobId: row.id, submissionId: row.submissionId, err: (err as Error).message });
       }
     }
 
@@ -306,10 +309,9 @@ export async function processOnePendingJob(): Promise<boolean> {
           dashboardUrl: buildAppUrl(`/filing-status?id=${row.submissionId}`),
         });
       } catch (emailErr) {
-        console.error(
-          `[FilingQueue] CRITICAL: filing #${row.id} failed AND failure email failed to send. ` +
-          `Customer ${submission.email} may not know about the failure. ` +
-          `Original error: ${message}. Email error: ${(emailErr as Error).message}`,
+        log.error(
+          `CRITICAL: filing #${row.id} failed AND failure email failed to send. Customer ${submission.email} may not know about the failure`,
+          { jobId: row.id, submissionId: row.submissionId, originalError: message, emailError: (emailErr as Error).message },
         );
       }
     }
