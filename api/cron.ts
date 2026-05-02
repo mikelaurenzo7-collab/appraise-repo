@@ -52,8 +52,8 @@ async function runTask(task: Task): Promise<unknown> {
   switch (task) {
     case "process-analysis": {
       const { findStuckAnalysisSubmissions, updatePropertySubmission, listPendingAnalysisSubmissions } =
-        await import("../../server/db");
-      const { analyzePropertySubmission } = await import("../../server/services/analysisJob");
+        await import("../server/db");
+      const { analyzePropertySubmission } = await import("../server/services/analysisJob");
 
       const results: Array<{ id: number; ok: boolean; error?: string }> = [];
 
@@ -83,37 +83,37 @@ async function runTask(task: Task): Promise<unknown> {
     }
 
     case "process-reports": {
-      const { processPendingReportJobs } = await import("../../server/services/reportJobQueue");
+      const { processPendingReportJobs } = await import("../server/services/reportJobQueue");
       const count = await processPendingReportJobs(3);
       return { processed: count };
     }
 
     case "cleanup-reports": {
-      const { cleanupExpiredReportJobs } = await import("../../server/db");
+      const { cleanupExpiredReportJobs } = await import("../server/db");
       const count = await cleanupExpiredReportJobs();
       return { cleaned: count };
     }
 
     case "process-filings": {
-      const { processPendingFilingJobs } = await import("../../server/services/filingJobQueue");
+      const { processPendingFilingJobs } = await import("../server/services/filingJobQueue");
       const count = await processPendingFilingJobs(2);
       return { processed: count };
     }
 
     case "cleanup-filings": {
-      const { cleanupExpiredFilingArtifacts } = await import("../../server/services/filingCleanup");
+      const { cleanupExpiredFilingArtifacts } = await import("../server/services/filingCleanup");
       const r = await cleanupExpiredFilingArtifacts();
       return r;
     }
 
     case "lob-reconcile": {
-      const { reconcilePendingMailFilings } = await import("../../server/services/lobReconciliation");
+      const { reconcilePendingMailFilings } = await import("../server/services/lobReconciliation");
       const r = await reconcilePendingMailFilings(25);
       return r;
     }
 
     case "deadline-reminders": {
-      const { sendPendingDeadlineReminders } = await import("../../server/services/deadlineReminders");
+      const { sendPendingDeadlineReminders } = await import("../server/services/deadlineReminders");
       const r = await sendPendingDeadlineReminders();
       return r;
     }

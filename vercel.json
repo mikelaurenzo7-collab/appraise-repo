@@ -13,10 +13,10 @@
     { "source": "/readyz", "destination": "/api/index" }
   ],
   "functions": {
-    "api/index.js": {
+    "api/index.ts": {
       "maxDuration": 60
     },
-    "api/cron.js": {
+    "api/cron.ts": {
       "maxDuration": 300
     }
   },

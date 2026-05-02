@@ -122,6 +122,55 @@ export interface AppraisalReportData {
    * on the /analysis dashboard.
    */
   reportAudience?: "assessor" | "owner";
+  /**
+   * Three-grounds persuasion package emitted by analysisJob.ts and persisted
+   * inside property_analysis.scenarioContext JSON. When present, these unlock
+   * (a) the GROUNDS FOR APPEAL summary section, (b) real (not synthetic) data
+   * for the Equity & Uniformity Analysis section, and (c) the Record Card
+   * Discrepancy Analysis section. All optional — older reports without this
+   * data still render with the legacy synthetic uniformity calc.
+   */
+  persuasionBrief?: {
+    audience: "assessor" | "board" | "attorney" | "owner";
+    source: "claude" | "fallback";
+    sixtySecondSummary: string;
+    formalBrief: string;
+    prayerForRelief: string;
+    rankedGrounds: Array<{
+      ground: "market_value" | "uniformity" | "record_errors";
+      strength: number;
+      headline: string;
+      bullets: string[];
+    }>;
+    exhibitIndex: Array<{ tag: string; title: string; description: string }>;
+  };
+  uniformityResult?: {
+    hasClaim: boolean;
+    subjectRatio: number;
+    medianComparableRatio: number | null;
+    ratioMultiplier: number;
+    comparableCount: number;
+    equalizedAssessedValue: number;
+    equalizationGap: number;
+    argument: string;
+    strength: number;
+  };
+  recordErrors?: {
+    hasErrors: boolean;
+    significantCount: number;
+    errorStrength: number;
+    findings: Array<{
+      field: "squareFeet" | "bedrooms" | "bathrooms" | "yearBuilt" | "lotSize";
+      assessorValue: number;
+      ownerValue: number;
+      delta: number;
+      deltaPercent: number;
+      severity: "minor" | "material" | "major";
+      factualClaim: string;
+      recommendedEvidence: string;
+    }>;
+    summaryLine: string;
+  };
   comparableSales?: Array<{
     address: string;
     salePrice: number;
@@ -186,6 +235,18 @@ function fmtPct(val: number | null | undefined, decimals = 1): string {
 function fmtPSF(val: number | null | undefined): string {
   if (val == null) return "N/A";
   return "$" + val.toFixed(2) + "/SF";
+}
+
+function prettyFieldName(
+  field: "squareFeet" | "bedrooms" | "bathrooms" | "yearBuilt" | "lotSize",
+): string {
+  switch (field) {
+    case "squareFeet": return "Finished Square Footage";
+    case "bedrooms": return "Bedrooms";
+    case "bathrooms": return "Bathrooms";
+    case "yearBuilt": return "Year Built";
+    case "lotSize": return "Lot Size (sq ft)";
+  }
 }
 
 function scoreLabel(score: number | null | undefined): string {
@@ -827,6 +888,79 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       ["Effective Date of Value", reportDate],
     );
     y = kvTable(doc, keyMetrics, y, cw, { highlight: true });
+
+    // ─── GROUNDS FOR APPEAL — RANKED SUMMARY (60-second test) ──────────
+    // Per current best practice (AppealDesk 2026, Cook County BOR, Walker
+    // Advisory), the assessor or board reads the cover summary in 60 seconds
+    // and decides whether to engage with the underlying evidence at all.
+    // We surface the persuasion brief's 60-second summary, the ranked
+    // statutory grounds, and a labeled exhibit index here, immediately
+    // after the key valuation metrics.
+    if (data.persuasionBrief && data.persuasionBrief.sixtySecondSummary) {
+      y = ensureSpace(doc, y, 100, reportId, pageCounter);
+      y = subHeader(doc, "Summary of Position (60-Second Brief)", y, cw);
+      y = bodyText(doc, data.persuasionBrief.sixtySecondSummary, y, cw);
+
+      const activeGrounds = data.persuasionBrief.rankedGrounds.filter((g) => g.strength > 10);
+      if (activeGrounds.length > 0) {
+        y = ensureSpace(doc, y, 60, reportId, pageCounter);
+        y = subHeader(doc, "Statutory Grounds for Relief (Ranked by Evidence Strength)", y, cw);
+        for (let i = 0; i < activeGrounds.length; i++) {
+          const g = activeGrounds[i];
+          const label =
+            g.ground === "market_value"
+              ? "Excessive Market Value"
+              : g.ground === "uniformity"
+                ? "Lack of Uniformity"
+                : "Errors of Fact in Assessor's Record";
+          y = ensureSpace(doc, y, 60, reportId, pageCounter);
+          // Numbered ground header with strength chip
+          doc.fontSize(10).fillColor(NAVY).font("Helvetica-Bold")
+            .text(`Ground ${i + 1}: ${label}  (Evidence Strength ${g.strength}/100)`, LM, y, { width: cw });
+          y = doc.y + 4;
+          doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica")
+            .text(g.headline, LM, y, { width: cw, lineGap: 3 });
+          y = doc.y + 6;
+          // Up to 4 supporting bullets per ground
+          for (const b of g.bullets.slice(0, 4)) {
+            y = ensureSpace(doc, y, 20, reportId, pageCounter);
+            doc.fontSize(8.5).fillColor(BODY_TEXT).font("Helvetica")
+              .text(`-  ${b}`, LM + 12, y, { width: cw - 24, lineGap: 2 });
+            y = doc.y + 3;
+          }
+          y += 4;
+        }
+      }
+
+      if (data.persuasionBrief.exhibitIndex.length > 0) {
+        y = ensureSpace(doc, y, 60, reportId, pageCounter);
+        y = subHeader(doc, "Exhibit Index", y, cw);
+        for (const e of data.persuasionBrief.exhibitIndex) {
+          y = ensureSpace(doc, y, 24, reportId, pageCounter);
+          doc.fontSize(9).fillColor(NAVY).font("Helvetica-Bold")
+            .text(`${e.tag}: `, LM + 8, y, { continued: true });
+          doc.fontSize(9).fillColor(NAVY).font("Helvetica-Bold")
+            .text(e.title, { continued: false });
+          y = doc.y + 2;
+          doc.fontSize(8.5).fillColor(BODY_TEXT).font("Helvetica")
+            .text(e.description, LM + 16, y, { width: cw - 24, lineGap: 2 });
+          y = doc.y + 6;
+        }
+      }
+
+      // Prayer for Relief — the precise requested-value sentence. Drop in.
+      if (data.persuasionBrief.prayerForRelief) {
+        y = ensureSpace(doc, y, 50, reportId, pageCounter);
+        doc.rect(LM, y, cw, 0.5).fill(PURPLE);
+        y += 6;
+        doc.fontSize(9).fillColor(NAVY).font("Helvetica-Bold")
+          .text("Prayer for Relief", LM, y, { width: cw });
+        y = doc.y + 4;
+        doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica-Oblique")
+          .text(data.persuasionBrief.prayerForRelief, LM, y, { width: cw, lineGap: 3 });
+        y = doc.y + 8;
+      }
+    }
 
     // Valuation Justification narrative
     if (data.valuationJustification) {
@@ -1767,10 +1901,25 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         );
       }
     }
-    // Always add a general error
-    assessErrors.push(
-      `Assessment equity: As demonstrated in the Equity & Uniformity Analysis section of this report, the subject property's assessment ratio exceeds that of comparable properties, indicating a lack of uniformity in the assessment process.`
-    );
+    // Uniformity claim — only assert it when real peer assessment-roll data
+    // supports it. Without that data we say nothing here (the Equity &
+    // Uniformity section already explains why).
+    if (data.uniformityResult?.hasClaim) {
+      const u = data.uniformityResult;
+      assessErrors.push(
+        `Assessment equity: Peer assessment-roll data (n=${u.comparableCount}) shows the subject's ` +
+        `assessment-to-market ratio is ${((u.ratioMultiplier - 1) * 100).toFixed(1)}% above the peer ` +
+        `median. Equalizing the subject to the peer median yields an indicated assessed value of ` +
+        `$${u.equalizedAssessedValue.toLocaleString()} (a reduction of $${u.equalizationGap.toLocaleString()}).`
+      );
+    }
+    // Record-card discrepancies — surfaced here as identified errors when
+    // the detector returned material findings.
+    if (data.recordErrors?.hasErrors) {
+      for (const f of data.recordErrors.findings.filter((x) => x.severity !== "minor")) {
+        assessErrors.push(`Record-card error (${f.field}): ${f.factualClaim}`);
+      }
+    }
 
     for (const err of assessErrors) {
       y = ensureSpace(doc, y, 40, reportId, pageCounter);
@@ -1800,56 +1949,105 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       y, cw
     );
 
-    if (data.comparableSales && data.comparableSales.length > 0 && data.assessedValue && data.marketValueEstimate) {
-      const subjectRatio = data.assessedValue / data.marketValueEstimate;
-
-      y = subHeader(doc, "Assessment Ratio Comparison", y, cw);
-
-      // Deterministic comp ratios derived from actual sale data
-      // Use a consistent formula: ratio = median area assessed value / comp sale price
-      // This approximates how uniformly the area is assessed
-      const medianCompPrice = [...data.comparableSales].sort((a, b) => a.salePrice - b.salePrice)[Math.floor(data.comparableSales.length / 2)].salePrice;
-      const areaAssessmentRatio = data.assessedValue / medianCompPrice;
+    // Real uniformity analysis — renders ONLY when peer assessment-roll data
+    // is available (analyzeUniformity yielded hasClaim=true). We do not
+    // fabricate comp assessment ratios from sale prices — that would mislead
+    // the assessor and the appeal record.
+    if (data.uniformityResult && data.uniformityResult.hasClaim) {
+      const u = data.uniformityResult;
+      y = subHeader(doc, "Assessment Ratio Comparison (Peer-Roll Data)", y, cw);
 
       const eqRows: [string, string][] = [
-        ["Subject Assessment Ratio (Assessed / Market)", fmtPct(subjectRatio * 100)],
+        ["Subject Assessed Value", fmt(data.assessedValue)],
+        ["Subject Evidence-Supported Market Value", fmt(data.marketValueEstimate)],
+        ["Subject Assessment Ratio", fmtPct(u.subjectRatio * 100)],
+        [
+          `Peer-Median Assessment Ratio (n=${u.comparableCount})`,
+          u.medianComparableRatio !== null ? fmtPct(u.medianComparableRatio * 100) : "N/A",
+        ],
+        ["Subject Excess Over Peer Median", fmtPct((u.ratioMultiplier - 1) * 100)],
+        ["", ""],
+        ["Equalized Assessed Value (at peer median)", fmt(u.equalizedAssessedValue)],
+        ["Equalization Gap", fmt(u.equalizationGap)],
       ];
+      y = kvTable(doc, eqRows, y, cw, { highlight: true });
 
-      // Compute each comp's implied ratio using the area's typical assessment level
-      const compRatios: number[] = [];
-      for (const comp of data.comparableSales.slice(0, 6)) {
-        // Implied ratio: if the assessor applied the same methodology, each comp's assessed value
-        // would be approximately (comp.salePrice * area median ratio). The comp's "ratio" is then
-        // that implied assessed value / comp sale price = area median ratio.
-        // But the subject's ratio is higher, which shows inequity.
-        // Use a deterministic spread based on comp similarity and price position
-        const priceRatio = comp.salePrice / medianCompPrice;
-        const impliedRatio = areaAssessmentRatio * (0.92 + 0.08 * priceRatio); // slight spread based on price position
-        compRatios.push(Math.min(impliedRatio, subjectRatio * 0.97)); // ensure comps are below subject
-      }
+      y = bodyText(doc, u.argument, y, cw);
+    } else {
+      // No peer assessment-roll data available — say so plainly. Do not
+      // estimate. This honesty preserves the credibility of the rest of
+      // the report.
+      y = bodyText(
+        doc,
+        "Peer-parcel assessment-roll data sufficient to substantiate an independent uniformity claim was " +
+          "not available for this analysis. The subject is not asserted to be inequitably assessed relative " +
+          "to specific comparable parcels in this report; the appeal rests on the comparable-sales market-value " +
+          "evidence presented in the Sales Comparison Approach section.",
+        y, cw,
+      );
+    }
 
-      const avgCompRatio = compRatios.reduce((s, r) => s + r, 0) / compRatios.length;
-      eqRows.push(["Average Comparable Assessment Ratio (Estimated)", fmtPct(avgCompRatio * 100)]);
-      eqRows.push(["Difference (Subject vs. Comparables)", fmtPct((subjectRatio - avgCompRatio) * 100)]);
+    // ─── RECORD CARD DISCREPANCY ANALYSIS ──────────────────────────────
+    // Per practitioner consensus (Cook County BOR, AppealDesk evidence
+    // guide), record-card errors are the easiest appeals to win because
+    // there is no subjective debate — either the facts are correct or
+    // they are not. This section renders only when the detector returned
+    // material/major findings; otherwise it is omitted entirely. No
+    // synthetic discrepancies are ever invented.
+    if (data.recordErrors?.hasErrors) {
+      y = newPage(doc, reportId, pageCounter);
+      sectionNum++;
+      y = sectionHeader(doc, "RECORD CARD DISCREPANCY ANALYSIS", y, cw, sectionNum);
 
-      // Coefficient of dispersion
-      const meanRatio = (subjectRatio + compRatios.reduce((s, r) => s + r, 0)) / (compRatios.length + 1);
-      const allRatios = [subjectRatio, ...compRatios];
-      const avgDeviation = allRatios.reduce((s, r) => s + Math.abs(r - meanRatio), 0) / allRatios.length;
-      const cod = (avgDeviation / meanRatio) * 100;
-      eqRows.push(["Coefficient of Dispersion (COD)", fmtPct(cod)]);
+      y = bodyText(
+        doc,
+        "This section enumerates discrepancies between the assessor's recorded property characteristics " +
+          "(as reflected in the most recent tax bill / property record card available) and the owner-verified " +
+          "physical characteristics of the parcel. Each discrepancy is presented as a delta between two " +
+          "specific reported values, accompanied by the evidentiary document the owner can produce to " +
+          "substantiate the correction. Discrepancies of this nature are typically dispositive in an " +
+          "appeal because they present no subjective valuation question.",
+        y, cw,
+      );
 
-      y = kvTable(doc, eqRows, y, cw);
+      y = subHeader(doc, data.recordErrors.summaryLine, y, cw);
 
-      if (subjectRatio > avgCompRatio) {
-        y = bodyText(doc,
-          `The subject property's assessment ratio of ${fmtPct(subjectRatio * 100)} exceeds the average comparable ratio of ${fmtPct(avgCompRatio * 100)} ` +
-          `by ${fmtPct((subjectRatio - avgCompRatio) * 100)} percentage points. This disparity indicates a lack of uniformity in the assessment ` +
-          `and supports the argument for a reduction in the subject's assessed value to achieve equitable treatment with similarly situated properties. ` +
-          `The International Association of Assessing Officers (IAAO) Standard on Ratio Studies recommends a COD of 5.0% to 15.0% for residential properties. ` +
-          `${cod > 15 ? `The calculated COD of ${fmtPct(cod)} exceeds this standard, further indicating assessment inequity.` : `The calculated COD of ${fmtPct(cod)} falls within acceptable parameters, though the subject's individual ratio remains disproportionately high.`}`,
-          y, cw
-        );
+      // Findings table (one row per material/major finding)
+      const significant = data.recordErrors.findings.filter((f) => f.severity !== "minor");
+      for (const f of significant) {
+        y = ensureSpace(doc, y, 60, reportId, pageCounter);
+        const sevColor =
+          f.severity === "major" ? RED_ACCENT : f.severity === "material" ? PURPLE_DARK : MUTED;
+        // Field + severity line
+        doc.fontSize(10).fillColor(NAVY).font("Helvetica-Bold")
+          .text(`${prettyFieldName(f.field)}  `, LM, y, { continued: true });
+        doc.fontSize(9).fillColor(sevColor).font("Helvetica-Bold")
+          .text(`(${f.severity.toUpperCase()})`, { continued: false });
+        y = doc.y + 4;
+        // Three rows: assessor / owner / delta
+        const fieldLabel = prettyFieldName(f.field);
+        const isCount =
+          f.field === "bedrooms" || f.field === "bathrooms" || f.field === "yearBuilt";
+        const display = (n: number) => isCount ? String(n) : n.toLocaleString();
+        const findingRows: [string, string][] = [
+          [`Assessor's record (${fieldLabel})`, display(f.assessorValue)],
+          [`Owner-verified (${fieldLabel})`, display(f.ownerValue)],
+          [
+            "Delta",
+            `${f.delta > 0 ? "+" : ""}${display(f.delta)}` +
+              (f.field === "squareFeet" || f.field === "lotSize"
+                ? ` (${f.deltaPercent.toFixed(1)}%)`
+                : ""),
+          ],
+        ];
+        y = kvTable(doc, findingRows, y, cw);
+        // Factual claim + recommended evidence
+        doc.fontSize(9).fillColor(BODY_TEXT).font("Helvetica")
+          .text(f.factualClaim, LM, y, { width: cw, lineGap: 3 });
+        y = doc.y + 4;
+        doc.fontSize(8.5).fillColor(MUTED).font("Helvetica-Oblique")
+          .text(`Recommended evidence: ${f.recommendedEvidence}`, LM, y, { width: cw, lineGap: 2 });
+        y = doc.y + 12;
       }
     }
 

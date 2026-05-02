@@ -1231,6 +1231,18 @@ export const appRouter = router({
           analysis.marketTrendData, undefined, "routers.generateReport.marketTrendData",
         );
 
+        // Three-grounds persuasion package, persisted in scenarioContext JSON
+        // by analysisJob.ts. Mirrors reportJobQueue.ts so the sync and async
+        // PDF paths render identical content.
+        const scenarioCtx = safeJsonParse<{
+          uniformity?: NonNullable<AppraisalReportData["uniformityResult"]>;
+          recordErrors?: NonNullable<AppraisalReportData["recordErrors"]>;
+          persuasionBrief?: NonNullable<AppraisalReportData["persuasionBrief"]>;
+        }>(analysis.scenarioContext, {}, "routers.generateReport.scenarioContext");
+        const uniformityResult = scenarioCtx.uniformity;
+        const recordErrors = scenarioCtx.recordErrors;
+        const persuasionBrief = scenarioCtx.persuasionBrief;
+
         // Determine report tier from filingMethod
         // Maps filing method to PDF tier: null/undefined=free, all paid methods=full 40-page report
         const tier = submission.filingMethod ?? "free";
@@ -1286,6 +1298,9 @@ export const appRouter = router({
                 topValueIssues: photoAnalysis.topValueIssues,
               }
             : undefined,
+          uniformityResult,
+          recordErrors,
+          persuasionBrief,
         };
 
         const { url, key } = await generateAppraisalPDF(reportData);

@@ -138,6 +138,20 @@ async function processReportJobAsync(jobId: number): Promise<void> {
     const marketTrendData = safeJsonParse<MarketTrendData | undefined>(
       analysis.marketTrendData, undefined, "reportJobQueue.marketTrendData",
     );
+
+    // Three-grounds persuasion package — unpacked from scenarioContext JSON
+    // (analysisJob.ts persists it there to avoid a schema migration). When
+    // present, the PDF renderer uses these to (a) show a 60-second summary
+    // of grounds, (b) replace the synthetic uniformity calc with real peer-
+    // ratio data, and (c) render a Record Card Discrepancy Analysis section.
+    const scenarioCtx = safeJsonParse<{
+      uniformity?: NonNullable<AppraisalReportData["uniformityResult"]>;
+      recordErrors?: NonNullable<AppraisalReportData["recordErrors"]>;
+      persuasionBrief?: NonNullable<AppraisalReportData["persuasionBrief"]>;
+    }>(analysis.scenarioContext, {}, "reportJobQueue.scenarioContext");
+    const uniformityResult = scenarioCtx.uniformity;
+    const recordErrors = scenarioCtx.recordErrors;
+    const persuasionBrief = scenarioCtx.persuasionBrief;
     // Determine report tier from filingMethod
     const tier = submission.filingMethod === "none" ? "free" : (submission.filingMethod || "free");
 
@@ -229,6 +243,10 @@ async function processReportJobAsync(jobId: number): Promise<void> {
             topValueIssues: photoAnalysis.topValueIssues,
           }
         : undefined,
+      // Three-grounds persuasion package — only renders when present.
+      uniformityResult,
+      recordErrors,
+      persuasionBrief,
     };
 
     // Generate PDF
