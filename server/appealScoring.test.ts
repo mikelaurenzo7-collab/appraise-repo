@@ -50,6 +50,24 @@ describe("Appeal Strength Scoring", () => {
       expect(formatted).toContain("25.0%");
       expect(formatted).toContain("LOW");
     });
+
+    it("renders 'not available' when no real tax rate yields a savings range", () => {
+      const score: AppealStrengthScore = {
+        overallScore: 60,
+        successProbability: 0.5,
+        confidenceLevel: "medium",
+        factors: [],
+        recommendation: "Some grounds present.",
+        riskFactors: [],
+        strengthFactors: [],
+        historicalWinRate: 0.5,
+        estimatedSavingsRange: null,
+      };
+      const formatted = formatAppealScore(score);
+      expect(formatted).toContain("not available");
+      expect(formatted).toContain("upload your tax bill");
+      expect(formatted).not.toMatch(/\$\d/); // no fabricated dollar figure
+    });
   });
 
   describe("Score factor calculations (pure logic)", () => {

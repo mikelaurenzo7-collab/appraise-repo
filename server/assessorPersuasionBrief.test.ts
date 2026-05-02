@@ -172,5 +172,22 @@ describe("assessorPersuasionBrief", () => {
         expect(brief.sixtySecondSummary.length).toBeGreaterThan(0);
       }
     });
+
+    it("omits fabricated savings figures when no real tax rate is available", async () => {
+      const brief = await generateAssessorPersuasionBrief(
+        baseInput({
+          effectiveTaxRate: null,
+          estimatedAnnualSavings: null,
+        }),
+      );
+      // The summary must not insert a dollar savings figure
+      expect(brief.sixtySecondSummary).not.toMatch(/\$1,540/);
+      expect(brief.sixtySecondSummary).toMatch(/not available|not stated|cannot be computed|tax bill/i);
+      // The formal brief must explicitly say the projection is omitted
+      expect(brief.formalBrief).toMatch(/Not computed|not available|omits the projection/);
+      // Prayer for relief must still produce a precise requested value
+      expect(brief.prayerForRelief).toContain("$450,000");
+      expect(brief.prayerForRelief).toContain("$380,000");
+    });
   });
 });

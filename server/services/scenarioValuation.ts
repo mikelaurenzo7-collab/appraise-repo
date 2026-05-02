@@ -755,13 +755,31 @@ export function calculateScenarioAppealStrength(
 }
 
 /**
- * Calculate scenario-adjusted tax savings
+ * Calculate scenario-adjusted tax savings.
+ *
+ * Returns `null` when the caller cannot supply a real effective tax rate
+ * (e.g. no tax bill uploaded and no jurisdiction-derived rate available).
+ * The pipeline must NOT fabricate savings from a national-average rate —
+ * a misleading dollar figure in front of an owner or assessor is worse
+ * than admitting the projection cannot be computed.
+ *
+ * @param assessmentGap  Indicated reduction in assessed value.
+ * @param scenario       Owner scenario; affects expected-success multiplier.
+ * @param baseTaxRate    Effective tax rate as a decimal (e.g. 0.022 for
+ *                       2.2%). MUST come from the owner's tax bill, the
+ *                       county / jurisdiction record, or other
+ *                       primary-source data. Pass `null` when unavailable
+ *                       and this function returns `null` to signal that
+ *                       the projection is unavailable.
  */
 export function calculateScenarioTaxSavings(
   assessmentGap: number,
   scenario: UserScenario,
-  baseTaxRate: number = 0.012
-): number {
+  baseTaxRate: number | null,
+): number | null {
+  if (baseTaxRate === null || !Number.isFinite(baseTaxRate) || baseTaxRate <= 0 || baseTaxRate >= 1) {
+    return null;
+  }
   const context = getScenarioContext(scenario);
   const adjustedTaxRate = baseTaxRate * context.taxRateAdjustment;
 

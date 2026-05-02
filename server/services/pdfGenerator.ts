@@ -1662,42 +1662,20 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         );
       }
     } else {
+      // No real cost approach data was supplied (no land value, no
+      // replacement cost, no depreciation analysis). Do not fabricate one
+      // from a constant $/SF — that would put numbers into the appeal
+      // record that the assessor can attack as unsupported. State the
+      // limitation plainly and let the comparable-sales approach carry
+      // the case.
       y = bodyText(doc,
-        `Detailed cost approach data (land value, replacement cost, depreciation) was not available from public records for this property. ` +
-        `The following estimated cost approach is based on the property's physical characteristics and typical construction costs for the area.`,
+        `A Cost Approach value indication is not provided for this property. The replacement-cost-new and ` +
+        `accumulated-depreciation inputs required to support a defensible Cost Approach (current local construction ` +
+        `cost factors, separately estimated land value, observed condition / functional obsolescence, and external ` +
+        `obsolescence) were not available within the scope of this analysis. The Sales Comparison Approach is the ` +
+        `most reliable indicator of value for this property type and is given primary weight in the reconciliation.`,
         y, cw
       );
-
-      if (data.yearBuilt && data.squareFeet) {
-        const effectiveAge = new Date().getFullYear() - data.yearBuilt;
-        const totalLife = 75;
-        const remainingLife = Math.max(0, totalLife - effectiveAge);
-        const depreciationPct = Math.min(0.85, effectiveAge / totalLife);
-        const estimatedCostPerSF = 150;
-        const rcn = data.squareFeet * estimatedCostPerSF;
-        const depreciation = Math.round(rcn * depreciationPct);
-        const depreciatedValue = rcn - depreciation;
-
-        y = subHeader(doc, "Estimated Cost Approach (Based on Available Data)", y, cw);
-        const estRows: [string, string][] = [
-          ["Gross Living Area", `${fmtNum(data.squareFeet)} SF`],
-          ["Estimated Cost per SF (New)", fmtPSF(estimatedCostPerSF)],
-          ["Replacement Cost New", fmt(rcn)],
-          ["Effective Age", `${effectiveAge} years`],
-          ["Remaining Economic Life", `${remainingLife} years`],
-          ["Age-Life Depreciation Rate", fmtPct(depreciationPct * 100)],
-          ["Total Depreciation", `(${fmt(depreciation)})`],
-          ["Depreciated Improvement Value", fmt(depreciatedValue)],
-        ];
-        y = kvTable(doc, estRows, y, cw);
-
-        y = bodyText(doc,
-          `Note: The estimated cost per square foot of $150 represents a conservative estimate for ${data.propertyType || "residential"} construction ` +
-          `in the subject's market area. The age-life method of depreciation was applied using a ${totalLife}-year total economic life, ` +
-          `which is typical for ${data.propertyType || "residential"} properties of this construction type.`,
-          y, cw
-        );
-      }
     }
 
     // ─── INCOME CAPITALIZATION APPROACH ─────────────────────────────────
@@ -2069,11 +2047,14 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         y, cw
       );
 
-      if (data.potentialSavings && data.assessedValue && data.marketValueEstimate && data.assessmentGap) {
-      // Derive effective tax rate from the savings and gap
-      const taxRate = data.assessmentGap > 0
-        ? (data.potentialSavings / data.assessmentGap)
-        : 0.025;
+      if (data.potentialSavings && data.assessedValue && data.marketValueEstimate && data.assessmentGap && data.assessmentGap > 0) {
+      // Derive effective tax rate from the SAVINGS / GAP that the analysis
+      // pipeline already produced — both numbers ultimately trace to the
+      // owner's tax bill. We do NOT fall back to a national-average rate
+      // when the derivation is unavailable; instead the entire Tax Impact
+      // section is skipped (the gate above), since fabricating a rate
+      // would produce a misleading projection.
+      const taxRate = data.potentialSavings / data.assessmentGap;
 
       y = subHeader(doc, "Projected Tax Savings", y, cw);
       const taxRows: [string, string][] = [

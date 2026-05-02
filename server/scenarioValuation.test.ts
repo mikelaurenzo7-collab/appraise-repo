@@ -126,20 +126,41 @@ describe("Scenario Valuation Engine", () => {
   });
 
   describe("calculateScenarioTaxSavings", () => {
+    // Pass an EXPLICIT effective tax rate. The prior signature accepted a
+    // default 0.012; we removed that default so callers can never silently
+    // produce a savings figure from a national-average constant. Tests use
+    // 0.022 (e.g. Cook County typical).
+    const RATE = 0.022;
+
     it("calculates higher savings for rental properties", () => {
-      const rental = calculateScenarioTaxSavings(50000, "rental_property");
-      const primary = calculateScenarioTaxSavings(50000, "primary_residence");
-      expect(rental).toBeGreaterThan(primary);
+      const rental = calculateScenarioTaxSavings(50000, "rental_property", RATE);
+      const primary = calculateScenarioTaxSavings(50000, "primary_residence", RATE);
+      expect(rental).not.toBeNull();
+      expect(primary).not.toBeNull();
+      expect(rental as number).toBeGreaterThan(primary as number);
     });
 
     it("calculates highest savings for recently purchased", () => {
-      const recent = calculateScenarioTaxSavings(50000, "recently_purchased");
-      const none = calculateScenarioTaxSavings(50000, "none");
-      expect(recent).toBeGreaterThan(none);
+      const recent = calculateScenarioTaxSavings(50000, "recently_purchased", RATE);
+      const none = calculateScenarioTaxSavings(50000, "none", RATE);
+      expect(recent).not.toBeNull();
+      expect(none).not.toBeNull();
+      expect(recent as number).toBeGreaterThan(none as number);
     });
 
     it("returns 0 for zero gap", () => {
-      expect(calculateScenarioTaxSavings(0, "primary_residence")).toBe(0);
+      expect(calculateScenarioTaxSavings(0, "primary_residence", RATE)).toBe(0);
+    });
+
+    it("returns null when no real tax rate is supplied (no fabrication)", () => {
+      expect(calculateScenarioTaxSavings(50000, "primary_residence", null)).toBeNull();
+    });
+
+    it("returns null when supplied rate is implausible (out of (0,1))", () => {
+      expect(calculateScenarioTaxSavings(50000, "primary_residence", 0)).toBeNull();
+      expect(calculateScenarioTaxSavings(50000, "primary_residence", 1)).toBeNull();
+      expect(calculateScenarioTaxSavings(50000, "primary_residence", -0.01)).toBeNull();
+      expect(calculateScenarioTaxSavings(50000, "primary_residence", Number.NaN)).toBeNull();
     });
   });
 
@@ -236,11 +257,12 @@ describe("Scenario Valuation Engine", () => {
       expect(getScenarioApproachOverride("mixed_use", 40)).toBeNull();
     });
 
-    it("calculateScenarioTaxSavings stays positive across every defined scenario", () => {
+    it("calculateScenarioTaxSavings stays positive across every defined scenario when a real rate is supplied", () => {
       for (const s of getAllScenarios()) {
-        const v = calculateScenarioTaxSavings(50_000, s.value);
-        expect(Number.isFinite(v)).toBe(true);
-        expect(v).toBeGreaterThanOrEqual(0);
+        const v = calculateScenarioTaxSavings(50_000, s.value, 0.022);
+        expect(v).not.toBeNull();
+        expect(Number.isFinite(v as number)).toBe(true);
+        expect(v as number).toBeGreaterThanOrEqual(0);
       }
     });
   });

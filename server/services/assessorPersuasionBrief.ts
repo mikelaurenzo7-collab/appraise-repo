@@ -52,10 +52,19 @@ export interface PersuasionBriefInput {
   currentAssessedValue: number;
   requestedAssessedValue: number;
   evidenceSupportedMarketValue: number;
-  /** Effective tax rate as a decimal (e.g. 0.012). */
-  effectiveTaxRate: number;
-  /** Annual property-tax savings if the requested value is granted. */
-  estimatedAnnualSavings: number;
+  /**
+   * Effective tax rate as a decimal (e.g. 0.022). Pass `null` when no real
+   * rate is available from the tax bill / jurisdiction record. The brief
+   * will then suppress all savings figures rather than fabricate them
+   * from a US-average constant.
+   */
+  effectiveTaxRate: number | null;
+  /**
+   * Annual property-tax savings if the requested value is granted. Pass
+   * `null` when the rate is unavailable; the brief will state that the
+   * projection cannot be computed instead of inserting a fake number.
+   */
+  estimatedAnnualSavings: number | null;
   /** Top 3-5 verifiable comparable summaries — addresses + adjusted prices. */
   comparableSummaries: string[];
   /** Output of the uniformity analyzer. */
@@ -289,12 +298,15 @@ export async function generateAssessorPersuasionBrief(
 ): Promise<PersuasionBrief> {
   const exhibitIndex = buildExhibitIndex(input);
   const rankedGrounds = rankGrounds(input);
+  const savingsPhrase =
+    input.estimatedAnnualSavings !== null && input.estimatedAnnualSavings > 0
+      ? `, resulting in an estimated annual tax-burden reduction of $${input.estimatedAnnualSavings.toLocaleString()}`
+      : "";
   const prayerForReliefDeterministic =
     `The owner respectfully requests that the assessed value of ${input.propertyAddress}` +
     `${input.parcelId ? ` (Parcel ${input.parcelId})` : ""} be reduced from ` +
     `$${input.currentAssessedValue.toLocaleString()} to $${input.requestedAssessedValue.toLocaleString()} ` +
-    `for the ${input.taxYear ?? new Date().getFullYear()} tax year, resulting in an estimated annual ` +
-    `tax-burden reduction of $${input.estimatedAnnualSavings.toLocaleString()}.`;
+    `for the ${input.taxYear ?? new Date().getFullYear()} tax year${savingsPhrase}.`;
 
   // ─── Try Claude first ────────────────────────────────────────────────────
   if (isClaudeAvailable()) {
@@ -378,8 +390,12 @@ function buildUserPrompt(
     `Current Assessed Value: $${input.currentAssessedValue.toLocaleString()}`,
     `Evidence-Supported Market Value: $${input.evidenceSupportedMarketValue.toLocaleString()}`,
     `Requested Assessed Value: $${input.requestedAssessedValue.toLocaleString()}`,
-    `Effective Tax Rate (used for savings calc): ${(input.effectiveTaxRate * 100).toFixed(3)}%`,
-    `Estimated Annual Tax Savings If Granted: $${input.estimatedAnnualSavings.toLocaleString()}`,
+    input.effectiveTaxRate !== null
+      ? `Effective Tax Rate (from primary-source data): ${(input.effectiveTaxRate * 100).toFixed(3)}%`
+      : "Effective Tax Rate: not available — owner has not uploaded a tax bill and no jurisdiction-derived rate is on file. The brief MUST omit any annual savings figure rather than estimate one.",
+    input.estimatedAnnualSavings !== null && input.estimatedAnnualSavings > 0
+      ? `Estimated Annual Tax Savings If Granted: $${input.estimatedAnnualSavings.toLocaleString()}`
+      : "Estimated Annual Tax Savings: not available (no real effective tax rate). Do not include a dollar savings figure in the brief output.",
     input.appealDeadline ? `Appeal Deadline: ${input.appealDeadline}` : "",
     "",
     `## Available Grounds (ranked strongest-first)`,
@@ -416,6 +432,10 @@ function labelFor(g: "market_value" | "uniformity" | "record_errors"): string {
 function buildFallbackSummary(input: PersuasionBriefInput): string {
   const gap = input.currentAssessedValue - input.requestedAssessedValue;
   const pct = input.currentAssessedValue > 0 ? (gap / input.currentAssessedValue) * 100 : 0;
+  const savingsTail =
+    input.estimatedAnnualSavings !== null && input.estimatedAnnualSavings > 0
+      ? ` If granted, the requested reduction yields an estimated annual tax-burden reduction of $${input.estimatedAnnualSavings.toLocaleString()} (computed using the effective tax rate of ${input.effectiveTaxRate !== null ? (input.effectiveTaxRate * 100).toFixed(3) + "%" : "the owner's tax bill"}).`
+      : " (Annual tax-burden reduction is not stated here because no real effective tax rate is available; the owner can compute it from their tax bill once filed.)";
   return (
     `${input.propertyAddress}${input.parcelId ? ` (Parcel ${input.parcelId})` : ""}, ` +
     `${input.jurisdiction}${input.taxYear ? `, ${input.taxYear} tax year` : ""}: the property is ` +
@@ -424,9 +444,8 @@ function buildFallbackSummary(input: PersuasionBriefInput): string {
     `assessed value of $${input.requestedAssessedValue.toLocaleString()} — a reduction of ` +
     `${pct.toFixed(1)}%. The case rests on the comparable-sales analysis (Exhibit A)` +
     `${input.uniformity.hasUniformityClaim ? `, the uniformity / equalization analysis showing the subject ${((input.uniformity.ratioMultiplier - 1) * 100).toFixed(1)}% above the peer-median assessment ratio` : ""}` +
-    `${input.recordErrors.hasErrors ? `, and ${input.recordErrors.significantCount} record-level discrepanc${input.recordErrors.significantCount === 1 ? "y" : "ies"} between the assessor's property record card and the owner-verified facts of record` : ""}. ` +
-    `If granted, the requested reduction yields an estimated annual tax-burden reduction of ` +
-    `$${input.estimatedAnnualSavings.toLocaleString()}.`
+    `${input.recordErrors.hasErrors ? `, and ${input.recordErrors.significantCount} record-level discrepanc${input.recordErrors.significantCount === 1 ? "y" : "ies"} between the assessor's property record card and the owner-verified facts of record` : ""}.` +
+    savingsTail
   );
 }
 
@@ -452,10 +471,18 @@ function buildFallbackFormal(
   lines.push(
     `- **Evidence-Supported Market Value:** $${input.evidenceSupportedMarketValue.toLocaleString()}`,
   );
-  lines.push(
-    `- **Estimated Annual Tax-Burden Reduction:** $${input.estimatedAnnualSavings.toLocaleString()} ` +
-      `(at effective rate ${(input.effectiveTaxRate * 100).toFixed(3)}%)`,
-  );
+  if (input.estimatedAnnualSavings !== null && input.estimatedAnnualSavings > 0 && input.effectiveTaxRate !== null) {
+    lines.push(
+      `- **Estimated Annual Tax-Burden Reduction:** $${input.estimatedAnnualSavings.toLocaleString()} ` +
+        `(at effective rate ${(input.effectiveTaxRate * 100).toFixed(3)}%, derived from the owner's tax bill)`,
+    );
+  } else {
+    lines.push(
+      `- **Annual Tax-Burden Reduction:** Not computed in this brief. The owner has not provided a tax bill ` +
+        `or jurisdictional rate from which a verified effective tax rate could be derived; rather than estimate ` +
+        `a savings figure from a national-average rate, this brief omits the projection.`,
+    );
+  }
   lines.push("");
   lines.push(`## Grounds for Appeal`);
   let n = 0;

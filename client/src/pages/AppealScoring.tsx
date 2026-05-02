@@ -178,15 +178,19 @@ export default function AppealScoring() {
                     </div>
                     <div className="p-4 rounded-lg bg-white/5">
                       <div className="text-2xl font-bold text-emerald-400">
-                        ${score.estimatedSavingsRange.min.toLocaleString()}
+                        {score.estimatedSavingsRange ? `$${score.estimatedSavingsRange.min.toLocaleString()}` : "—"}
                       </div>
-                      <div className="text-xs text-white/50 mt-1">Min Savings</div>
+                      <div className="text-xs text-white/50 mt-1">
+                        {score.estimatedSavingsRange ? "Min Savings" : "Min Savings (upload tax bill)"}
+                      </div>
                     </div>
                     <div className="p-4 rounded-lg bg-white/5">
                       <div className="text-2xl font-bold text-emerald-400">
-                        ${score.estimatedSavingsRange.max.toLocaleString()}
+                        {score.estimatedSavingsRange ? `$${score.estimatedSavingsRange.max.toLocaleString()}` : "—"}
                       </div>
-                      <div className="text-xs text-white/50 mt-1">Max Savings</div>
+                      <div className="text-xs text-white/50 mt-1">
+                        {score.estimatedSavingsRange ? "Max Savings" : "Max Savings (upload tax bill)"}
+                      </div>
                     </div>
                   </div>
 

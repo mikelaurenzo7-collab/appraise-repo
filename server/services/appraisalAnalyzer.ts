@@ -445,33 +445,36 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
 
     return analysis;
   } catch (error) {
-    console.error("[AppraisalAnalyzer] Error analyzing property:", error);
-
-    // Return default analysis if LLM fails
-    const assessed = propertyData.assessedValue || 0;
-    const market = propertyData.marketValue || assessed * 0.9;
-    const gap = assessed - market;
-    const gapPercent = assessed > 0 ? (gap / assessed) * 100 : 0;
-
-    return {
-      marketValueEstimate: market,
-      assessmentGap: gap,
-      assessmentGapPercent: gapPercent,
-      appealStrengthScore: gapPercent > 10 ? 65 : 35,
-      appealStrengthFactors: ["Assessment appears higher than market comparables", "Recent market data available"],
-      recommendedApproach: gapPercent > 10 ? "poa" : "not-recommended",
-      executiveSummary: `Property assessed at $${assessed.toLocaleString()} but estimated market value is $${market.toLocaleString()}.`,
-      valuationJustification: "Analysis based on comparable sales and market data from multiple sources.",
-      potentialSavings: (gap * 0.012) / 1, // Rough estimate: 1.2% annual tax rate
-      nextSteps: ["Review detailed comparable sales", "Consider filing appeal", "Contact our team for consultation"],
-    };
+    // Re-throw with diagnostic context. We DO NOT fabricate a default
+    // analysis (invented market value at 90% of assessed, invented appeal
+    // score, invented 1.2% tax rate). A fake analysis put into the appeal
+    // record is worse than no analysis — it would mislead the owner about
+    // their case and could be used against them in a hearing.
+    //
+    // The outer analysisJob catch handles this by marking the submission
+    // as `error` so the owner / admin can investigate and re-queue. No
+    // synthetic numbers ever land in the property_analysis row.
+    console.error("[AppraisalAnalyzer] LLM analysis failed for", propertyData.address, "—", error);
+    throw new Error(
+      `Appraisal analysis failed: ${error instanceof Error ? error.message : String(error)}. ` +
+      `No fallback analysis is generated; the submission has been marked for retry.`,
+    );
   }
 }
 
 /**
- * Calculate potential annual tax savings
- * Assumes ~1.2% average property tax rate in US
+ * Calculate potential annual tax savings.
+ *
+ * @param assessmentGap  The reduction in assessed value being argued for.
+ * @param taxRate        The effective tax rate as a decimal. The CALLER is
+ *                       responsible for providing the actual rate from the
+ *                       tax bill or jurisdiction record. There is no default
+ *                       — passing an invented rate produces an invented
+ *                       savings figure that misleads the appeal record.
  */
-export function calculatePotentialSavings(assessmentGap: number, taxRate: number = 0.012): number {
+export function calculatePotentialSavings(assessmentGap: number, taxRate: number): number {
+  if (!Number.isFinite(taxRate) || taxRate <= 0 || taxRate >= 1) {
+    throw new Error(`calculatePotentialSavings: taxRate must be a decimal in (0, 1); got ${taxRate}`);
+  }
   return Math.round(assessmentGap * taxRate);
 }

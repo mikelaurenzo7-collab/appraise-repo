@@ -11,7 +11,7 @@
 
 import { classifyPropertyType, classifyByAddressPattern } from "./propertyClassifier";
 import { aggregatePropertyData } from "./propertyDataAggregator";
-import { analyzeProperty } from "./appraisalAnalyzer";
+import { analyzeProperty, computeCompPriceBand } from "./appraisalAnalyzer";
 import { analyzePropertyPhotos, type PhotoAnalysisSummary } from "./photoAnalyzer";
 import {
   createPropertyAnalysis,
@@ -331,10 +331,39 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       userScenario
     );
 
+    // Effective tax rate — sourced (in priority order) from:
+    //   1. Tax bill OCR effectiveTaxRate field (most authoritative)
+    //   2. Owner-supplied taxRateOverride on the submission
+    //   3. Tax bill annualTaxAmount / assessedValue (derived from real
+    //      values when both are present)
+    //   4. null — the projection is unavailable; we DO NOT fall back to a
+    //      national-average rate because that would put a misleading dollar
+    //      figure into the owner-facing report.
+    const taxBillRaw = (taxBillDataForPrompt ?? {}) as Record<string, unknown>;
+    const taxBillNum = (k: string): number | null => {
+      const v = taxBillRaw[k];
+      if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+      if (typeof v === "string") {
+        const cleaned = Number(v.replace(/[^0-9.\-]/g, ""));
+        return Number.isFinite(cleaned) && cleaned > 0 ? cleaned : null;
+      }
+      return null;
+    };
+    const billRate = taxBillNum("effectiveTaxRate");
+    const overrideRate = submission.taxRateOverride ? Number(submission.taxRateOverride) : null;
+    const billAssessed = taxBillNum("currentAssessedValue");
+    const billAnnualTax = taxBillNum("annualTaxAmount");
+    const derivedRate = billAssessed && billAnnualTax ? billAnnualTax / billAssessed : null;
+    const realEffectiveTaxRate: number | null =
+      (billRate && billRate > 0 && billRate < 1 ? billRate : null) ??
+      (overrideRate && overrideRate > 0 && overrideRate < 1 ? overrideRate : null) ??
+      (derivedRate && derivedRate > 0 && derivedRate < 1 ? derivedRate : null) ??
+      null;
+
     const scenarioTaxSavings = calculateScenarioTaxSavings(
       Math.max(0, scenarioAdjustedGap),
       userScenario,
-      0.012 // Default US average tax rate; jurisdiction-specific rates can be added to JurisdictionRule
+      realEffectiveTaxRate,
     );
 
     // Override recommended approach based on scenario
@@ -381,7 +410,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       submissionId,
       type: "scenario_adjustments_applied",
       actor: "system",
-      description: `Scenario adjustments applied — value: $${scenarioAdjustedValue.toLocaleString()}, strength: ${scenarioAppealStrength}/100, savings: $${scenarioTaxSavings.toLocaleString()}/yr`,
+      description: `Scenario adjustments applied — value: $${scenarioAdjustedValue.toLocaleString()}, strength: ${scenarioAppealStrength}/100, savings: ${scenarioTaxSavings !== null ? `$${scenarioTaxSavings.toLocaleString()}/yr` : "(unavailable — no tax-bill rate)"}`,
       metadata: JSON.stringify({
         baseMarketValue: analysis.marketValueEstimate,
         scenarioAdjustedValue,
@@ -490,10 +519,10 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     try {
       const audience: BriefAudience = await resolveBriefAudience(submissionId);
       const requestedAssessedValue = subjectMarketValue;
-      const effectiveTaxRate =
-        taxBillNumber("effectiveTaxRate") ??
-        (submission.taxRateOverride ? Number(submission.taxRateOverride) : undefined) ??
-        0.012;
+      // Use the same real-rate sourcing chain as the savings calc — never
+      // fall back to a US-average constant. The brief generator handles
+      // null by suppressing the savings figure rather than fabricating one.
+      const effectiveTaxRate = realEffectiveTaxRate;
       const photoFindingsForBrief =
         photoSummary?.topValueIssues?.slice(0, 5) ?? [];
       const obsolescenceForBrief =
@@ -719,8 +748,23 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       propertyType: normalizedType,
       assessedValue: propertyData.assessedValue,
       marketValue: scenarioAdjustedValue,
-      estimatedMarketValueLow: Math.round(scenarioAdjustedValue * 0.92),
-      estimatedMarketValueHigh: Math.round(scenarioAdjustedValue * 1.08),
+      // Low/high market-value range — derived from the real comparable-
+      // sales price band when available (Q1 and Q3 of $/sqft × subject
+      // sqft). When the comp set is too small or sqft is missing we leave
+      // both null instead of fabricating a ±8% confidence interval.
+      ...(() => {
+        const band = computeCompPriceBand(filteredPropertyData);
+        if (band && propertyData.squareFeet && propertyData.squareFeet > 0) {
+          return {
+            estimatedMarketValueLow: Math.round(band.q1Ppsf * propertyData.squareFeet),
+            estimatedMarketValueHigh: Math.round(band.q3Ppsf * propertyData.squareFeet),
+          };
+        }
+        return {
+          estimatedMarketValueLow: undefined,
+          estimatedMarketValueHigh: undefined,
+        };
+      })(),
       potentialSavings: scenarioTaxSavings,
       appealStrengthScore: appealStrengthAfterPhotos,
       confidenceScore: Math.round(scenarioContext.appealStrengthModifiers.evidenceStrengthMultiplier * 80),
@@ -771,7 +815,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     // ── Step 9: Notify owner ──────────────────────────────────────────────────
     await notifyOwner({
       title: `Analysis Complete — ${strengthLabel} (${scenarioContext.scenarioLabel})`,
-      content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${appealStrengthAfterPhotos}/100\nPotential Savings: $${scenarioTaxSavings.toLocaleString()}/yr\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
+      content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${appealStrengthAfterPhotos}/100\nPotential Savings: ${scenarioTaxSavings !== null ? `$${scenarioTaxSavings.toLocaleString()}/yr` : "(unavailable — upload tax bill for projection)"}\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
     }).catch((err: unknown) => console.error("[AnalysisJob] Failed to notify owner:", err));
     // Queue report generation (24-hour SLA)
 

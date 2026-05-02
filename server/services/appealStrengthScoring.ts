@@ -31,10 +31,16 @@ export interface AppealStrengthScore {
   riskFactors: string[];
   strengthFactors: string[];
   historicalWinRate: number; // 0-1
+  /**
+   * Estimated annual tax-savings range. `null` when no real effective
+   * tax rate can be derived (no tax bill on file, no jurisdiction-derived
+   * rate). Callers must display "Range unavailable" rather than fabricate
+   * a fallback figure.
+   */
   estimatedSavingsRange: {
     min: number;
     max: number;
-  };
+  } | null;
 }
 
 export interface ScoreFactor {
@@ -172,7 +178,14 @@ export async function calculateAppealStrengthScore(
     const riskFactors = factors.filter((f) => f.score < 40).map((f) => f.name);
 
     // Calculate estimated savings range — more aggressive for strong cases
-    const estimatedSavingsRange = calculateSavingsRange(ana.assessmentGap, successProbability, sub.assessedValue);
+    // Pass the analysis row's real `potentialSavings` so calculateSavingsRange
+    // can DERIVE the implied effective tax rate from real numbers instead
+    // of a national-average constant.
+    const estimatedSavingsRange = calculateSavingsRange(
+      ana.assessmentGap,
+      successProbability,
+      sub.potentialSavings,
+    );
 
     // Generate advocacy-oriented recommendation
     const recommendation = generateRecommendation(overallScore, successProbability, riskFactors, strengthFactors, ana.assessmentGap);
@@ -517,31 +530,44 @@ function getConfidenceLevel(
 }
 
 /**
- * Calculate estimated savings range — more aggressive for strong cases
+ * Calculate estimated savings range — more aggressive for strong cases.
+ *
+ * Returns `null` when no real effective tax rate can be derived. We do
+ * NOT fall back to a US-average constant because a fabricated dollar
+ * range in front of the owner (or board) is misleading. The caller
+ * should display "Estimated range unavailable — upload tax bill" in
+ * that case.
+ *
+ * The rate is derived from the analysis row's existing potentialSavings
+ * and assessmentGap fields (both set from real tax-bill data upstream
+ * by analysisJob.ts).
  */
 function calculateSavingsRange(
   assessmentGap: number | null,
   successProbability: number,
-  assessedValue: number | null
-): { min: number; max: number } {
+  assessedPotentialSavings: number | null,
+): { min: number; max: number } | null {
   if (!assessmentGap || assessmentGap <= 0) {
-    return { min: 0, max: 0 };
+    return null;
+  }
+  if (!assessedPotentialSavings || assessedPotentialSavings <= 0) {
+    return null;
+  }
+  // Implied effective tax rate from the analysis pipeline's already-
+  // computed savings / gap (both ultimately tied to the owner's tax bill).
+  const impliedRate = assessedPotentialSavings / assessmentGap;
+  if (!Number.isFinite(impliedRate) || impliedRate <= 0 || impliedRate >= 1) {
+    return null;
   }
 
-  // Estimate tax rate from assessed value (or use national average)
-  const annualTaxRate = 0.012; // 1.2% national average
-
-  // For strong cases (high probability), expect larger reductions
-  // Boards typically reduce by 30-80% of the gap depending on evidence quality
+  // For strong cases (high probability), expect larger reductions.
+  // Boards typically reduce by 30-80% of the gap depending on evidence quality.
   const minReductionPct = successProbability > 0.7 ? 0.4 : successProbability > 0.5 ? 0.3 : 0.2;
   const maxReductionPct = successProbability > 0.7 ? 0.8 : successProbability > 0.5 ? 0.6 : 0.4;
 
-  const minReduction = assessmentGap * minReductionPct;
-  const maxReduction = assessmentGap * maxReductionPct;
-
   return {
-    min: Math.round(minReduction * annualTaxRate),
-    max: Math.round(maxReduction * annualTaxRate),
+    min: Math.round(assessmentGap * minReductionPct * impliedRate),
+    max: Math.round(assessmentGap * maxReductionPct * impliedRate),
   };
 }
 
@@ -583,6 +609,10 @@ Confidence: ${score.confidenceLevel.toUpperCase()}
 
 ${score.recommendation}
 
-Estimated Annual Savings: $${score.estimatedSavingsRange.min.toLocaleString()} - $${score.estimatedSavingsRange.max.toLocaleString()}
+${
+  score.estimatedSavingsRange
+    ? `Estimated Annual Savings: $${score.estimatedSavingsRange.min.toLocaleString()} - $${score.estimatedSavingsRange.max.toLocaleString()}`
+    : "Estimated Annual Savings: not available — upload your tax bill so the projection can be derived from your actual effective tax rate."
+}
   `;
 }
