@@ -5,16 +5,19 @@
  */
 import { getDb } from "./db";
 import { jurisdictionRules } from "../drizzle/schema.pg";
+import { scopedLogger } from "./_core/logger";
+
+const log = scopedLogger("JurisdictionSeed");
 
 export async function seedJurisdictionRules() {
   try {
     const db = await getDb();
     if (!db) throw new Error("Database connection failed");
-    console.log("[Seed] Starting jurisdiction_rules seeding...");
+    log.info("[Seed] Starting jurisdiction_rules seeding...");
 
     // Clear existing rules
     await db.delete(jurisdictionRules);
-    console.log("[Seed] Cleared existing rules");
+    log.info("[Seed] Cleared existing rules");
 
     // Insert all rules
     const rulesToInsert = [
@@ -225,9 +228,9 @@ export async function seedJurisdictionRules() {
     ];
 
     await db.insert(jurisdictionRules).values(rulesToInsert as any);
-    console.log(`[Seed] Successfully seeded ${rulesToInsert.length} jurisdiction rules`);
+    log.info(`[Seed] Successfully seeded ${rulesToInsert.length} jurisdiction rules`);
   } catch (err) {
-    console.error("[Seed] Error seeding jurisdiction rules:", err);
+    log.error("[Seed] Error seeding jurisdiction rules:", { err: err });
     throw err;
   }
 }

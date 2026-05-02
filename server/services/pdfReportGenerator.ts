@@ -8,6 +8,9 @@
 
 import { PropertyAnalysis, PropertySubmission } from "../../drizzle/schema.pg";
 import { generateNarrativeWithClaude, isClaudeAvailable } from "../_core/claude";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("PdfReportGenerator");
 
 export interface AppraisalReportData {
   submission: PropertySubmission;
@@ -475,7 +478,7 @@ export async function generateEnhancedReportNarrative(
       conclusionAndRecommendation: extract("Conclusion and Recommendation"),
     };
   } catch (err) {
-    console.error("[PDFReport] Claude narrative generation failed:", (err as Error).message);
+    log.error("[PDFReport] Claude narrative generation failed:", { err: (err as Error ).message });
     return null;
   }
 }

@@ -1,3 +1,6 @@
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("PlacesAutocomplete");
 /**
  * Provider-agnostic address autocomplete.
  *
@@ -46,7 +49,7 @@ export async function getPlacePredictions(
       predictions = await fetchFromPhoton(input);
     }
   } catch (error) {
-    console.error(`[PlacesAutocomplete] ${provider} error:`, error);
+    log.error(`[PlacesAutocomplete] ${provider} error:`, { err: error });
   }
 
   // Safety net: if the configured provider failed or returned nothing, try
@@ -56,7 +59,7 @@ export async function getPlacePredictions(
     try {
       predictions = await fetchFromPhoton(input);
     } catch (error) {
-      console.error("[PlacesAutocomplete] photon fallback error:", error);
+      log.error("[PlacesAutocomplete] photon fallback error:", { err: error });
     }
   }
 
@@ -100,7 +103,7 @@ async function fetchFromPhoton(input: string): Promise<string[]> {
     headers: { "User-Agent": "AppraiseAI/1.0 (+appraiseai-njpz7grd.manus.space)" },
   });
   if (!response.ok) {
-    console.error("[PlacesAutocomplete:photon] HTTP", response.status);
+    log.error("[PlacesAutocomplete:photon] HTTP", { err: response.status });
     return [];
   }
 
@@ -135,9 +138,12 @@ function formatPhotonFeature(f: PhotonFeature): string | null {
 }
 
 // ─── Google Places ────────────────────────────────────────────────────────────
-// Auth: GOOGLE_MAPS_PLATFORM_API_KEY passed as ?key= query param.
+// Auth: GOOGLE_MAPS_API_KEY (canonical) or GOOGLE_MAPS_PLATFORM_API_KEY (legacy alias).
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_API_KEY ?? "";
+const GOOGLE_MAPS_API_KEY =
+  process.env.GOOGLE_MAPS_API_KEY ??
+  process.env.GOOGLE_MAPS_PLATFORM_API_KEY ??
+  "";
 
 async function fetchFromGoogle(
   input: string,
@@ -156,7 +162,7 @@ async function fetchFromGoogle(
   const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params.toString()}`;
   const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) {
-    console.error("[PlacesAutocomplete:google] HTTP", response.status);
+    log.error("[PlacesAutocomplete:google] HTTP", { err: response.status });
     return [];
   }
   const data = (await response.json()) as {
@@ -165,11 +171,7 @@ async function fetchFromGoogle(
     predictions?: Array<{ description: string; place_id?: string }>;
   };
   if (data.status && data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-    console.error(
-      "[PlacesAutocomplete:google] status",
-      data.status,
-      data.error_message ?? ""
-    );
+    log.error("[PlacesAutocomplete:google] status", { status: data.status, message: data.error_message ?? "" });
     return [];
   }
   return Array.isArray(data.predictions)
@@ -187,7 +189,7 @@ async function fetchFromMapbox(
 ): Promise<string[]> {
   const token = process.env.MAPBOX_ACCESS_TOKEN;
   if (!token) {
-    console.error("[PlacesAutocomplete:mapbox] MAPBOX_ACCESS_TOKEN not set");
+    log.error("[PlacesAutocomplete:mapbox] MAPBOX_ACCESS_TOKEN not set");
     return [];
   }
   const params = new URLSearchParams({
@@ -204,7 +206,7 @@ async function fetchFromMapbox(
   const url = `https://api.mapbox.com/search/geocode/v6/forward?${params.toString()}`;
   const response = await fetch(url);
   if (!response.ok) {
-    console.error("[PlacesAutocomplete:mapbox] HTTP", response.status);
+    log.error("[PlacesAutocomplete:mapbox] HTTP", { err: response.status });
     return [];
   }
   const data = (await response.json()) as {

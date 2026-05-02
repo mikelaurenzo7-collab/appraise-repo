@@ -60,7 +60,7 @@ vi.mock("./services/filingJobQueue", () => ({
   queueFilingJob: vi.fn(async () => ({ jobId: 99, submissionId: 5 })),
 }));
 
-vi.mock("./services/appraisalPdfGenerator", () => ({
+vi.mock("./services/pdfGenerator", () => ({
   generateAppraisalPDF: vi.fn(async () => ({
     url: "https://example.com/report.pdf",
     key: "reports/test.pdf",

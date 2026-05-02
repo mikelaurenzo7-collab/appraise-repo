@@ -13,6 +13,9 @@ import {
   getPropertySubmissionById,
 } from "../db";
 import { sendPaymentConfirmationEmail } from "./emailService";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("StripeWebhook");
 
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe {
@@ -36,7 +39,7 @@ export function registerStripeWebhook(app: express.Application) {
       const sig = req.headers["stripe-signature"] as string;
 
       if (!sig) {
-        console.error("[Stripe Webhook] Missing signature");
+        log.error("[Stripe Webhook] Missing signature");
         return res.status(400).json({ error: "Missing signature" });
       }
 
@@ -45,7 +48,7 @@ export function registerStripeWebhook(app: express.Application) {
       try {
         event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
       } catch (err: any) {
-        console.error("[Stripe Webhook] Signature verification failed:", err.message);
+        log.error("[Stripe Webhook] Signature verification failed:", { err: err.message });
         return res.status(400).json({ error: "Webhook signature verification failed" });
       }
 
@@ -53,7 +56,7 @@ export function registerStripeWebhook(app: express.Application) {
       // pass signature verification because we use the real secret; we just
       // short-circuit the handler so tests don't mutate real data.
       if (event.id.startsWith("evt_test_")) {
-        console.log("[Stripe Webhook] Test event detected, returning verification response");
+        log.info("[Stripe Webhook] Test event detected, returning verification response");
         return res.json({ verified: true });
       }
 
@@ -63,7 +66,7 @@ export function registerStripeWebhook(app: express.Application) {
       // completed would double-apply payment state.
       const outcome = await recordStripeEvent(event.id, event.type);
       if (outcome === "duplicate") {
-        console.log(`[Stripe Webhook] Duplicate event ${event.id} ignored`);
+        log.info(`[Stripe Webhook] Duplicate event ${event.id} ignored`);
         return res.json({ received: true, duplicate: true });
       }
 
@@ -83,17 +86,17 @@ export function registerStripeWebhook(app: express.Application) {
 
           case "charge.failed": {
             const charge = event.data.object as Stripe.Charge;
-            console.log(`[Stripe Webhook] Charge failed: ${charge.id}`);
+            log.info(`[Stripe Webhook] Charge failed: ${charge.id}`);
             break;
           }
 
           default:
-            console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+            log.info(`[Stripe Webhook] Unhandled event type: ${event.type}`);
         }
 
         res.json({ received: true });
       } catch (err: any) {
-        console.error("[Stripe Webhook] Error processing event:", err);
+        log.error("[Stripe Webhook] Error processing event:", { err: err });
         res.status(500).json({ error: "Webhook processing failed" });
       }
     }
@@ -110,7 +113,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   const annualTaxSavings = parseInt(session.metadata?.annualTaxSavings || "0");
 
   if (!submissionId || !userId) {
-    console.error("[Stripe Webhook] Missing metadata in session");
+    log.error("[Stripe Webhook] Missing metadata in session");
     return;
   }
 
@@ -128,7 +131,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         paymentMethod: "stripe",
         stripePaymentIntentId: paymentIntentId,
       });
-      console.log(`[Stripe Webhook] Filing tier payment marked as paid for submission ${submissionId}`);
+      log.info(`[Stripe Webhook] Filing tier payment marked as paid for submission ${submissionId}`);
     } else {
       // Create a filing tier record if one doesn't exist yet
       // (e.g., user went through checkout before the tier was persisted)
@@ -153,10 +156,10 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         stripePaymentIntentId: paymentIntentId,
         proSePrice: session.amount_total || 0,
       });
-      console.log(`[Stripe Webhook] Created filing tier (paid) for submission ${submissionId}`);
+      log.info(`[Stripe Webhook] Created filing tier (paid) for submission ${submissionId}`);
     }
   } catch (err) {
-    console.error("[Stripe Webhook] Failed to update filing tier payment status:", err);
+    log.error("[Stripe Webhook] Failed to update filing tier payment status:", { err: err });
   }
 
   // Flat-fee model: record payment against appeal outcome (no contingency fee)
@@ -171,9 +174,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       contingencyFeePaid: flatFeePaid, // field repurposed as flat-fee revenue tracker
       paidAt: new Date(),
     });
-    console.log(`[Stripe Webhook] Updated appeal outcome ${existing.id} with payment info`);
+    log.info(`[Stripe Webhook] Updated appeal outcome ${existing.id} with payment info`);
   } else {
-    console.warn(`[Stripe Webhook] No appeal outcome found for submission ${submissionId}`);
+    log.warn(`[Stripe Webhook] No appeal outcome found for submission ${submissionId}`);
   }
 
   // ─── REFERRAL CREDITING ─────────────────────────────────────────────
@@ -196,18 +199,14 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         (session.payment_intent as string) || ""
       );
 
-      console.log(
-        `[Stripe Webhook] Referral credited for submission ${submissionId} (referrer: ${referralEntry.referrerUserId})`
-      );
+      log.info(`[Stripe Webhook] Referral credited for submission ${submissionId} (referrer: ${referralEntry.referrerUserId})`);
     }
   } catch (err) {
     // Referral crediting should never block the main payment flow
-    console.error("[Stripe Webhook] Referral crediting failed (non-blocking):", err);
+    log.error("[Stripe Webhook] Referral crediting failed (non-blocking):", { err: err });
   }
 
-  console.log(
-    `[Stripe Webhook] Payment completed for submission ${submissionId}: $${flatFeePaid} flat fee`
-  );
+  log.info(`[Stripe Webhook] Payment completed for submission ${submissionId}: $${flatFeePaid} flat fee`);
 
   // ── Send payment confirmation email ────────────────────────────────
   try {
@@ -222,7 +221,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       });
     }
   } catch (err) {
-    console.error("[Stripe Webhook] Payment confirmation email failed (non-blocking):", err);
+    log.error("[Stripe Webhook] Payment confirmation email failed (non-blocking):", { err: err });
   }
 }
 
@@ -231,7 +230,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
  * This fires when a payment intent succeeds
  */
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  console.log(`[Stripe Webhook] Payment intent succeeded: ${paymentIntent.id}`);
+  log.info(`[Stripe Webhook] Payment intent succeeded: ${paymentIntent.id}`);
   // Additional processing can be added here if needed
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   void paymentIntent;

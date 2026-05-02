@@ -1,3 +1,6 @@
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("ReportStructure");
 /**
  * Report Structure Orchestrator
  * ─────────────────────────────────────────────────────────────────────────────
@@ -416,19 +419,19 @@ export function getSectionVisibilityFlags(structure: ReportStructure): Record<st
 // ─── REPORTING FUNCTIONS ──────────────────────────────────────────────────────
 
 export function logReportStructure(structure: ReportStructure, reportId: string): void {
-  console.log(`\n[ReportStructure] Report ${reportId}`);
-  console.log(`  Type: ${structure.reportType}`);
-  console.log(`  Estimated Pages: ${structure.totalPages}`);
-  console.log(`  Primary Approach: ${structure.primaryApproach}`);
-  console.log(`  Multiple Approaches: ${structure.hasMultipleApproaches}`);
-  console.log(`  User Evidence: ${structure.hasUserEvidence}`);
-  console.log(`\n  Sections:`);
+  log.info(`\n[ReportStructure] Report ${reportId}`);
+  log.info(`  Type: ${structure.reportType}`);
+  log.info(`  Estimated Pages: ${structure.totalPages}`);
+  log.info(`  Primary Approach: ${structure.primaryApproach}`);
+  log.info(`  Multiple Approaches: ${structure.hasMultipleApproaches}`);
+  log.info(`  User Evidence: ${structure.hasUserEvidence}`);
+  log.info(`\n  Sections:`);
 
   for (const section of structure.sections) {
     const status = section.visible ? "✓ SHOW" : "✗ HIDE";
     const confidence = section.visible ? `(${(section.confidence * 100).toFixed(0)}%)` : `(${section.reason})`;
-    console.log(`    ${status} - ${section.title} ${confidence}`);
+    log.info(`    ${status} - ${section.title} ${confidence}`);
   }
 
-  console.log("");
+  log.info("");
 }

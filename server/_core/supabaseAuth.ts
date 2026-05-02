@@ -17,15 +17,20 @@ import type { Express, Request, Response } from "express";
 import { signJWT, verifyJWT, COOKIE_NAME, ONE_YEAR_MS } from "./auth";
 import { getSessionCookieOptions } from "./cookies";
 import * as db from "../db";
+import { scopedLogger } from "./logger";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const log = scopedLogger("SupabaseAuth");
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    "[Startup] Missing required environment variables: SUPABASE_URL, SUPABASE_ANON_KEY. " +
-    "Set them in your Vercel project settings or .env file."
-  );
+function getSupabaseConfig(): { url: string; anonKey: string } {
+  const url = process.env.SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    throw new Error(
+      "[Startup] Missing required environment variables: SUPABASE_URL, SUPABASE_ANON_KEY. " +
+      "Set them in your Vercel project settings or .env file."
+    );
+  }
+  return { url, anonKey };
 }
 
 function getQueryParam(req: Request, key: string): string | undefined {
@@ -38,6 +43,11 @@ function getQueryParam(req: Request, key: string): string | undefined {
  * Redirects to Supabase Auth page (email magic link, Google, GitHub, etc.)
  */
 export function registerAuthRoutes(app: Express) {
+  // Validate Supabase config lazily (at route registration time, not module load).
+  // Throws only when registerAuthRoutes is called so a missing config does not
+  // crash the process on import — useful in unit tests and CI environments.
+  const { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY } = getSupabaseConfig();
+
   // ── Login initiation ──────────────────────────────────────────────────────
   // GET /api/auth/login?returnTo=/dashboard
   // Redirects to Supabase Auth (you configure which providers in Supabase dashboard)
@@ -73,7 +83,7 @@ export function registerAuthRoutes(app: Express) {
 
     // PKCE code exchange — exchange auth code for Supabase session
     if (!code) {
-      console.error("[Auth] No code in callback");
+      log.error("[Auth] No code in callback");
       res.status(400).json({ error: "missing code" });
       return;
     }
@@ -94,7 +104,7 @@ export function registerAuthRoutes(app: Express) {
 
       if (!sbRes.ok) {
         const err = await sbRes.text();
-        console.error("[Auth] Supabase token exchange failed:", err);
+        log.error("[Auth] Supabase token exchange failed:", { err: err });
         res.status(500).json({ error: "auth exchange failed" });
         return;
       }
@@ -133,7 +143,7 @@ export function registerAuthRoutes(app: Express) {
 
       res.redirect(302, next);
     } catch (error) {
-      console.error("[Auth] Callback failed:", error);
+      log.error("[Auth] Callback failed:", { err: error });
       res.status(500).json({ error: "auth callback failed" });
     }
   });

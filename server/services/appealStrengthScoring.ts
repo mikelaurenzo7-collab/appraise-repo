@@ -21,6 +21,9 @@
 import { getDb } from "../db";
 import { eq, and } from "drizzle-orm";
 import { appealOutcomes, propertySubmissions, propertyAnalysis } from "../../drizzle/schema.pg";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("AppealScoring");
 
 export interface AppealStrengthScore {
   overallScore: number; // 0-100
@@ -202,7 +205,7 @@ export async function calculateAppealStrengthScore(
       estimatedSavingsRange,
     };
   } catch (error) {
-    console.error("[Appeal Strength Scoring Error]", error);
+    log.error("[Appeal Strength Scoring Error]", { err: error });
     throw error;
   }
 }
@@ -504,7 +507,7 @@ async function getHistoricalWinRate(
 
     return outcomes.length / totalOutcomes.length;
   } catch (error) {
-    console.error("[Historical Win Rate Error]", error);
+    log.error("[Historical Win Rate Error]", { err: error });
     return 0.55;
   }
 }

@@ -1,3 +1,6 @@
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("ImageOrchestrator");
 /**
  * Image Orchestrator
  * ─────────────────────────────────────────────────────────────────────────────
@@ -247,10 +250,10 @@ export function logImagePlacement(
   visibleSections: string[],
   reportId: string
 ): void {
-  console.log(`\n[ImageOrchestrator] Report ${reportId}`);
-  console.log(`  Street View in Evidence: ${config.streetViewInEvidence}`);
-  console.log(`  Aerial in Market Context: ${config.aerialInMarketContext}`);
-  console.log(`  Map in Market Context: ${config.mapInMarketContext}`);
+  log.info(`\n[ImageOrchestrator] Report ${reportId}`);
+  log.info(`  Street View in Evidence: ${config.streetViewInEvidence}`);
+  log.info(`  Aerial in Market Context: ${config.aerialInMarketContext}`);
+  log.info(`  Map in Market Context: ${config.mapInMarketContext}`);
 
   const placements = [];
   if (config.streetViewInEvidence) placements.push("Street View → User Evidence");
@@ -258,12 +261,12 @@ export function logImagePlacement(
   if (config.mapInMarketContext) placements.push("Map → Market Context");
 
   if (placements.length > 0) {
-    console.log(`  Placements: ${placements.join(", ")}`);
+    log.info(`  Placements: ${placements.join(", ")}`);
   } else {
-    console.log(`  No images to render`);
+    log.info(`  No images to render`);
   }
 
-  console.log("");
+  log.info("");
 }
 
 /**

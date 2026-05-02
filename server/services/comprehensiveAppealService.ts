@@ -9,6 +9,9 @@ import { storagePut } from "../storage";
 import { getDb } from "../db";
 import { eq } from "drizzle-orm";
 import { propertySubmissions, propertyPhotos, propertyAnalysis, reportJobs } from "../../drizzle/schema.pg";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("ComprehensiveAppeal");
 
 /**
  * PART 1: COUNTY DEADLINE CALENDAR
@@ -98,7 +101,7 @@ export async function analyzePropertyPhotos(
       const analysis = await analyzePhotoWithAI(photoUrl);
       results.push(analysis);
     } catch (error) {
-      console.error(`[Photo Analysis] Error analyzing ${photoUrl}:`, error);
+      log.error(`[Photo Analysis] Error analyzing ${photoUrl}:`, { err: error });
     }
   }
 

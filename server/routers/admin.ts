@@ -13,6 +13,9 @@ import { COUNTY_SEED_EXPANSION } from "../seeds/countySeedExpansion";
 import { COUNTY_SEED_PHASE3 } from "../seeds/countySeedPhase3";
 import { RECIPE_SEEDS } from "../seeds/filingRecipes.seed";
 import { RECIPE_SEEDS_EXPANSION } from "../seeds/filingRecipesExpansion.seed";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("Admin");
 
 export const COUNTY_SEED = [
   {
@@ -2873,7 +2876,7 @@ export const adminRouter = router({
         count: seeded,
       };
     } catch (error) {
-      console.error("[Admin] Error seeding counties:", error);
+      log.error("[Admin] Error seeding counties:", { err: error });
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to seed counties",

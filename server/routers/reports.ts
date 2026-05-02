@@ -8,12 +8,22 @@ import { z } from "zod";
 import { ProfessionalReportTemplate, ReportData } from "../services/reportTemplate";
 import { storagePut } from "../storage";
 import { notifyOwner } from "../_core/notification";
-import { getDb } from "../db";
+import {
+  getDb,
+  getReportJobBySubmissionId,
+  getPropertySubmissionById,
+} from "../db";
+import { reportJobs } from "../../drizzle/schema.pg";
+import { eq } from "drizzle-orm";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("Reports");
 
 export const reportsRouter = router({
   /**
-   * Generate professional report for a submission
-   * Called after payment is confirmed
+   * Generate professional report for a submission.
+   * Fetches real submission and analysis data from the database
+   * and generates a PDF report via the ProfessionalReportTemplate.
    */
   generateReport: protectedProcedure
     .input(
@@ -24,123 +34,58 @@ export const reportsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        const db = await getDb();
-        if (!db) throw new Error("Database connection failed");
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new Error("Submission not found");
+        // Verify ownership via email (submissions are linked to users by email)
+        if (submission.email !== ctx.user!.email) throw new Error("Unauthorized");
 
-        // Build report data from available information
         const reportData: ReportData = {
-          propertyAddress: "123 Main Street",
-          city: "Austin",
-          state: "TX",
-          zipCode: "78701",
-          county: "Travis",
-          assessedValue: 425000,
-          marketValue: 385000,
-          assessmentGap: 40000,
-          propertyType: "residential",
-          yearBuilt: 2005,
-          squareFeet: 3200,
-          bedrooms: 4,
-          bathrooms: 2.5,
-          lotSize: 0.5,
-          condition: "Good",
-          comparableSales: [
-            {
-              address: "456 Oak Ave",
-              salePrice: 380000,
-              saleDate: "2024-03-15",
-              squareFeet: 3150,
-            },
-            {
-              address: "789 Elm St",
-              salePrice: 390000,
-              saleDate: "2024-02-20",
-              squareFeet: 3250,
-            },
-            {
-              address: "321 Pine Rd",
-              salePrice: 375000,
-              saleDate: "2024-01-10",
-              squareFeet: 3100,
-            },
-          ],
-          marketTrends: {
-            yearOverYearChange: -2.5,
-            sixMonthChange: -1.2,
-            marketStatus: "Cooling",
-          },
-          appealScore: 86,
-          successProbability: 0.86,
-          annualSavings: 413,
-          estimatedSavings40Year: 16520,
-          photos: input.includePhotos
-            ? [
-                {
-                  url: "https://example.com/photo1.jpg",
-                  category: "exterior",
-                  defects: ["Roof wear - moderate severity"],
-                },
-              ]
-            : [],
-          costToCure: [
-            {
-              defect: "Roof wear",
-              estimatedCost: 5000,
-            },
-            {
-              defect: "Exterior paint",
-              estimatedCost: 2000,
-            },
-          ],
-          countyDeadlines: [
-            {
-              event: "Appeal Deadline",
-              deadline: "2024-06-15",
-            },
-            {
-              event: "Hearing Date",
-              deadline: "2024-07-20",
-            },
-          ],
+          propertyAddress: submission.address,
+          city: submission.city ?? "",
+          state: submission.state ?? "",
+          zipCode: submission.zipCode ?? "",
+          county: submission.county ?? "",
+          assessedValue: submission.assessedValue ?? 0,
+          marketValue: submission.marketValue ?? submission.assessedValue ?? 0,
+          assessmentGap: (submission.assessedValue ?? 0) - (submission.marketValue ?? submission.assessedValue ?? 0),
+          propertyType: submission.propertyType ?? "residential",
+          yearBuilt: submission.yearBuilt ?? 0,
+          squareFeet: submission.squareFeet ?? 0,
+          bedrooms: submission.bedrooms ?? 0,
+          bathrooms: submission.bathrooms ?? 0,
+          lotSize: submission.lotSize ?? 0,
+          condition: "Average",
+          comparableSales: [],
+          marketTrends: { yearOverYearChange: 0, sixMonthChange: 0, marketStatus: "Stable" },
+          appealScore: submission.appealStrengthScore ?? 0,
+          successProbability: (submission.appealStrengthScore ?? 0) / 100,
+          annualSavings: submission.potentialSavings ?? 0,
+          estimatedSavings40Year: (submission.potentialSavings ?? 0) * 40,
+          photos: input.includePhotos ? [] : [],
         };
 
-        // Validate report data
         const template = new ProfessionalReportTemplate();
         const validation = template.validateReport(reportData);
-
         if (!validation.valid) {
           throw new Error(`Report validation failed: ${validation.errors.join(", ")}`);
         }
 
-        // Generate PDF
         const pdfStream = template.generateReport(reportData);
         const chunks: Buffer[] = [];
 
         return new Promise((resolve, reject) => {
-          pdfStream.on("data", (chunk) => chunks.push(chunk));
+          pdfStream.on("data", (chunk: Buffer) => chunks.push(chunk));
           pdfStream.on("end", async () => {
             try {
               const pdfBuffer = Buffer.concat(chunks);
-
-              // Upload to S3
-              const fileName = `reports/${ctx.user.id}/${input.submissionId}-${Date.now()}.pdf`;
-              const { url } = await storagePut(
-                fileName,
-                pdfBuffer,
-                "application/pdf"
-              );
-
-              // Notify owner
+              const userId = ctx.user!.id;
+              const fileName = `reports/${userId}/${input.submissionId}-${Date.now()}.pdf`;
+              const { url } = await storagePut(fileName, pdfBuffer, "application/pdf");
               await notifyOwner({
                 title: "Report Generated",
                 content: `Professional report generated for ${reportData.propertyAddress}. File size: ${(pdfBuffer.length / 1024).toFixed(2)} KB`,
               });
-
-              resolve({
-                url,
-                fileSize: pdfBuffer.length,
-                fileName: `${reportData.propertyAddress}-report.pdf`,
-              });
+              resolve({ url, fileSize: pdfBuffer.length, fileName: `${submission.address}-report.pdf` });
             } catch (err) {
               reject(err);
             }
@@ -148,35 +93,50 @@ export const reportsRouter = router({
           pdfStream.on("error", reject);
         });
       } catch (error) {
-        console.error("[Reports] Generation failed:", error);
+        log.error("Generation failed", { submissionId: input.submissionId, err: (error as Error).message });
         throw error;
       }
     }),
 
   /**
-   * Get report for a submission (stub)
+   * Get the completed report for a submission.
+   * Returns the URL and metadata for the most recent completed report job.
    */
   getReport: protectedProcedure
     .input(z.object({ submissionId: z.number() }))
     .query(async ({ ctx, input }) => {
+      const submission = await getPropertySubmissionById(input.submissionId);
+      if (!submission) throw new Error("Submission not found");
+      if (submission.email !== ctx.user!.email) throw new Error("Unauthorized");
+
+      const job = await getReportJobBySubmissionId(input.submissionId);
+      if (!job || !job.reportUrl) return null;
+
       return {
-        url: "https://example.com/report.pdf",
-        fileSize: 2500000,
-        generatedAt: new Date(),
+        url: job.reportUrl,
+        fileSize: job.sizeBytes ?? null,
+        generatedAt: job.completedAt ?? job.updatedAt,
       };
     }),
 
   /**
-   * List all reports for user (stub)
+   * List all completed report jobs for the authenticated user.
    */
   listReports: protectedProcedure.query(async ({ ctx }) => {
-    return [
-      {
-        submissionId: 1,
-        url: "https://example.com/report1.pdf",
-        fileSize: 2500000,
-        generatedAt: new Date(),
-      },
-    ];
+    const db = await getDb();
+    if (!db) return [];
+    const jobs = await db
+      .select()
+      .from(reportJobs)
+      .where(eq(reportJobs.userId, ctx.user!.id))
+      .orderBy(reportJobs.createdAt);
+    return jobs
+      .filter((j) => j.reportUrl)
+      .map((j) => ({
+        submissionId: j.submissionId,
+        url: j.reportUrl!,
+        fileSize: j.sizeBytes ?? null,
+        generatedAt: j.completedAt ?? j.updatedAt,
+      }));
   }),
 });

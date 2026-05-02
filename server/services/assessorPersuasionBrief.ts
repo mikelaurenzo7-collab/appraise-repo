@@ -39,6 +39,9 @@
 import { generateNarrativeWithClaude, isClaudeAvailable } from "../_core/claude";
 import type { UniformityResult } from "./uniformityAnalyzer";
 import type { RecordErrorReport } from "./recordErrorDetector";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("AssessorPersuasion");
 
 export type BriefAudience = "assessor" | "board" | "attorney" | "owner";
 
@@ -342,10 +345,7 @@ export async function generateAssessorPersuasionBrief(
         source: "claude",
       };
     } catch (err) {
-      console.warn(
-        "[AssessorPersuasionBrief] Claude generation failed; using fallback:",
-        (err as Error).message,
-      );
+      log.warn("[AssessorPersuasionBrief] Claude generation failed; using fallback:", { err: (err as Error).message });
       // fall through to deterministic fallback
     }
   }

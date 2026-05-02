@@ -1,6 +1,9 @@
 import { invokeLLM } from "./llm";
 import { buildAppUrl } from "./appUrl";
 import { sendMail } from "./mailer";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("Email");
 
 export interface EmailTemplate {
   to: string;
@@ -150,7 +153,7 @@ export async function sendAnalysisConfirmationEmail(data: AnalysisConfirmationEm
       html,
     });
   } catch (error) {
-    console.error("Failed to send analysis confirmation email:", error);
+    log.error("Failed to send analysis confirmation email:", { err: error });
     return false;
   }
 }
@@ -208,7 +211,7 @@ export async function sendPaymentConfirmationEmail(data: PaymentConfirmationEmai
       html,
     });
   } catch (error) {
-    console.error("Failed to send payment confirmation email:", error);
+    log.error("Failed to send payment confirmation email:", { err: error });
     return false;
   }
 }
@@ -266,7 +269,7 @@ export async function sendAppealFiledEmail(data: AppealFiledEmail): Promise<bool
       html,
     });
   } catch (error) {
-    console.error("Failed to send appeal filed email:", error);
+    log.error("Failed to send appeal filed email:", { err: error });
     return false;
   }
 }
@@ -324,7 +327,7 @@ export async function sendReportCompletionEmail(data: ReportCompletionEmail): Pr
       html,
     });
   } catch (error) {
-    console.error("Failed to send report completion email:", error);
+    log.error("Failed to send report completion email:", { err: error });
     return false;
   }
 }
@@ -383,7 +386,7 @@ export async function sendAppealResultEmail(data: AppealResultEmail): Promise<bo
       html,
     });
   } catch (error) {
-    console.error("Failed to send appeal result email:", error);
+    log.error("Failed to send appeal result email:", { err: error });
     return false;
   }
 }
@@ -399,12 +402,10 @@ async function sendEmail(template: EmailTemplate): Promise<boolean> {
       subject: template.subject,
       html: template.html,
     });
-    console.log(
-      `[Email] ${result.stubbed ? "STUB" : "Sent"} to ${template.to}: ${template.subject} (id=${result.messageId})`
-    );
+    log.info(`[Email] ${result.stubbed ? "STUB" : "Sent"} to ${template.to}: ${template.subject} (id=${result.messageId})`);
     return true;
   } catch (error) {
-    console.error("[Email] Error sending email:", error);
+    log.error("[Email] Error sending email:", { err: error });
     return false;
   }
 }

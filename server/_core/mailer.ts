@@ -12,6 +12,9 @@
  */
 
 import crypto from "crypto";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("Mailer");
 
 export interface MailAttachment {
   filename: string;
@@ -57,7 +60,7 @@ export async function sendMail(opts: SendMailOptions): Promise<SendMailResult> {
         else hash.update(a.content);
       }
     }
-    console.log(
+    log.info(
       `[Mailer] STUB: would send "${opts.subject}" to ${Array.isArray(opts.to) ? opts.to.join(",") : opts.to}` +
         (opts.attachments?.length ? ` (${opts.attachments.length} attachment(s))` : "")
     );

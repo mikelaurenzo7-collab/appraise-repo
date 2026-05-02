@@ -6,6 +6,9 @@
 import { router, publicProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { getCountyById, listCountiesByState } from "../db";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("Guides");
 
 export const guidesRouter = router({
   /**
@@ -64,7 +67,7 @@ export const guidesRouter = router({
           totalAppealsProcessed: 1247,
         };
       } catch (error) {
-        console.error("[Guides] Error fetching county guide:", error);
+        log.error("[Guides] Error fetching county guide:", { err: error });
         throw error;
       }
     }),
@@ -86,7 +89,7 @@ export const guidesRouter = router({
           averageSavings: 3200, // Mock
         }));
       } catch (error) {
-        console.error("[Guides] Error listing counties:", error);
+        log.error("[Guides] Error listing counties:", { err: error });
         throw error;
       }
     }),
@@ -102,7 +105,7 @@ export const guidesRouter = router({
         // For now, returning empty (would need full-text search implementation)
         return [];
       } catch (error) {
-        console.error("[Guides] Error searching counties:", error);
+        log.error("[Guides] Error searching counties:", { err: error });
         throw error;
       }
     }),
