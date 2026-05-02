@@ -37,6 +37,13 @@ import {
 } from "./scenarioValuation";
 import { broadcastAnalysisUpdate } from "../_core/sseBroadcaster";
 import { sendAnalysisConfirmationEmail } from "../_core/emailService";
+import { analyzeUniformity } from "./uniformityAnalyzer";
+import { detectRecordErrors } from "./recordErrorDetector";
+import {
+  generateAssessorPersuasionBrief,
+  type BriefAudience,
+  type PersuasionBrief,
+} from "./assessorPersuasionBrief";
 
 // Prevent duplicate concurrent jobs for the same submission
 const activeJobs = new Set<number>();
@@ -404,6 +411,150 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       status: "success",
     });
 
+    // ── Step 4d: Three-grounds persuasion pipeline ──────────────────────────
+    // Per current best practice (AppealDesk 2026, Cook County BOR, Walker
+    // Advisory), the strongest appeals lead with whichever of three statutory
+    // grounds is best supported by the data: (a) excessive market value,
+    // (b) lack of uniformity, or (c) errors of fact in the assessor's record.
+    // We compute the three independently and let the persuasion brief rank.
+    const subjectMarketValue = scenarioAdjustedValue;
+    const subjectAssessedValue = propertyData.assessedValue || 0;
+
+    // (b) UNIFORMITY: subject's assessment ratio vs. peer parcels.
+    // Today most aggregator comps don't carry assessed-value data, so the
+    // analyzer correctly produces hasUniformityClaim=false and we say nothing
+    // (the brief lead with market-value instead). When the data layer starts
+    // returning comp assessed values, this immediately becomes a real second
+    // ground without further wiring.
+    const uniformity = analyzeUniformity(
+      subjectAssessedValue,
+      subjectMarketValue,
+      filteredPropertyData.comparableSales ?? [],
+      // No assessor lookup wired yet; comps without ratios are simply ignored.
+      undefined,
+    );
+
+    // (c) RECORD ERRORS: assessor record (tax bill OCR + aggregator) vs.
+    // the owner-verified submission record. Discrepancies are deterministic
+    // and uncontestable — easiest wins per practitioner consensus.
+    const tb = (taxBillDataForPrompt ?? {}) as Record<string, unknown>;
+    const taxBillNumber = (key: string): number | undefined => {
+      const v = tb[key];
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+      if (typeof v === "string") {
+        const cleaned = Number(v.replace(/[^0-9.\-]/g, ""));
+        return Number.isFinite(cleaned) ? cleaned : undefined;
+      }
+      return undefined;
+    };
+    const recordErrors = detectRecordErrors(
+      {
+        squareFeet: propertyData.squareFeet ?? null,
+        bedrooms: propertyData.bedrooms ?? null,
+        bathrooms: propertyData.bathrooms ?? null,
+        yearBuilt: propertyData.yearBuilt ?? null,
+        lotSize: propertyData.lotSize ?? null,
+      },
+      {
+        squareFeet: submission.squareFeet ?? taxBillNumber("squareFeet") ?? null,
+        bedrooms: submission.bedrooms ?? null,
+        bathrooms: submission.bathrooms ?? null,
+        yearBuilt: submission.yearBuilt ?? null,
+        lotSize: submission.lotSize ?? null,
+      },
+    );
+
+    if (uniformity.hasUniformityClaim || recordErrors.hasErrors) {
+      await persistActivityLog({
+        submissionId,
+        type: "three_grounds_evaluated",
+        actor: "system",
+        description:
+          `Three-grounds analysis: ${uniformity.hasUniformityClaim ? `uniformity gap ${((uniformity.ratioMultiplier - 1) * 100).toFixed(1)}%` : "no uniformity data"}; ` +
+          `${recordErrors.hasErrors ? `${recordErrors.significantCount} record discrepancy/ies` : "no record errors"}.`,
+        metadata: JSON.stringify({
+          uniformityStrength: uniformity.uniformityStrength,
+          uniformityRatioMultiplier: uniformity.ratioMultiplier,
+          uniformityComparableCount: uniformity.comparableCount,
+          recordErrorStrength: recordErrors.errorStrength,
+          recordErrorCount: recordErrors.significantCount,
+        }),
+        status: "success",
+      });
+    }
+
+    // (d) Persuasion brief — audience-aware. Resolves report_preferences
+    // target audience when available; defaults to "board" otherwise. Wrapped
+    // in try/catch so a brief failure never blocks the analysis pipeline.
+    let persuasionBrief: PersuasionBrief | null = null;
+    try {
+      const audience: BriefAudience = await resolveBriefAudience(submissionId);
+      const requestedAssessedValue = subjectMarketValue;
+      const effectiveTaxRate =
+        taxBillNumber("effectiveTaxRate") ??
+        (submission.taxRateOverride ? Number(submission.taxRateOverride) : undefined) ??
+        0.012;
+      const photoFindingsForBrief =
+        photoSummary?.topValueIssues?.slice(0, 5) ?? [];
+      const obsolescenceForBrief =
+        photoSummary?.functionalObsolescenceItems?.slice(0, 5) ?? [];
+      const compSummaries = (filteredPropertyData.comparableSales ?? [])
+        .slice(0, 5)
+        .map((c) => {
+          const ppsf =
+            c.squareFeet && c.salePrice
+              ? Math.round(c.salePrice / c.squareFeet)
+              : null;
+          return `${c.address}: $${c.salePrice.toLocaleString()}${
+            c.squareFeet ? ` (${c.squareFeet.toLocaleString()} sqft${ppsf ? `, $${ppsf}/sqft` : ""})` : ""
+          }${c.saleDate ? `, sold ${c.saleDate}` : ""}`;
+        });
+
+      persuasionBrief = await generateAssessorPersuasionBrief({
+        audience,
+        propertyAddress: `${submission.address}${submission.city ? `, ${submission.city}` : ""}${submission.state ? `, ${submission.state}` : ""}`,
+        parcelId:
+          (taxBillNumber("apn") as unknown as string | undefined) ??
+          ((tb.apn as string | undefined) ?? null),
+        taxYear:
+          (taxBillNumber("taxYear") as number | undefined) ?? new Date().getFullYear(),
+        jurisdiction: `${propertyData.county ?? submission.county ?? "Unknown County"}, ${submission.state ?? ""}`.trim(),
+        currentAssessedValue: subjectAssessedValue,
+        requestedAssessedValue,
+        evidenceSupportedMarketValue: subjectMarketValue,
+        effectiveTaxRate,
+        estimatedAnnualSavings: scenarioTaxSavings,
+        comparableSummaries: compSummaries,
+        uniformity,
+        recordErrors,
+        photoFindings: photoFindingsForBrief,
+        functionalObsolescence: obsolescenceForBrief,
+        appealDeadline: undefined, // populated downstream when known
+      });
+
+      await persistActivityLog({
+        submissionId,
+        type: "persuasion_brief_generated",
+        actor: "system",
+        description: `Audience-aware persuasion brief generated (${persuasionBrief.audience}, source: ${persuasionBrief.source}). Strongest ground: ${persuasionBrief.rankedGrounds[0]?.ground ?? "n/a"}.`,
+        metadata: JSON.stringify({
+          audience: persuasionBrief.audience,
+          source: persuasionBrief.source,
+          strongestGround: persuasionBrief.rankedGrounds[0]?.ground,
+          grounds: persuasionBrief.rankedGrounds.map((g) => ({
+            ground: g.ground,
+            strength: g.strength,
+          })),
+        }),
+        status: "success",
+      });
+    } catch (briefErr) {
+      console.warn(
+        "[AnalysisJob] Persuasion brief generation failed (non-fatal):",
+        (briefErr as Error).message,
+      );
+    }
+
     // ── Step 5: Generate appeal strategy ─────────────────────────────────────
     const { generateAppealStrategy } = await import("./appealStrategy");
     const appealStrategy = await generateAppealStrategy(
@@ -461,6 +612,20 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
                 ...photoSummary.topValueIssues.slice(0, 3).map(i => `Photo observation: ${i}`),
               ]
             : []),
+          ...(uniformity.hasUniformityClaim
+            ? [
+                `Statutory ground — Lack of Uniformity: subject assessed ${((uniformity.ratioMultiplier - 1) * 100).toFixed(1)}% above peer-median ratio (${uniformity.comparableCount} parcels analyzed). Equalized value $${uniformity.equalizedAssessedValue.toLocaleString()}.`,
+              ]
+            : []),
+          ...(recordErrors.hasErrors
+            ? [
+                `Statutory ground — Errors of Fact: ${recordErrors.significantCount} field-level discrepancy/ies in assessor record card.`,
+                ...recordErrors.findings
+                  .filter((f) => f.severity !== "minor")
+                  .slice(0, 3)
+                  .map((f) => `Record discrepancy (${f.field}): ${f.factualClaim}`),
+              ]
+            : []),
         ]),
         recommendedApproach: finalApproach,
         executiveSummary: analysis.executiveSummary,
@@ -475,6 +640,36 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           scenarioLabel: scenarioContext.scenarioLabel,
           urgencyLevel: scenarioContext.appealStrengthModifiers.urgencyLevel,
           adjustments: scenarioContext.valuationAdjustments,
+          // ── Three-grounds persuasion package (read by PDF + delivery) ──
+          uniformity: {
+            hasClaim: uniformity.hasUniformityClaim,
+            subjectRatio: uniformity.subjectAssessmentRatio,
+            medianComparableRatio: uniformity.medianComparableRatio,
+            ratioMultiplier: uniformity.ratioMultiplier,
+            comparableCount: uniformity.comparableCount,
+            equalizedAssessedValue: uniformity.equalizedAssessedValue,
+            equalizationGap: uniformity.equalizationGap,
+            argument: uniformity.uniformityArgument,
+            strength: uniformity.uniformityStrength,
+          },
+          recordErrors: {
+            hasErrors: recordErrors.hasErrors,
+            significantCount: recordErrors.significantCount,
+            errorStrength: recordErrors.errorStrength,
+            findings: recordErrors.findings,
+            summaryLine: recordErrors.summaryLine,
+          },
+          persuasionBrief: persuasionBrief
+            ? {
+                audience: persuasionBrief.audience,
+                source: persuasionBrief.source,
+                sixtySecondSummary: persuasionBrief.sixtySecondSummary,
+                formalBrief: persuasionBrief.formalBrief,
+                prayerForRelief: persuasionBrief.prayerForRelief,
+                rankedGrounds: persuasionBrief.rankedGrounds,
+                exhibitIndex: persuasionBrief.exhibitIndex,
+              }
+            : null,
         }),
         valuationApproachWeights: JSON.stringify({
           market: scenarioContext.valuationAdjustments.marketApproachWeight,
@@ -621,5 +816,34 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     }
   } finally {
     activeJobs.delete(submissionId);
+  }
+}
+
+/**
+ * Resolve the audience for the persuasion brief. Reads report_preferences
+ * when set; defaults to "board" otherwise (the safest middle-ground tone).
+ *
+ * The DB query is best-effort — never blocks the analysis pipeline. If the
+ * query fails or no preference exists, we fall back to "board".
+ */
+async function resolveBriefAudience(submissionId: number): Promise<BriefAudience> {
+  try {
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) return "board";
+    const { reportPreferences } = await import("../../drizzle/schema.pg");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select({ targetAudience: reportPreferences.targetAudience })
+      .from(reportPreferences)
+      .where(eq(reportPreferences.submissionId, submissionId))
+      .limit(1);
+    const a = rows[0]?.targetAudience;
+    if (a === "assessor" || a === "board" || a === "attorney" || a === "owner") {
+      return a;
+    }
+    return "board";
+  } catch {
+    return "board";
   }
 }

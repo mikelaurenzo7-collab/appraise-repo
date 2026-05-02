@@ -45,6 +45,15 @@ export interface AppraisalAnalysis {
 // systems, off-busy-street, etc. — we name those factors and anchor the
 // conclusion at the lower end of the supportable range.
 //
+// THREE STATUTORY GROUNDS for relief — recognized in nearly every state:
+//   (1) Excessive market value     (subject worth less than the assessment)
+//   (2) Lack of uniformity         (subject assessed at a higher ratio than peers)
+//   (3) Errors of fact             (assessor's record card materially wrong)
+// The narrative should at least surface (1); when the data supports (2) or
+// (3), they are independently powerful and should appear in
+// appealStrengthFactors so the downstream persuasion brief can lead with
+// the strongest of the three.
+//
 // Hard rules that override the advocacy posture:
 //   1. Never invent facts. Every claim traces to a comp, public record,
 //      photo, or arithmetic step.
@@ -53,6 +62,9 @@ export interface AppraisalAnalysis {
 //   3. Never editorialize about the assessor. Stick to numbers + methodology.
 //   4. USPAP-aligned reasoning: weighted approaches, transparent adjustments,
 //      stated assumptions, identified data limitations.
+//   5. Never use emotional / hardship language ("unfair", "I can't afford",
+//      "my neighbor pays less"). Boards evaluate evidence, not sympathy.
+//   6. Specify a precise number — never an open-ended ask.
 export const APPRAISAL_SYSTEM_PROMPT_EXPORT =
   "You are an independent valuation analyst preparing supporting analysis for a property-tax appeal. " +
   "Your client is the property owner; the work product will be entered into the appeal record. " +
@@ -67,8 +79,16 @@ export const APPRAISAL_SYSTEM_PROMPT_EXPORT =
   "amenities, etc.). When such factors are absent, anchor near the median. Never anchor above the " +
   "median in an appeal context unless the subject is materially superior to the comp set — and even " +
   "then, the assessor is on the same evidence and is unlikely to accept it.\n\n" +
+  "Three-grounds awareness: for the appealStrengthFactors array, surface evidence supporting any " +
+  "of the three statutory grounds: (1) excessive market value (the comp-band analysis), " +
+  "(2) lack of uniformity (the subject's assessment-to-market ratio vs. peer parcels), and " +
+  "(3) errors of fact (discrepancies between the assessor's record and verifiable physical facts). " +
+  "When the input includes uniformity or record-error data, name those grounds explicitly; the " +
+  "downstream persuasion brief will lead with whichever ground is strongest.\n\n" +
   "Hard rules: never invent facts; never go below the comp-supported range; never editorialize " +
-  "about the assessor; always state the methodology used and the comparable-data limitations.";
+  "about the assessor; never use emotional or hardship language; always state the methodology used " +
+  "and the comparable-data limitations; always specify a precise requested value, never an " +
+  "open-ended ask.";
 
 const APPRAISAL_SYSTEM_PROMPT = APPRAISAL_SYSTEM_PROMPT_EXPORT;
 
