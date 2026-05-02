@@ -1076,10 +1076,13 @@ export const appRouter = router({
           }
         }
 
-        // Log batch submission
+        // Log batch submission. submitBatch is a protectedProcedure, so the
+        // user is always known — record actor/actorId so batch submissions
+        // appear in the same audit trail as single-property submissions.
         await persistActivityLog({
           type: "batch_submitted",
-          actor: "system",
+          actor: "user",
+          actorId: ctx.user.id,
           description: `Batch submission: ${input.properties.length} properties`,
           metadata: JSON.stringify({ batchId, count: input.properties.length, results }),
           status: "success",
