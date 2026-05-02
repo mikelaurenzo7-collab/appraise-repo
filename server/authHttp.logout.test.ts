@@ -3,9 +3,8 @@ import express from "express";
 
 // Vital regression: the HTTP /api/auth/logout endpoint must clear the
 // session cookie with the SAME options used when the cookie was set
-// (sameSite=none, secure, httpOnly, path=/). Otherwise the browser
-// silently ignores the clear directive when the app runs under an
-// iframe / cross-origin context — leaving stale sessions behind.
+// (sameSite, secure, httpOnly, path=/). Otherwise the browser silently
+// ignores the clear directive — leaving stale sessions behind.
 //
 // Without these flags the tRPC auth.logout mutation would clear
 // correctly but a direct POST /api/auth/logout (used in some flows)
@@ -25,7 +24,7 @@ describe("HTTP /api/auth/logout", () => {
     registerAuthRoutes(app);
   });
 
-  it("clears cookie with sameSite=none, secure (when behind https proxy), httpOnly, path=/", async () => {
+  it("clears cookie with sameSite=lax, secure (when behind https proxy), httpOnly, path=/", async () => {
     const captured: { name: string; value: string; options: Record<string, unknown> } = {
       name: "",
       value: "",
@@ -72,7 +71,7 @@ describe("HTTP /api/auth/logout", () => {
 
     expect(captured.name).toBeTruthy();
     expect(captured.options).toMatchObject({
-      sameSite: "none",
+      sameSite: "lax",
       secure: true,
       httpOnly: true,
       path: "/",
