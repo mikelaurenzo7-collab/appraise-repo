@@ -601,7 +601,19 @@ export async function aggregatePropertyData(address: string, city: string, state
       attomData.source ? "ATTOM" : null,
     ].filter(Boolean).join(" + ");
 
-    log.info(`[Aggregator] Merged data from [${sources}] — assessed: $${merged.assessedValue || "N/A"}, market: $${merged.marketValue || "N/A"}, sqft: ${merged.squareFeet || "N/A"}, tax: $${merged.propertyTax || "N/A"}, lot: ${merged.lotSize || "N/A"}sqft, zoning: ${merged.zoning || "N/A"}, comps: ${merged.comparableSales?.length || 0} (Redfin: ${redfinComps.length}, RentCast: ${rentcastComps.length})${hasData ? "" : " ⚠️ NO DATA FROM ANY API"}`);
+    log.info("[Aggregator] Merged data", {
+      sources,
+      assessedValue: merged.assessedValue ?? "N/A",
+      marketValue: merged.marketValue ?? "N/A",
+      sqft: merged.squareFeet ?? "N/A",
+      propertyTax: merged.propertyTax ?? "N/A",
+      lotSize: merged.lotSize ?? "N/A",
+      zoning: merged.zoning ?? "N/A",
+      compCount: merged.comparableSales?.length ?? 0,
+      redfinComps: redfinComps.length,
+      rentcastComps: rentcastComps.length,
+      hasData,
+    });
 
     return merged;
   } catch (error) {

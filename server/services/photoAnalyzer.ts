@@ -183,7 +183,7 @@ async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding 
     );
     return cachedFinding;
   } catch (err) {
-    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, { err: (err as Error ).message });
+    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, { err: err });
     return null;
   }
 }
@@ -301,7 +301,7 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
       evidenceStrength,
     };
   } catch (err) {
-    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, { err: (err as Error ).message });
+    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, { err: err });
     return null;
   }
 }

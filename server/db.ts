@@ -106,7 +106,7 @@ export async function createPropertySubmission(submission: InsertPropertySubmiss
     const insertedId = result[0]?.id;
     if (!insertedId) return undefined;
     const record = await db.select().from(propertySubmissions).where(eq(propertySubmissions.id, insertedId)).limit(1);
-    log.info("[Database] Fetched record id:", { err: record[0]?.id });
+    log.info("[Database] Fetched record id:", { recordId: record[0]?.id });
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
     log.error("[Database] Failed to create property submission:", { err: error });

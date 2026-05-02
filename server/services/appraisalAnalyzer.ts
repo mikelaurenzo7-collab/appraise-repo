@@ -457,7 +457,7 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
     // The outer analysisJob catch handles this by marking the submission
     // as `error` so the owner / admin can investigate and re-queue. No
     // synthetic numbers ever land in the property_analysis row.
-    log.error("[AppraisalAnalyzer] LLM analysis failed", { address: propertyData.address, err: error instanceof Error ? error.message : String(error) });
+    log.error("[AppraisalAnalyzer] LLM analysis failed", { address: propertyData.address, err: error });
     throw new Error(
       `Appraisal analysis failed: ${error instanceof Error ? error.message : String(error)}. ` +
       `No fallback analysis is generated; the submission has been marked for retry.`,

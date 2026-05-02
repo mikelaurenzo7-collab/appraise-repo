@@ -165,7 +165,7 @@ async function callClaudeWithWebSearch(
       );
       return { text: fallbackText, sources: [] };
     } catch (fallbackErr: unknown) {
-      log.warn("[Research] Claude fallback also failed:", { err: (fallbackErr as Error ).message });
+      log.warn("[Research] Claude fallback also failed:", { err: (fallbackErr as Error).message });
       return { text: "", sources: [] };
     }
   }
