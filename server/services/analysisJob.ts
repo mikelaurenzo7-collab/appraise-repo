@@ -44,6 +44,9 @@ import {
   type BriefAudience,
   type PersuasionBrief,
 } from "./assessorPersuasionBrief";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("AnalysisJob");
 
 // Prevent duplicate concurrent jobs for the same submission
 const activeJobs = new Set<number>();
@@ -60,7 +63,7 @@ const activeJobs = new Set<number>();
  */
 export function queueAnalysisJob(submissionId: number, delayMs = 1000): void {
   if (activeJobs.has(submissionId)) {
-    console.log(`[AnalysisJob] Job ${submissionId} already queued/running — skipping duplicate`);
+    log.info(`Job ${submissionId} already queued/running — skipping duplicate`, { submissionId });
     return;
   }
 
@@ -75,20 +78,20 @@ export function queueAnalysisJob(submissionId: number, delayMs = 1000): void {
         await updatePropertySubmission(submissionId, { status: "pending" });
       }
     } catch (err) {
-      console.error(`[AnalysisJob] Failed to mark #${submissionId} pending:`, err);
+      log.error(`Failed to mark #${submissionId} pending`, { submissionId, err: (err as Error).message });
     }
   })();
 
   // On Vercel we don't try to run analysis in-process — the function will
   // exit before LLM calls finish. Cron will pick it up within ~30s.
   if (process.env.VERCEL === "1") {
-    console.log(`[AnalysisJob] #${submissionId} queued for cron pickup (Vercel serverless)`);
+    log.info(`#${submissionId} queued for cron pickup (Vercel serverless)`, { submissionId });
     return;
   }
 
   setTimeout(() => {
     analyzePropertySubmission(submissionId).catch((err: unknown) => {
-      console.error(`[AnalysisJob] Unhandled error for submission ${submissionId}:`, err);
+      log.error(`Unhandled error for submission ${submissionId}`, { submissionId, err: (err as Error).message });
     });
   }, delayMs);
 }
@@ -101,11 +104,11 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
   try {
     const submission = await getPropertySubmissionById(submissionId);
     if (!submission) {
-      console.error(`[AnalysisJob] Submission ${submissionId} not found`);
+      log.error(`Submission ${submissionId} not found`, { submissionId });
       return;
     }
 
-    console.log(`[AnalysisJob] Starting analysis for #${submissionId} — ${submission.address}`);
+    log.info(`Starting analysis for #${submissionId} — ${submission.address}`, { submissionId, address: submission.address });
 
     const county = submission.county || "Unknown";
 
@@ -201,7 +204,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     if (researchResult.status === "fulfilled" && researchResult.value) {
       researchInsights = researchResult.value;
       const sourceCount = researchInsights.reduce((sum, i) => sum + i.results.length, 0);
-      console.log(`[AnalysisJob] ✓ Claude research complete — ${researchInsights.length} scenarios, ${sourceCount} grounded sources`);
+      log.info(`Claude research complete — ${researchInsights.length} scenarios, ${sourceCount} grounded sources`, { submissionId, scenarios: researchInsights.length, sources: sourceCount });
       await persistActivityLog({
         submissionId,
         type: "api_aggregation_complete",
@@ -210,7 +213,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         status: "success",
       });
     } else if (researchResult.status === "rejected") {
-      console.warn("[AnalysisJob] Claude research failed (non-critical):", (researchResult.reason as Error)?.message);
+      log.warn("Claude research failed (non-critical)", { submissionId, err: (researchResult.reason as Error)?.message });
     }
     // ── Step 3: Get jurisdiction rules ───────────────────────────────────────
     const state = submission.state || "";
@@ -272,9 +275,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       comparableSales: filteredComps.length > 0 ? filteredComps : rawComps, // fail-safe: don't analyze with zero comps
     };
     if (rawComps.length !== filteredComps.length && filteredComps.length > 0) {
-      console.log(
-        `[AnalysisJob] #${submissionId} comp filter applied (${userScenario}): ${rawComps.length} → ${filteredComps.length}`,
-      );
+      log.info(`Comp filter applied (${userScenario}): ${rawComps.length} → ${filteredComps.length}`, { submissionId, scenario: userScenario, rawCount: rawComps.length, filteredCount: filteredComps.length });
     }
 
     // ── Pre-analysis: run photos concurrently, then feed into LLM ───────────
@@ -284,7 +285,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     const [photoSummaryForPrompt, taxBillDataForPrompt] = await Promise.all([
       photosForAnalysis.length > 0
         ? analyzePropertyPhotos(photosForAnalysis).catch((err) => {
-            console.warn(`[AnalysisJob] Photo pre-analysis failed:`, (err as Error).message);
+            log.warn(`Photo pre-analysis failed`, { submissionId, err: (err as Error).message });
             return null;
           })
         : Promise.resolve(null as PhotoAnalysisSummary | null),
@@ -578,10 +579,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         status: "success",
       });
     } catch (briefErr) {
-      console.warn(
-        "[AnalysisJob] Persuasion brief generation failed (non-fatal):",
-        (briefErr as Error).message,
-      );
+      log.warn("Persuasion brief generation failed (non-fatal)", { submissionId, err: (briefErr as Error).message });
     }
 
     // ── Step 5: Generate appeal strategy ─────────────────────────────────────
@@ -816,7 +814,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     await notifyOwner({
       title: `Analysis Complete — ${strengthLabel} (${scenarioContext.scenarioLabel})`,
       content: `Property: ${submission.address}\nScenario: ${scenarioContext.scenarioLabel}\n\nMarket Value: $${scenarioAdjustedValue.toLocaleString()}\nAssessed Value: $${propertyData.assessedValue?.toLocaleString() ?? "N/A"}\nAssessment Gap: $${scenarioAdjustedGap.toLocaleString()}\nAppeal Strength: ${appealStrengthAfterPhotos}/100\nPotential Savings: ${scenarioTaxSavings !== null ? `$${scenarioTaxSavings.toLocaleString()}/yr` : "(unavailable — upload tax bill for projection)"}\nApproach: ${finalApproach.toUpperCase()}\nFiling: ${submission.filingMethod || "POA"}\nDeadline: ${appealDeadline?.toLocaleDateString() ?? "TBD"}\nUrgency: ${scenarioContext.appealStrengthModifiers.urgencyLevel.toUpperCase()}\n\nView: /analysis?id=${submissionId}`,
-    }).catch((err: unknown) => console.error("[AnalysisJob] Failed to notify owner:", err));
+    }).catch((err: unknown) => log.error("Failed to notify owner", { submissionId, err: (err as Error).message }));
     // Queue report generation (24-hour SLA)
 
     // ── Step 9b: Send user email confirmation ────────────────────────────────
@@ -826,13 +824,13 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         userName: submission.email.split("@")[0],
         propertyAddress: submission.address,
         appealStrengthScore: appealStrengthAfterPhotos,
-      }).catch((err: unknown) => console.error("[AnalysisJob] Email send failed:", err));
+      }).catch((err: unknown) => log.error("Email send failed", { submissionId, err: (err as Error).message }));
     }
-    console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${appealStrengthAfterPhotos}/100, scenario: ${userScenario}`);
+    log.info(`✓ Completed #${submissionId} in ${durationMs}ms — score: ${appealStrengthAfterPhotos}/100, scenario: ${userScenario}`, { submissionId, durationMs, appealStrengthScore: appealStrengthAfterPhotos, scenario: userScenario });
 
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error(`[AnalysisJob] ✗ Error for submission ${submissionId}:`, errMsg);
+    log.error(`✗ Error for submission ${submissionId}`, { submissionId, err: errMsg });
 
     await persistActivityLog({
       submissionId,
@@ -852,10 +850,9 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     try {
       await updatePropertySubmission(submissionId, { status: "error" });
     } catch (statusErr) {
-      console.error(
-        `[AnalysisJob] CRITICAL: failed to mark submission ${submissionId} as errored — ` +
-        `submission may appear stuck in "analyzing" until manually re-queued. ` +
-        `Original analysis error: ${errMsg}. Status-update error: ${(statusErr as Error).message}`,
+      log.error(
+        `CRITICAL: failed to mark submission ${submissionId} as errored — submission may appear stuck in "analyzing" until manually re-queued`,
+        { submissionId, analysisError: errMsg, statusUpdateError: (statusErr as Error).message },
       );
     }
   } finally {
