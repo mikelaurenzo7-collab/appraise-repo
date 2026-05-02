@@ -521,7 +521,7 @@ export default function GetStarted() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleNext()}
-                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
                     autoFocus
                   />
                 </div>
@@ -540,7 +540,7 @@ export default function GetStarted() {
                     placeholder="(555) 123-4567"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder-[oklch(0.7_0.02_255)] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-base"
                   />
                 </div>
               </div>

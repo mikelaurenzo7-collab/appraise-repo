@@ -89,6 +89,14 @@ export async function createApp(): Promise<Express> {
   registerStripeWebhook(app);
   registerLobWebhook(app);
 
+  // Auth routes (login redirect, callback, logout) must be rate-limited the
+  // same as the tRPC auth procedures — without this, a raw POST flood at
+  // /api/auth/logout could spam session-cookie clears, and brute-force
+  // attempts at the login redirect would not be throttled. We mount the
+  // limiter on the path BEFORE the routes themselves so every request to
+  // /api/auth/* is counted.
+  app.use("/api/auth", authLimiter);
+
   // Supabase Auth (replaces Manus OAuth)
   registerAuthRoutes(app);
 
@@ -148,8 +156,8 @@ export async function createApp(): Promise<Express> {
   // ── Rate limiting ────────────────────────────────────────────────────────
   // Global: 100 req / 15 min per IP (all routes)
   app.use(globalLimiter);
-  // Auth: 5 req / 15 min per IP (brute-force protection)
-  app.use("/api/auth", authLimiter);
+  // /api/auth limiter is already mounted ABOVE registerAuthRoutes so every
+  // call to login / callback / logout is throttled.
   // API: 50 req / min per user or IP (tRPC)
   app.use("/api/trpc", apiLimiter);
 

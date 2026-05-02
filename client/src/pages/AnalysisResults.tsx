@@ -163,9 +163,17 @@ export default function AnalysisResults() {
         <Navbar />
         <section className="pt-32 pb-20">
           <div className="container max-w-2xl text-center">
-            <AlertTriangle size={48} className="text-[#7C3AED] mx-auto mb-4" />
-            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-4">No Submission Found</h1>
-            <p className="text-[#64748B] mb-8">Please submit your property address first to get an analysis.</p>
+            <div className="relative mx-auto mb-6 w-20 h-20">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#5B21B6] rotate-3 opacity-90 blur-[1px]" />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#5B21B6] flex items-center justify-center shadow-[0_20px_40px_-12px_rgba(124,58,237,0.45)]">
+                <AlertTriangle size={36} className="text-white" strokeWidth={2.25} />
+              </div>
+            </div>
+            <h1 className="font-display text-3xl font-bold text-[#0F172A] mb-3">No Submission Found</h1>
+            <p className="text-[#64748B] mb-8 max-w-md mx-auto leading-relaxed">
+              Submit your property address to start a USPAP-aligned analysis. The full pipeline runs in
+              under a minute and produces an audience-aware appeal brief.
+            </p>
             <Link href="/get-started" className="btn-gold inline-flex items-center gap-2 px-6 py-3 rounded font-semibold">
               Get Started <ArrowRight size={16} />
             </Link>
@@ -258,8 +266,8 @@ export default function AnalysisResults() {
           <div className="container max-w-2xl">
             <div className="text-center mb-8">
               <div className="relative mx-auto mb-6 w-20 h-20">
-                <div className="absolute inset-0 rounded-full border-4 border-[#F1F5F9]" />
-                <div className="absolute inset-0 rounded-full border-4 border-t-[#7C3AED] animate-spin" />
+                <div className="absolute inset-0 rounded-full border-4 border-[#E2E8F0]" />
+                <div className="absolute inset-0 rounded-full border-4 border-t-[#7C3AED] border-r-[#A78BFA]/40 animate-spin" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <BarChart3 size={28} className="text-[#7C3AED]" />
                 </div>

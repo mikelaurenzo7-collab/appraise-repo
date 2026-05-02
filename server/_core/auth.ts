@@ -16,6 +16,19 @@ export type SessionPayload = {
 
 function getSecret() {
   const secret = process.env.JWT_SECRET ?? "";
+  // Refuse to sign or verify with an empty / trivial secret. An empty
+  // HS256 secret would silently treat any tampered token as "valid" —
+  // no JWT signature can ever be empty-keyed safely. We require ≥32 bytes
+  // (the minimum HS256 deems safe per RFC 7518). Production startup
+  // already validates JWT_SECRET via validateEnvOrExit; this is the
+  // defense-in-depth layer for dev / test misconfiguration.
+  if (secret.length < 32) {
+    throw new Error(
+      `JWT_SECRET is too short or unset (length ${secret.length}). ` +
+      "Set JWT_SECRET to a random ≥32-character secret. " +
+      "Generate one with: openssl rand -base64 32",
+    );
+  }
   return new TextEncoder().encode(secret);
 }
 

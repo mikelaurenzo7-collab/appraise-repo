@@ -55,15 +55,17 @@ async function runTask(task: Task): Promise<unknown> {
         await import("../server/db");
       const { analyzePropertySubmission } = await import("../server/services/analysisJob");
 
-      const results: Array<{ id: number; ok: boolean; error?: string }> = [];
-
       // Pending submissions never picked up
       const pending = (await listPendingAnalysisSubmissions?.(5)) ?? [];
       // Stuck (analyzing > 10 minutes)
       const stuck = await findStuckAnalysisSubmissions(10 * 60 * 1000);
-      for (const s of stuck) {
-        await updatePropertySubmission(s.id, { status: "pending" });
-      }
+
+      // Reset stuck submissions in PARALLEL — each update is independent.
+      // Sequential awaits would compound DB latency (n × ~50ms) and eat
+      // into the cron's 300s budget for actual analysis.
+      await Promise.allSettled(
+        stuck.map((s: { id: number }) => updatePropertySubmission(s.id, { status: "pending" })),
+      );
 
       const candidates = [
         ...pending.map((s: { id: number }) => s.id),
@@ -71,14 +73,22 @@ async function runTask(task: Task): Promise<unknown> {
       ];
       const unique = Array.from(new Set(candidates)).slice(0, 3); // small batch per cron tick
 
-      for (const id of unique) {
-        try {
-          await analyzePropertySubmission(id);
-          results.push({ id, ok: true });
-        } catch (err) {
-          results.push({ id, ok: false, error: err instanceof Error ? err.message : String(err) });
-        }
-      }
+      // Run the (up to 3) analyses in PARALLEL so wall-clock time is
+      // max(submission_times), not sum. Each Claude analysis can take
+      // 10-30s; running them sequentially could push the cron past
+      // Vercel's 300s maxDuration under heavy load. Promise.allSettled
+      // captures per-submission results without short-circuiting on
+      // the first failure.
+      const settled = await Promise.allSettled(unique.map((id) => analyzePropertySubmission(id)));
+      const results = settled.map((r, i) =>
+        r.status === "fulfilled"
+          ? { id: unique[i], ok: true as const }
+          : {
+              id: unique[i],
+              ok: false as const,
+              error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+            },
+      );
       return { processed: results.length, results };
     }
 

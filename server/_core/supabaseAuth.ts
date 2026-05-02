@@ -139,8 +139,12 @@ export function registerAuthRoutes(app: Express) {
   });
 
   // ── Logout ───────────────────────────────────────────────────────────────
+  // Must use the SAME cookie options (sameSite=none, secure) we set the
+  // cookie with — otherwise the browser ignores the clear directive when
+  // the app runs under cross-origin / iframe contexts.
   app.post("/api/auth/logout", async (req: Request, res: Response) => {
-    res.clearCookie(COOKIE_NAME, { path: "/" });
+    const cookieOptions = getSessionCookieOptions(req);
+    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
     res.json({ ok: true });
   });
 }

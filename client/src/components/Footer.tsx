@@ -98,7 +98,7 @@ export default function Footer() {
                   key={s.label}
                   href={s.href}
                   aria-label={s.label}
-                  className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-[#7C3AED] hover:border-[#7C3AED]/30 hover:bg-[#7C3AED]/10 transition-all"
+                  className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-[#A78BFA] hover:border-[#7C3AED]/40 hover:bg-[#7C3AED]/10 hover:scale-110 hover:-translate-y-0.5 transition-all duration-200"
                 >
                   {s.icon}
                 </a>
