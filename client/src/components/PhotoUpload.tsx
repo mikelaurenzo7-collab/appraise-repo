@@ -111,7 +111,7 @@ export default function PhotoUpload({
       }
 
       toast.success(`${newFiles.length} photo(s) uploaded`);
-      onPhotosUploaded?.(newFiles.length);
+      onPhotosUploaded?.(photos.length + newFiles.length);
     } catch (error) {
       toast.error("Failed to process photos");
       console.error(error);

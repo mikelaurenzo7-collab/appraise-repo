@@ -19,9 +19,6 @@ export const ENV = {
   // (openId) of the workspace owner. MUST be set in production — if absent,
   // no user will ever be promoted to admin on first login.
   ownerOpenId: process.env.OWNER_OPEN_ID ?? process.env.OWNER_ID ?? undefined,
-  // Legacy Manus OAuth SDK fields — kept as empty strings so the old
-  // _core/sdk.ts module still type-checks. The Supabase auth path in
-  // _core/supabaseAuth.ts is the real auth surface.
-  oAuthServerUrl: process.env.MANUS_OAUTH_SERVER_URL ?? "",
-  appId: process.env.MANUS_APP_ID ?? "",
+  // App base URL — used for email links and OAuth callbacks.
+  appBaseUrl: process.env.APP_BASE_URL ?? process.env.PUBLIC_APP_URL ?? "https://appraise-repo.vercel.app",
 };
