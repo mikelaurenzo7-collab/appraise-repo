@@ -15,6 +15,9 @@
 
 import axios from "axios";
 import { getCachedApiResponse, setCachedApiResponse } from "../db";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("PropertyDataAggregator");
 
 export interface PropertyData {
   address: string;
@@ -84,7 +87,7 @@ async function withCache<T>(
   const key = makeCacheKey(source, address, city, state);
   const cached = await getCachedApiResponse(key);
   if (cached) {
-    console.log(`[Cache] HIT for ${source} — ${address}`);
+    log.info(`[Cache] HIT for ${source} — ${address}`);
     return cached as T;
   }
   const data = await fetcher();
@@ -99,7 +102,7 @@ async function withCache<T>(
 async function queryRentCast(address: string, city: string, state: string): Promise<Partial<PropertyData>> {
   return withCache("rentcast", address, city, state, async () => {
     try {
-      if (!process.env.RENTCAST_API_KEY) { console.warn("[RentCast] API key not configured"); return {}; }
+      if (!process.env.RENTCAST_API_KEY) { log.warn("[RentCast] API key not configured"); return {}; }
       const response = await axios.get("https://api.rentcast.io/v1/properties", {
         params: { address: `${address}, ${city}, ${state}` },
         headers: { "X-Api-Key": process.env.RENTCAST_API_KEY },
@@ -111,7 +114,7 @@ async function queryRentCast(address: string, city: string, state: string): Prom
       const data = Array.isArray(raw) ? raw[0] : raw;
       if (!data) return {};
 
-      console.log(`[RentCast] Got data for ${data.formattedAddress || address}`);
+      log.info(`[RentCast] Got data for ${data.formattedAddress || address}`);
 
       // Extract the latest tax assessment (highest year)
       let assessedValue: number | undefined;
@@ -161,7 +164,7 @@ async function queryRentCast(address: string, city: string, state: string): Prom
         source: "rentcast",
       };
     } catch (error) {
-      console.error("[RentCast] Error:", (error as any)?.response?.status ?? error);
+      log.error("[RentCast] Error:", { err: (error as any )?.response?.status ?? error });
       return {};
     }
   });
@@ -174,7 +177,7 @@ async function queryRealie(address: string, city: string, state: string): Promis
   return withCache("realie", address, city, state, async () => {
     try {
       const apiKey = process.env.REALIE_API_KEY;
-      if (!apiKey) { console.warn("[Realie] API key not configured"); return {}; }
+      if (!apiKey) { log.warn("[Realie] API key not configured"); return {}; }
       // Strip directional prefixes and suffixes for better matching
       // Realie works best with just the street number and name
       const streetOnly = address.replace(/^(\d+\s+)(N|S|E|W|NE|NW|SE|SW)\s+/i, '$1').trim();
@@ -199,7 +202,7 @@ async function queryRealie(address: string, city: string, state: string): Promis
         });
         const fbProps = fallback.data?.properties;
         if (!fbProps || fbProps.length === 0) {
-          console.warn(`[Realie] No parcel data found for ${address}, ${city}, ${state}`);
+          log.warn(`[Realie] No parcel data found for ${address}, ${city}, ${state}`);
           return {};
         }
         const p = fbProps[0];
@@ -208,13 +211,13 @@ async function queryRealie(address: string, city: string, state: string): Promis
       const p = properties[0];
       return mapRealieProperty(p, address);
     } catch (error) {
-      console.error("[Realie] Error:", (error as any)?.response?.status ?? error);
+      log.error("[Realie] Error:", { err: (error as any )?.response?.status ?? error });
       return {};
     }
   });
 }
 function mapRealieProperty(p: any, address: string): Partial<PropertyData> {
-  console.log(`[Realie] Got parcel data for ${address} — parcel: ${p.parcelId}, county: ${p.county}`);
+  log.info(`[Realie] Got parcel data for ${address} — parcel: ${p.parcelId}, county: ${p.county}`);
   // Convert acres to sqft for lot size (1 acre = 43,560 sqft)
   const lotSize = p.acres ? Math.round(p.acres * 43560) : (p.landArea || undefined);
   // Realie provides assessed value directly
@@ -254,7 +257,7 @@ async function getRedfinRegionId(city: string, state: string): Promise<string | 
 
   try {
     const apiKey = process.env.REDFIN_RAPIDAPI_KEY;
-    if (!apiKey) { console.warn("[Redfin] API key not configured"); return null; }
+    if (!apiKey) { log.warn("[Redfin] API key not configured"); return null; }
 
     const response = await axios.get(`https://${REDFIN_RAPIDAPI_HOST}/properties/auto-complete`, {
       params: { query: `${city} ${state}` },
@@ -291,7 +294,7 @@ async function getRedfinRegionId(city: string, state: string): Promise<string | 
     );
     if (cityResult?.id) {
       const regionId = String(cityResult.id);
-      console.log(`[Redfin] Region ID for ${city}, ${state}: ${regionId}`);
+      log.info(`[Redfin] Region ID for ${city}, ${state}: ${regionId}`);
       // Cache the region ID for 30 days
       try { await setCachedApiResponse(cacheKey, "redfin", regionId, 2592000); } catch { /* non-critical */ }
       return regionId;
@@ -300,14 +303,14 @@ async function getRedfinRegionId(city: string, state: string): Promise<string | 
     const fallback = items.find((r: any) => String(r.id || "").startsWith("6_"));
     if (fallback?.id) {
       const regionId = String(fallback.id);
-      console.log(`[Redfin] Region ID (fallback) for ${city}, ${state}: ${regionId}`);
+      log.info(`[Redfin] Region ID (fallback) for ${city}, ${state}: ${regionId}`);
       try { await setCachedApiResponse(cacheKey, "redfin", regionId, 2592000); } catch { /* non-critical */ }
       return regionId;
     }
-    console.warn(`[Redfin] No region ID found for ${city}, ${state}. Items found: ${items.map((r: any) => `${r.name}(${r.id})`).join(', ')}`);
+    log.warn(`[Redfin] No region ID found for ${city}, ${state}. Items found: ${items.map((r: any) => `${r.name}(${r.id})`).join(', ')}`);
     return null;
   } catch (error) {
-    console.error("[Redfin] Auto-complete error:", (error as any)?.response?.status ?? error);
+    log.error("[Redfin] Auto-complete error:", { err: (error as any )?.response?.status ?? error });
     return null;
   }
 }
@@ -321,7 +324,7 @@ async function queryRedfin(
   return withCache("redfin", address, city, state, async () => {
     try {
       const apiKey = process.env.REDFIN_RAPIDAPI_KEY;
-      if (!apiKey) { console.warn("[Redfin] API key not configured"); return { comparableSales: [] }; }
+      if (!apiKey) { log.warn("[Redfin] API key not configured"); return { comparableSales: [] }; }
 
       // Step 1: Get the region ID for this city
       const regionId = await getRedfinRegionId(city, state);
@@ -343,11 +346,11 @@ async function queryRedfin(
 
       const homes = response.data?.data;
       if (!homes || !Array.isArray(homes)) {
-        console.warn("[Redfin] No sold properties returned");
+        log.warn("[Redfin] No sold properties returned");
         return { comparableSales: [], redfinRegionId: regionId };
       }
 
-      console.log(`[Redfin] Got ${homes.length} recently sold properties in ${city}, ${state}`);
+      log.info(`[Redfin] Got ${homes.length} recently sold properties in ${city}, ${state}`);
 
       // Parse each sold property into our ComparableSale format
       const allComps: ComparableSale[] = homes
@@ -440,11 +443,11 @@ async function queryRedfin(
       scoredComps.sort((a, b) => b.similarity - a.similarity);
       const topComps = scoredComps.slice(0, 20);
 
-      console.log(`[Redfin] Scored ${allComps.length} comps, top 20 selected (best similarity: ${topComps[0]?.similarity || 0})`);
+      log.info(`[Redfin] Scored ${allComps.length} comps, top 20 selected (best similarity: ${topComps[0]?.similarity || 0})`);
 
       return { comparableSales: topComps, redfinRegionId: regionId };
     } catch (error) {
-      console.error("[Redfin] Error:", (error as any)?.response?.status ?? error);
+      log.error("[Redfin] Error:", { err: (error as any )?.response?.status ?? error });
       return { comparableSales: [] };
     }
   });
@@ -472,7 +475,7 @@ async function queryAttomData(address: string, city: string, state: string): Pro
       const building = property.building?.size;
       const rooms = property.building?.rooms;
       const addr = property.address;
-      console.log(`[AttomData] Got data for ${address}`);
+      log.info(`[AttomData] Got data for ${address}`);
       return {
         assessedValue: assessment?.assessed?.assdttlvalue || assessment?.market?.mktttlvalue,
         yearBuilt: property.summary?.yearbuilt,
@@ -486,7 +489,7 @@ async function queryAttomData(address: string, city: string, state: string): Pro
         source: "attom",
       };
     } catch (error) {
-      console.error("[AttomData] Error:", (error as any)?.response?.status ?? error);
+      log.error("[AttomData] Error:", { err: (error as any )?.response?.status ?? error });
       return {};
     }
   });
@@ -527,7 +530,7 @@ export async function aggregatePropertyData(address: string, city: string, state
         ),
       ]);
     } catch (err) {
-      console.warn("[Aggregator] Redfin query failed or timed out, continuing without Redfin comps:", (err as Error).message);
+      log.warn("[Aggregator] Redfin query failed or timed out, continuing without Redfin comps:", { err: (err as Error ).message });
     }
 
     // ── Merge comparable sales from all sources ──────────────────────────────
@@ -598,13 +601,11 @@ export async function aggregatePropertyData(address: string, city: string, state
       attomData.source ? "ATTOM" : null,
     ].filter(Boolean).join(" + ");
 
-    console.log(
-      `[Aggregator] Merged data from [${sources}] — assessed: $${merged.assessedValue || "N/A"}, market: $${merged.marketValue || "N/A"}, sqft: ${merged.squareFeet || "N/A"}, tax: $${merged.propertyTax || "N/A"}, lot: ${merged.lotSize || "N/A"}sqft, zoning: ${merged.zoning || "N/A"}, comps: ${merged.comparableSales?.length || 0} (Redfin: ${redfinComps.length}, RentCast: ${rentcastComps.length})${hasData ? "" : " ⚠️ NO DATA FROM ANY API"}`
-    );
+    log.info(`[Aggregator] Merged data from [${sources}] — assessed: $${merged.assessedValue || "N/A"}, market: $${merged.marketValue || "N/A"}, sqft: ${merged.squareFeet || "N/A"}, tax: $${merged.propertyTax || "N/A"}, lot: ${merged.lotSize || "N/A"}sqft, zoning: ${merged.zoning || "N/A"}, comps: ${merged.comparableSales?.length || 0} (Redfin: ${redfinComps.length}, RentCast: ${rentcastComps.length})${hasData ? "" : " ⚠️ NO DATA FROM ANY API"}`);
 
     return merged;
   } catch (error) {
-    console.error("[Aggregator] Error:", error);
+    log.error("[Aggregator] Error:", { err: error });
     return {
       address,
       city,

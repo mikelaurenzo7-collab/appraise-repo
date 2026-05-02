@@ -26,6 +26,9 @@ import {
   jurisdictionRules, JurisdictionRule, InsertJurisdictionRule,
 } from "../drizzle/schema.pg";
 import { ENV } from './_core/env';
+import { scopedLogger } from "./_core/logger";
+
+const log = scopedLogger("Database");
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -47,7 +50,7 @@ export async function getDb() {
       });
       _db = drizzle(client);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      log.warn("[Database] Failed to connect:", { err: error });
       _db = null;
     }
   }
@@ -59,7 +62,7 @@ export async function getDb() {
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
-  if (!db) { console.warn("[Database] Cannot upsert user: database not available"); return; }
+  if (!db) { log.warn("[Database] Cannot upsert user: database not available"); return; }
 
   try {
     const values: InsertUser = { openId: user.openId };
@@ -81,7 +84,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
     await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    log.error("[Database] Failed to upsert user:", { err: error });
     throw error;
   }
 }
@@ -97,16 +100,16 @@ export async function getUserByOpenId(openId: string) {
 
 export async function createPropertySubmission(submission: InsertPropertySubmission) {
   const db = await getDb();
-  if (!db) { console.warn("[Database] Cannot create submission: database not available"); return undefined; }
+  if (!db) { log.warn("[Database] Cannot create submission: database not available"); return undefined; }
   try {
     const result = await db.insert(propertySubmissions).values(submission).returning({ id: propertySubmissions.id });
     const insertedId = result[0]?.id;
     if (!insertedId) return undefined;
     const record = await db.select().from(propertySubmissions).where(eq(propertySubmissions.id, insertedId)).limit(1);
-    console.log("[Database] Fetched record id:", record[0]?.id);
+    log.info("[Database] Fetched record id:", { err: record[0]?.id });
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
-    console.error("[Database] Failed to create property submission:", error);
+    log.error("[Database] Failed to create property submission:", { err: error });
     throw error;
   }
 }
@@ -118,7 +121,7 @@ export async function getPropertySubmissionById(id: number) {
     const result = await db.select().from(propertySubmissions).where(eq(propertySubmissions.id, id)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.error("[Database] Failed to get property submission:", error);
+    log.error("[Database] Failed to get property submission:", { err: error });
     return undefined;
   }
 }
@@ -131,7 +134,7 @@ export async function updatePropertySubmission(id: number, updates: Partial<Inse
     await db.update(propertySubmissions).set(updateData).where(eq(propertySubmissions.id, id));
     return await getPropertySubmissionById(id);
   } catch (error) {
-    console.error("[Database] Failed to update property submission:", error);
+    log.error("[Database] Failed to update property submission:", { err: error });
     return undefined;
   }
 }
@@ -144,7 +147,7 @@ export async function getUserSubmissions(userEmail: string) {
       .where(eq(propertySubmissions.email, userEmail))
       .orderBy(desc(propertySubmissions.createdAt));
   } catch (error) {
-    console.error("[Database] Failed to get user submissions:", error);
+    log.error("[Database] Failed to get user submissions:", { err: error });
     return [];
   }
 }
@@ -165,7 +168,7 @@ export async function findStuckAnalysisSubmissions(thresholdMs = 10 * 60 * 1000)
       .where(and(eq(propertySubmissions.status, "analyzing"), lt(propertySubmissions.updatedAt, cutoff)))
       .limit(100);
   } catch (error) {
-    console.error("[Database] Failed to find stuck submissions:", error);
+    log.error("[Database] Failed to find stuck submissions:", { err: error });
     return [];
   }
 }
@@ -186,7 +189,7 @@ export async function listPendingAnalysisSubmissions(limit = 5) {
       .orderBy(propertySubmissions.createdAt)
       .limit(limit);
   } catch (error) {
-    console.error("[Database] Failed to list pending submissions:", error);
+    log.error("[Database] Failed to list pending submissions:", { err: error });
     return [];
   }
 }
@@ -202,7 +205,7 @@ export async function listAllSubmissions(limit: number, offset: number) {
     const total = Number(countResult[0]?.count ?? 0);
     return { submissions, total };
   } catch (error) {
-    console.error("[Database] Failed to list submissions:", error);
+    log.error("[Database] Failed to list submissions:", { err: error });
     return { submissions: [], total: 0 };
   }
 }
@@ -227,7 +230,7 @@ export async function getSubmissionStats() {
 
     return { total, pending, analyzing, analyzed, won, lost, avgSavings, totalRevenue };
   } catch (error) {
-    console.error("[Database] Failed to get stats:", error);
+    log.error("[Database] Failed to get stats:", { err: error });
     return { total: 0, pending: 0, analyzing: 0, analyzed: 0, won: 0, lost: 0, avgSavings: null, totalRevenue: 0 };
   }
 }
@@ -243,7 +246,7 @@ export async function createPropertyAnalysis(analysis: InsertPropertyAnalysis) {
     const record = await db.select().from(propertyAnalysis).where(eq(propertyAnalysis.id, insertedId)).limit(1);
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
-    console.error("[Database] Failed to create property analysis:", error);
+    log.error("[Database] Failed to create property analysis:", { err: error });
     throw error;
   }
 }
@@ -255,7 +258,7 @@ export async function getPropertyAnalysisBySubmissionId(submissionId: number) {
     const result = await db.select().from(propertyAnalysis).where(eq(propertyAnalysis.submissionId, submissionId)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.error("[Database] Failed to get property analysis:", error);
+    log.error("[Database] Failed to get property analysis:", { err: error });
     return undefined;
   }
 }
@@ -271,7 +274,7 @@ export async function createAppealOutcome(outcome: InsertAppealOutcome) {
     const record = await db.select().from(appealOutcomes).where(eq(appealOutcomes.id, insertedId)).limit(1);
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
-    console.error("[Database] Failed to create appeal outcome:", error);
+    log.error("[Database] Failed to create appeal outcome:", { err: error });
     throw error;
   }
 }
@@ -285,7 +288,7 @@ export async function updateAppealOutcome(id: number, updates: Partial<InsertApp
     const record = await db.select().from(appealOutcomes).where(eq(appealOutcomes.id, id)).limit(1);
     return record.length > 0 ? record[0] : undefined;
   } catch (error) {
-    console.error("[Database] Failed to update appeal outcome:", error);
+    log.error("[Database] Failed to update appeal outcome:", { err: error });
     return undefined;
   }
 }
@@ -297,7 +300,7 @@ export async function getAppealOutcomeBySubmissionId(submissionId: number) {
     const result = await db.select().from(appealOutcomes).where(eq(appealOutcomes.submissionId, submissionId)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.error("[Database] Failed to get appeal outcome:", error);
+    log.error("[Database] Failed to get appeal outcome:", { err: error });
     return undefined;
   }
 }
@@ -313,7 +316,7 @@ export async function listAppealOutcomes(limit = 50, offset = 0) {
     const total = Number(countResult[0]?.count ?? 0);
     return { outcomes, total };
   } catch (error) {
-    console.error("[Database] Failed to list appeal outcomes:", error);
+    log.error("[Database] Failed to list appeal outcomes:", { err: error });
     return { outcomes: [], total: 0 };
   }
 }
@@ -339,20 +342,20 @@ export async function getOutcomeStats() {
       : 0;
     return { totalFiled, won, lost, settled, winRate, avgSavings, totalRevenue, avgResolutionDays };
   } catch (error) {
-    console.error("[Database] Failed to get outcome stats:", error);
+    log.error("[Database] Failed to get outcome stats:", { err: error });
     return { totalFiled: 0, won: 0, lost: 0, settled: 0, winRate: 0, avgSavings: 0, totalRevenue: 0, avgResolutionDays: 0 };
   }
 }
 
 // ─── ACTIVITY LOGS ────────────────────────────────────────────────────────────
 
-export async function persistActivityLog(log: InsertActivityLog) {
+export async function persistActivityLog(entry: InsertActivityLog) {
   const db = await getDb();
   if (!db) return;
   try {
-    await db.insert(activityLogs).values(log);
+    await db.insert(activityLogs).values(entry);
   } catch (error) {
-    console.error("[Database] Failed to persist activity log:", error);
+    log.error("[Database] Failed to persist activity log:", { err: error });
   }
 }
 
@@ -364,7 +367,7 @@ export async function getActivityLogsBySubmission(submissionId: number) {
       .where(eq(activityLogs.submissionId, submissionId))
       .orderBy(desc(activityLogs.createdAt));
   } catch (error) {
-    console.error("[Database] Failed to get activity logs:", error);
+    log.error("[Database] Failed to get activity logs:", { err: error });
     return [];
   }
 }
@@ -473,7 +476,7 @@ export async function getRecentActivityLogs(limit = 50) {
       .orderBy(desc(activityLogs.createdAt))
       .limit(limit);
   } catch (error) {
-    console.error("[Database] Failed to get recent activity logs:", error);
+    log.error("[Database] Failed to get recent activity logs:", { err: error });
     return [];
   }
 }
@@ -495,7 +498,7 @@ export async function getCachedApiResponse(cacheKey: string) {
     }
     return null;
   } catch (error) {
-    console.error("[Cache] Failed to get cached response:", error);
+    log.error("[Cache] Failed to get cached response:", { err: error });
     return null;
   }
 }
@@ -517,7 +520,7 @@ export async function setCachedApiResponse(cacheKey: string, source: string, dat
       set: { responseData: entry.responseData, expiresAt: entry.expiresAt, hitCount: 0 },
     });
   } catch (error) {
-    console.error("[Cache] Failed to set cached response:", error);
+    log.error("[Cache] Failed to set cached response:", { err: error });
   }
 }
 
@@ -529,7 +532,7 @@ export async function evictExpiredCache() {
     const result = await db.delete(apiCache).where(lt(apiCache.expiresAt, now));
     return Number((result as unknown as { count?: number })?.count ?? 0);
   } catch (error) {
-    console.error("[Cache] Failed to evict expired cache:", error);
+    log.error("[Cache] Failed to evict expired cache:", { err: error });
     return 0;
   }
 }
@@ -544,7 +547,7 @@ export async function createReportJob(data: InsertReportJob): Promise<ReportJob 
     const id = result[0]?.id;
     return id ? await getReportJobById(id) : null;
   } catch (error) {
-    console.error("[ReportJob] Failed to create:", error);
+    log.error("[ReportJob] Failed to create:", { err: error });
     return null;
   }
 }
@@ -556,7 +559,7 @@ export async function getReportJobById(jobId: number): Promise<ReportJob | null>
     const result = await db.select().from(reportJobs).where(eq(reportJobs.id, jobId)).limit(1);
     return result.length > 0 ? result[0] : null;
   } catch (error) {
-    console.error("[ReportJob] Failed to get by ID:", error);
+    log.error("[ReportJob] Failed to get by ID:", { err: error });
     return null;
   }
 }
@@ -571,7 +574,7 @@ export async function getReportJobBySubmissionId(submissionId: number): Promise<
       .limit(1);
     return result.length > 0 ? result[0] : null;
   } catch (error) {
-    console.error("[ReportJob] Failed to get by submission:", error);
+    log.error("[ReportJob] Failed to get by submission:", { err: error });
     return null;
   }
 }
@@ -583,7 +586,7 @@ export async function updateReportJob(jobId: number, data: Partial<InsertReportJ
     await db.update(reportJobs).set(data).where(eq(reportJobs.id, jobId));
     return await getReportJobById(jobId);
   } catch (error) {
-    console.error("[ReportJob] Failed to update:", error);
+    log.error("[ReportJob] Failed to update:", { err: error });
     return null;
   }
 }
@@ -601,7 +604,7 @@ export async function listPendingReportJobs(limit = 10): Promise<ReportJob[]> {
       .orderBy(reportJobs.queuedAt)
       .limit(limit);
   } catch (error) {
-    console.error("[ReportJob] Failed to list pending:", error);
+    log.error("[ReportJob] Failed to list pending:", { err: error });
     return [];
   }
 }
@@ -615,7 +618,7 @@ export async function listFailedReportJobs(limit = 10): Promise<ReportJob[]> {
       .orderBy(desc(reportJobs.updatedAt))
       .limit(limit);
   } catch (error) {
-    console.error("[ReportJob] Failed to list failed:", error);
+    log.error("[ReportJob] Failed to list failed:", { err: error });
     return [];
   }
 }
@@ -633,7 +636,7 @@ export async function cleanupExpiredReportJobs(): Promise<number> {
       ));
     return Number((result as unknown as { count?: number })?.count ?? 0);
   } catch (error) {
-    console.error("[ReportJob] Failed to cleanup expired:", error);
+    log.error("[ReportJob] Failed to cleanup expired:", { err: error });
     return 0;
   }
 }
@@ -653,7 +656,7 @@ export async function getCounty(state: string, countyName: string): Promise<Coun
       .limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[County] Failed to get county:", error);
+    log.error("[County] Failed to get county:", { err: error });
     return null;
   }
 }
@@ -667,7 +670,7 @@ export async function getCountyById(id: number): Promise<County | null> {
       .limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[County] Failed to get county by ID:", error);
+    log.error("[County] Failed to get county by ID:", { err: error });
     return null;
   }
 }
@@ -687,7 +690,7 @@ export async function getDistinctStates(): Promise<{ code: string; count: number
       .orderBy(counties.state);
     return rows.map(r => ({ code: r.code, count: Number(r.count) }));
   } catch (error) {
-    console.error("[County] Failed to get distinct states:", error);
+    log.error("[County] Failed to get distinct states:", { err: error });
     return [];
   }
 }
@@ -700,7 +703,7 @@ export async function listCountiesByState(state: string): Promise<County[]> {
       .where(eq(counties.state, state))
       .orderBy(counties.countyName);
   } catch (error) {
-    console.error("[County] Failed to list counties:", error);
+    log.error("[County] Failed to list counties:", { err: error });
     return [];
   }
 }
@@ -713,7 +716,7 @@ export async function createCounty(county: InsertCounty): Promise<County | null>
     const id = result[0]?.id;
     return await getCountyById(id);
   } catch (error) {
-    console.error("[County] Failed to create county:", error);
+    log.error("[County] Failed to create county:", { err: error });
     return null;
   }
 }
@@ -731,7 +734,7 @@ export async function createFilingTier(tier: InsertFilingTier): Promise<FilingTi
       .limit(1)
       .then(r => r[0] || null);
   } catch (error) {
-    console.error("[FilingTier] Failed to create tier:", error);
+    log.error("[FilingTier] Failed to create tier:", { err: error });
     return null;
   }
 }
@@ -745,7 +748,7 @@ export async function getFilingTierBySubmission(submissionId: number): Promise<F
       .limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[FilingTier] Failed to get tier:", error);
+    log.error("[FilingTier] Failed to get tier:", { err: error });
     return null;
   }
 }
@@ -766,7 +769,7 @@ export async function updateFilingTierPayment(
       .where(eq(filingTiers.submissionId, submissionId));
     return true;
   } catch (error) {
-    console.error("[FilingTier] Failed to update payment status:", error);
+    log.error("[FilingTier] Failed to update payment status:", { err: error });
     return false;
   }
 }
@@ -784,7 +787,7 @@ export async function createPOAFiling(filing: InsertPOAFiling): Promise<POAFilin
       .limit(1)
       .then(r => r[0] || null);
   } catch (error) {
-    console.error("[POAFiling] Failed to create filing:", error);
+    log.error("[POAFiling] Failed to create filing:", { err: error });
     return null;
   }
 }
@@ -798,7 +801,7 @@ export async function getPOAFilingBySubmission(submissionId: number): Promise<PO
       .limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[POAFiling] Failed to get filing:", error);
+    log.error("[POAFiling] Failed to get filing:", { err: error });
     return null;
   }
 }
@@ -811,7 +814,7 @@ export async function listPendingPOAFilings(): Promise<POAFiling[]> {
       .where(eq(poaFilings.status, "pending"))
       .orderBy(poaFilings.createdAt);
   } catch (error) {
-    console.error("[POAFiling] Failed to list pending:", error);
+    log.error("[POAFiling] Failed to list pending:", { err: error });
     return [];
   }
 }
@@ -829,7 +832,7 @@ export async function createProSeFiling(filing: InsertProSeFiling): Promise<ProS
       .limit(1)
       .then(r => r[0] || null);
   } catch (error) {
-    console.error("[ProSeFiling] Failed to create filing:", error);
+    log.error("[ProSeFiling] Failed to create filing:", { err: error });
     return null;
   }
 }
@@ -843,7 +846,7 @@ export async function getProSeFilingBySubmission(submissionId: number): Promise<
       .limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[ProSeFiling] Failed to get filing:", error);
+    log.error("[ProSeFiling] Failed to get filing:", { err: error });
     return null;
   }
 }
@@ -861,7 +864,7 @@ export async function addToParalegalsQueue(item: InsertParalegalsQueueItem): Pro
       .limit(1)
       .then(r => r[0] || null);
   } catch (error) {
-    console.error("[ParalegalsQueue] Failed to add item:", error);
+    log.error("[ParalegalsQueue] Failed to add item:", { err: error });
     return null;
   }
 }
@@ -874,7 +877,7 @@ export async function listQueuedItems(): Promise<ParalegalsQueueItem[]> {
       .where(eq(paralegalsQueue.status, "queued"))
       .orderBy(paralegalsQueue.priority, paralegalsQueue.queuedAt);
   } catch (error) {
-    console.error("[ParalegalsQueue] Failed to list queued:", error);
+    log.error("[ParalegalsQueue] Failed to list queued:", { err: error });
     return [];
   }
 }
@@ -890,7 +893,7 @@ export async function listParalegalsWorkload(paralegalName: string): Promise<Par
       ))
       .orderBy(paralegalsQueue.deadline);
   } catch (error) {
-    console.error("[ParalegalsQueue] Failed to list workload:", error);
+    log.error("[ParalegalsQueue] Failed to list workload:", { err: error });
     return [];
   }
 }
@@ -970,7 +973,7 @@ export async function listFilingQueue(limit = 200): Promise<FilingQueueRow[]> {
       notes: r.notes ?? null,
     }));
   } catch (error) {
-    console.error("[ParalegalsQueue] Failed to list filing queue:", error);
+    log.error("[ParalegalsQueue] Failed to list filing queue:", { err: error });
     return [];
   }
 }
@@ -993,7 +996,7 @@ export async function assignQueueItem(
       .limit(1)
       .then((r) => r[0] || null);
   } catch (error) {
-    console.error("[ParalegalsQueue] Failed to assign queue item:", error);
+    log.error("[ParalegalsQueue] Failed to assign queue item:", { err: error });
     return null;
   }
 }
@@ -1018,7 +1021,7 @@ export async function completeQueueItem(
       .limit(1)
       .then((r) => r[0] || null);
   } catch (error) {
-    console.error("[ParalegalsQueue] Failed to mark complete:", error);
+    log.error("[ParalegalsQueue] Failed to mark complete:", { err: error });
     return null;
   }
 }
@@ -1132,7 +1135,7 @@ export async function listUserFilings(userEmail: string): Promise<UserFilingRow[
     }
     return results;
   } catch (error) {
-    console.error("[Database] Failed to list user filings:", error);
+    log.error("[Database] Failed to list user filings:", { err: error });
     return [];
   }
 }
@@ -1165,7 +1168,7 @@ export async function getBatchSubmissionIds(batchId: string): Promise<number[]> 
     }
     return [];
   } catch (error) {
-    console.error("[Database] Failed to fetch batch submission ids:", error);
+    log.error("[Database] Failed to fetch batch submission ids:", { err: error });
     return [];
   }
 }
@@ -1182,7 +1185,7 @@ export async function getActiveRecipeForCounty(countyId: number): Promise<Filing
       .limit(1);
     return rows[0] ?? null;
   } catch (error) {
-    console.error("[FilingRecipes] Failed to load recipe:", error);
+    log.error("[FilingRecipes] Failed to load recipe:", { err: error });
     return null;
   }
 }
@@ -1199,7 +1202,7 @@ export async function upsertRecipe(recipe: InsertFilingRecipe): Promise<FilingRe
     const id = result[0]?.id;
     return await db.select().from(filingRecipes).where(eq(filingRecipes.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[FilingRecipes] Failed to upsert recipe:", error);
+    log.error("[FilingRecipes] Failed to upsert recipe:", { err: error });
     return null;
   }
 }
@@ -1219,7 +1222,7 @@ export async function createScrivenerAuthorization(
       .limit(1)
       .then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[ScrivenerAuth] Failed to create:", error);
+    log.error("[ScrivenerAuth] Failed to create:", { err: error });
     return null;
   }
 }
@@ -1233,7 +1236,7 @@ export async function getScrivenerAuthorizationById(id: number): Promise<Scriven
       .limit(1)
       .then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[ScrivenerAuth] Failed to fetch:", error);
+    log.error("[ScrivenerAuth] Failed to fetch:", { err: error });
     return null;
   }
 }
@@ -1248,7 +1251,7 @@ export async function createFilingJob(job: InsertFilingJob): Promise<FilingJob |
     const id = result[0]?.id;
     return await db.select().from(filingJobs).where(eq(filingJobs.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[FilingJob] Failed to create:", error);
+    log.error("[FilingJob] Failed to create:", { err: error });
     return null;
   }
 }
@@ -1259,7 +1262,7 @@ export async function getFilingJobById(id: number): Promise<FilingJob | null> {
   try {
     return await db.select().from(filingJobs).where(eq(filingJobs.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[FilingJob] Failed to fetch:", error);
+    log.error("[FilingJob] Failed to fetch:", { err: error });
     return null;
   }
 }
@@ -1274,7 +1277,7 @@ export async function getFilingJobBySubmissionId(submissionId: number): Promise<
       .limit(1)
       .then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[FilingJob] Failed to fetch by submission:", error);
+    log.error("[FilingJob] Failed to fetch by submission:", { err: error });
     return null;
   }
 }
@@ -1286,7 +1289,7 @@ export async function updateFilingJob(id: number, updates: Partial<InsertFilingJ
     await db.update(filingJobs).set(updates).where(eq(filingJobs.id, id));
     return getFilingJobById(id);
   } catch (error) {
-    console.error("[FilingJob] Failed to update:", error);
+    log.error("[FilingJob] Failed to update:", { err: error });
     return null;
   }
 }
@@ -1306,7 +1309,7 @@ export async function countPendingFilingJobs(): Promise<number> {
       .where(eq(filingJobs.status, "pending"));
     return Number(result[0]?.count ?? 0);
   } catch (error) {
-    console.error("[FilingJob] Failed to count pending:", error);
+    log.error("[FilingJob] Failed to count pending:", { err: error });
     return 0;
   }
 }
@@ -1323,7 +1326,7 @@ export async function getLastFilingJobCompletedAt(): Promise<Date | null> {
       .limit(1);
     return result[0]?.completedAt ?? null;
   } catch (error) {
-    console.error("[FilingJob] Failed to fetch last completed:", error);
+    log.error("[FilingJob] Failed to fetch last completed:", { err: error });
     return null;
   }
 }
@@ -1337,7 +1340,7 @@ export async function listPendingFilingJobs(limit = 5): Promise<FilingJob[]> {
       .orderBy(filingJobs.queuedAt)
       .limit(limit);
   } catch (error) {
-    console.error("[FilingJob] Failed to list pending:", error);
+    log.error("[FilingJob] Failed to list pending:", { err: error });
     return [];
   }
 }
@@ -1350,7 +1353,7 @@ export async function listRecentFilingJobs(limit = 50): Promise<FilingJob[]> {
       .orderBy(desc(filingJobs.createdAt))
       .limit(limit);
   } catch (error) {
-    console.error("[FilingJob] Failed to list recent:", error);
+    log.error("[FilingJob] Failed to list recent:", { err: error });
     return [];
   }
 }
@@ -1377,7 +1380,7 @@ export async function listFilingJobsByStatus(
       .orderBy(desc(filingJobs.createdAt))
       .limit(limit);
   } catch (error) {
-    console.error("[FilingJob] Failed to list by status:", error);
+    log.error("[FilingJob] Failed to list by status:", { err: error });
     return [];
   }
 }
@@ -1392,7 +1395,7 @@ export async function createRefundRequest(req: InsertRefundRequest): Promise<Ref
     const id = result[0]?.id;
     return await db.select().from(refundRequests).where(eq(refundRequests.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[RefundRequest] Failed to create:", error);
+    log.error("[RefundRequest] Failed to create:", { err: error });
     return null;
   }
 }
@@ -1407,7 +1410,7 @@ export async function getRefundRequestBySubmissionId(submissionId: number): Prom
       .limit(1)
       .then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[RefundRequest] Failed to fetch:", error);
+    log.error("[RefundRequest] Failed to fetch:", { err: error });
     return null;
   }
 }
@@ -1422,7 +1425,7 @@ export async function listPendingRefundRequests(limit = 200): Promise<RefundRequ
       .orderBy(refundRequests.requestedAt)
       .limit(safeLimit);
   } catch (error) {
-    console.error("[RefundRequest] Failed to list pending:", error);
+    log.error("[RefundRequest] Failed to list pending:", { err: error });
     return [];
   }
 }
@@ -1434,7 +1437,7 @@ export async function updateRefundRequest(id: number, updates: Partial<InsertRef
     await db.update(refundRequests).set(updates).where(eq(refundRequests.id, id));
     return await db.select().from(refundRequests).where(eq(refundRequests.id, id)).limit(1).then(r => r[0] ?? null);
   } catch (error) {
-    console.error("[RefundRequest] Failed to update:", error);
+    log.error("[RefundRequest] Failed to update:", { err: error });
     return null;
   }
 }
@@ -1454,7 +1457,7 @@ export async function recordStripeEvent(eventId: string, eventType: string): Pro
     // PostgreSQL unique-constraint violation => we've already handled this event.
     const code = (error as any)?.code;
     if (code === "23505") return "duplicate";
-    console.error("[StripeEvents] Failed to record event:", error);
+    log.error("[StripeEvents] Failed to record event:", { err: error });
     return "recorded";
   }
 }
@@ -1586,7 +1589,7 @@ export async function addWaitlistEntry(
       .limit(1)
       .then((r) => r[0] ?? null);
   } catch (error) {
-    console.error("[Waitlist] Failed to add entry:", error);
+    log.error("[Waitlist] Failed to add entry:", { err: error });
     return null;
   }
 }
@@ -1599,7 +1602,7 @@ export async function listWaitlistEntries(limit = 200): Promise<CountyWaitlistEn
       .orderBy(desc(countyWaitlist.createdAt))
       .limit(limit);
   } catch (error) {
-    console.error("[Waitlist] Failed to list entries:", error);
+    log.error("[Waitlist] Failed to list entries:", { err: error });
     return [];
   }
 }
@@ -1625,7 +1628,7 @@ export async function aggregateWaitlistByCounty(): Promise<
       count: Number(r.count ?? 0),
     }));
   } catch (error) {
-    console.error("[Waitlist] Failed to aggregate:", error);
+    log.error("[Waitlist] Failed to aggregate:", { err: error });
     return [];
   }
 }
@@ -1709,7 +1712,7 @@ export async function getFilingStats(windowDays = 30): Promise<FilingStats> {
       successRate7d,
     };
   } catch (error) {
-    console.error("[FilingStats] Query failed:", error);
+    log.error("[FilingStats] Query failed:", { err: error });
     return empty;
   }
 }
@@ -1745,7 +1748,7 @@ export async function getOrCreateReferralCode(userId: number): Promise<ReferralC
     const created = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId)).limit(1);
     return created[0];
   } catch (error) {
-    console.error("[Referral] Failed to get/create referral code:", error);
+    log.error("[Referral] Failed to get/create referral code:", { err: error });
     return undefined;
   }
 }
@@ -1758,7 +1761,7 @@ export async function getReferralCodeByCode(code: string): Promise<ReferralCode 
     const result = await db.select().from(referralCodes).where(eq(referralCodes.code, code)).limit(1);
     return result[0];
   } catch (error) {
-    console.error("[Referral] Failed to look up referral code:", error);
+    log.error("[Referral] Failed to look up referral code:", { err: error });
     return undefined;
   }
 }
@@ -1773,7 +1776,7 @@ export async function createReferralTracking(entry: InsertReferralTrackingEntry)
     const row = await db.select().from(referralTracking).where(eq(referralTracking.id, insertedId)).limit(1);
     return row[0];
   } catch (error) {
-    console.error("[Referral] Failed to create tracking entry:", error);
+    log.error("[Referral] Failed to create tracking entry:", { err: error });
     return undefined;
   }
 }
@@ -1788,7 +1791,7 @@ export async function getReferralTrackingByReferredUser(referredUserId: number, 
       .limit(1);
     return result[0];
   } catch (error) {
-    console.error("[Referral] Failed to get tracking by referred user:", error);
+    log.error("[Referral] Failed to get tracking by referred user:", { err: error });
     return undefined;
   }
 }
@@ -1803,7 +1806,7 @@ export async function getReferralTrackingBySubmission(submissionId: number): Pro
       .limit(1);
     return result[0];
   } catch (error) {
-    console.error("[Referral] Failed to get tracking by submission:", error);
+    log.error("[Referral] Failed to get tracking by submission:", { err: error });
     return undefined;
   }
 }
@@ -1816,7 +1819,7 @@ export async function updateReferralTracking(id: number, updates: Partial<Insert
     const updateData = Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined));
     await db.update(referralTracking).set(updateData).where(eq(referralTracking.id, id));
   } catch (error) {
-    console.error("[Referral] Failed to update tracking entry:", error);
+    log.error("[Referral] Failed to update tracking entry:", { err: error });
   }
 }
 
@@ -1855,9 +1858,9 @@ export async function creditReferral(trackingId: number, stripePaymentIntentId: 
       tier: newTier,
     }).where(eq(referralCodes.id, codeRow.id));
 
-    console.log(`[Referral] Credited ${commissionCents / 100} to user ${entry.referrerUserId} (tier: ${newTier})`);
+    log.info(`[Referral] Credited ${commissionCents / 100} to user ${entry.referrerUserId} (tier: ${newTier})`);
   } catch (error) {
-    console.error("[Referral] Failed to credit referral:", error);
+    log.error("[Referral] Failed to credit referral:", { err: error });
   }
 }
 
@@ -1886,9 +1889,9 @@ export async function reverseReferralCredit(submissionId: number): Promise<void>
       }).where(eq(referralCodes.id, codeRow.id));
     }
 
-    console.log(`[Referral] Reversed credit for submission ${submissionId}`);
+    log.info(`[Referral] Reversed credit for submission ${submissionId}`);
   } catch (error) {
-    console.error("[Referral] Failed to reverse referral credit:", error);
+    log.error("[Referral] Failed to reverse referral credit:", { err: error });
   }
 }
 
@@ -1928,7 +1931,7 @@ export async function getReferralDashboard(userId: number) {
       })),
     };
   } catch (error) {
-    console.error("[Referral] Failed to get dashboard:", error);
+    log.error("[Referral] Failed to get dashboard:", { err: error });
     return null;
   }
 }
@@ -1958,7 +1961,7 @@ export async function createReferralPayout(userId: number, amountCents: number):
 
     return row[0];
   } catch (error) {
-    console.error("[Referral] Failed to create payout:", error);
+    log.error("[Referral] Failed to create payout:", { err: error });
     return undefined;
   }
 }
@@ -1990,7 +1993,7 @@ export async function listAllReferralCodes(limit: number = 100) {
       .limit(limit);
     return rows;
   } catch (error) {
-    console.error("[Admin Referral] Failed to list codes:", error);
+    log.error("[Admin Referral] Failed to list codes:", { err: error });
     return [];
   }
 }
@@ -2021,7 +2024,7 @@ export async function listAllReferralTracking(limit: number = 200) {
       .limit(limit);
     return rows;
   } catch (error) {
-    console.error("[Admin Referral] Failed to list tracking:", error);
+    log.error("[Admin Referral] Failed to list tracking:", { err: error });
     return [];
   }
 }
@@ -2052,7 +2055,7 @@ export async function listAllReferralPayouts(limit: number = 100) {
       .limit(limit);
     return rows;
   } catch (error) {
-    console.error("[Admin Referral] Failed to list payouts:", error);
+    log.error("[Admin Referral] Failed to list payouts:", { err: error });
     return [];
   }
 }
@@ -2068,7 +2071,7 @@ export async function updateReferralPayout(
     await db.update(referralPayouts).set(updates as any).where(eq(referralPayouts.id, payoutId));
     return true;
   } catch (error) {
-    console.error("[Admin Referral] Failed to update payout:", error);
+    log.error("[Admin Referral] Failed to update payout:", { err: error });
     return false;
   }
 }
@@ -2090,7 +2093,7 @@ export async function getReferralAdminStats() {
 
     return { totalCodes, totalReferrals, totalEarningsCents, totalPendingCents, totalPaidCents, pendingPayouts };
   } catch (error) {
-    console.error("[Admin Referral] Failed to get stats:", error);
+    log.error("[Admin Referral] Failed to get stats:", { err: error });
     return { totalCodes: 0, totalReferrals: 0, totalEarningsCents: 0, totalPendingCents: 0, totalPaidCents: 0, pendingPayouts: 0 };
   }
 }
@@ -2103,7 +2106,7 @@ export async function updateReferralCodeTier(codeId: number, tier: string): Prom
     await db.update(referralCodes).set({ tier: tier as any }).where(eq(referralCodes.id, codeId));
     return true;
   } catch (error) {
-    console.error("[Admin Referral] Failed to update tier:", error);
+    log.error("[Admin Referral] Failed to update tier:", { err: error });
     return false;
   }
 }

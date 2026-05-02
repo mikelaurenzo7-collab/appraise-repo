@@ -17,6 +17,9 @@ import { calculateCostApproach, type CostApproachResult } from "./costApproachCa
 import { calculateIncomeApproach, type IncomeApproachResult } from "./incomeApproachCalculator";
 import { analyzeMarketTrends, type MarketTrendData, type MarketAnalysisResult } from "./marketTrendAnalyzer";
 import { reconcileApproaches, type ReconciliationResult } from "./appraisalReconciliation";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("AppraisalMethodology");
 
 export interface PropertyDataForMethodology {
   address: string;
@@ -82,7 +85,7 @@ export async function runComprehensiveAppraisal(
   const warnings: string[] = [];
   const dataPoints: string[] = [];
   
-  console.log(`[AppraisalMethodology] Starting comprehensive appraisal for ${propertyData.address}`);
+  log.info(`[AppraisalMethodology] Starting comprehensive appraisal for ${propertyData.address}`);
   
   // ─── PHASE 1: COMPARABLE SALES ANALYSIS ────────────────────────────────────
   let comparableSalesAnalysis: ComparableSalesAnalysis | undefined;
@@ -116,11 +119,11 @@ export async function runComprehensiveAppraisal(
         marketTrendAdjustment
       );
       
-      console.log(`[AppraisalMethodology] Phase 1 complete — Sales Comparison Value: $${comparableSalesAnalysis.indicatedValue.toLocaleString()}`);
+      log.info(`[AppraisalMethodology] Phase 1 complete — Sales Comparison Value: $${comparableSalesAnalysis.indicatedValue.toLocaleString()}`);
       dataPoints.push(`Phase 1 - Comparable Sales Analysis: $${comparableSalesAnalysis.indicatedValue.toLocaleString()}`);
     }
   } catch (err) {
-    console.warn("[AppraisalMethodology] Phase 1 (Comparable Sales) failed:", (err as Error).message);
+    log.warn("[AppraisalMethodology] Phase 1 (Comparable Sales) failed:", { err: (err as Error ).message });
     warnings.push(`Comparable sales analysis failed: ${(err as Error).message}`);
   }
   
@@ -138,10 +141,10 @@ export async function runComprehensiveAppraisal(
       landValue: Math.round(landValue),
     });
     
-    console.log(`[AppraisalMethodology] Phase 2 complete — Cost Approach Value: $${costApproachResult.indicatedValue.toLocaleString()}`);
+    log.info(`[AppraisalMethodology] Phase 2 complete — Cost Approach Value: $${costApproachResult.indicatedValue.toLocaleString()}`);
     dataPoints.push(`Phase 2 - Cost Approach: $${costApproachResult.indicatedValue.toLocaleString()}`);
   } catch (err) {
-    console.warn("[AppraisalMethodology] Phase 2 (Cost Approach) failed:", (err as Error).message);
+    log.warn("[AppraisalMethodology] Phase 2 (Cost Approach) failed:", { err: (err as Error ).message });
     warnings.push(`Cost approach calculation failed: ${(err as Error).message}`);
   }
   
@@ -156,11 +159,11 @@ export async function runComprehensiveAppraisal(
         annualOperatingExpenses: propertyData.annualOperatingExpenses,
       });
       
-      console.log(`[AppraisalMethodology] Phase 3 complete — Income Approach Value: $${incomeApproachResult.reconciledValue.toLocaleString()}`);
+      log.info(`[AppraisalMethodology] Phase 3 complete — Income Approach Value: $${incomeApproachResult.reconciledValue.toLocaleString()}`);
       dataPoints.push(`Phase 3 - Income Approach: $${incomeApproachResult.reconciledValue.toLocaleString()}`);
     }
   } catch (err) {
-    console.warn("[AppraisalMethodology] Phase 3 (Income Approach) failed:", (err as Error).message);
+    log.warn("[AppraisalMethodology] Phase 3 (Income Approach) failed:", { err: (err as Error ).message });
     warnings.push(`Income approach calculation failed: ${(err as Error).message}`);
   }
   
@@ -168,10 +171,10 @@ export async function runComprehensiveAppraisal(
   let marketAnalysis: MarketAnalysisResult | undefined;
   try {
     marketAnalysis = analyzeMarketTrends(propertyData.marketTrendData || {});
-    console.log(`[AppraisalMethodology] Phase 5 complete — Market Condition: ${marketAnalysis.marketCondition}`);
+    log.info(`[AppraisalMethodology] Phase 5 complete — Market Condition: ${marketAnalysis.marketCondition}`);
     dataPoints.push(`Phase 5 - Market Analysis: ${marketAnalysis.marketCondition}'s market`);
   } catch (err) {
-    console.warn("[AppraisalMethodology] Phase 5 (Market Trends) failed:", (err as Error).message);
+    log.warn("[AppraisalMethodology] Phase 5 (Market Trends) failed:", { err: (err as Error ).message });
     warnings.push(`Market trend analysis failed: ${(err as Error).message}`);
   }
   
@@ -191,10 +194,10 @@ export async function runComprehensiveAppraisal(
       marketCondition: marketAnalysis?.marketCondition,
     });
     
-    console.log(`[AppraisalMethodology] Phase 6 complete — Final Reconciled Value: $${reconciliation.finalValue.toLocaleString()}`);
+    log.info(`[AppraisalMethodology] Phase 6 complete — Final Reconciled Value: $${reconciliation.finalValue.toLocaleString()}`);
     dataPoints.push(`Phase 6 - Reconciliation: $${reconciliation.finalValue.toLocaleString()}`);
   } catch (err) {
-    console.warn("[AppraisalMethodology] Phase 6 (Reconciliation) failed:", (err as Error).message);
+    log.warn("[AppraisalMethodology] Phase 6 (Reconciliation) failed:", { err: (err as Error ).message });
     warnings.push(`Reconciliation failed: ${(err as Error).message}`);
   }
   
@@ -230,7 +233,7 @@ export async function runComprehensiveAppraisal(
     assessmentGap
   );
   
-  console.log(`[AppraisalMethodology] Comprehensive appraisal complete — Final Value: $${finalValue.toLocaleString()}, Gap: $${assessmentGap.toLocaleString()}`);
+  log.info(`[AppraisalMethodology] Comprehensive appraisal complete — Final Value: $${finalValue.toLocaleString()}, Gap: $${assessmentGap.toLocaleString()}`);
   
   return {
     comparableSalesAnalysis,

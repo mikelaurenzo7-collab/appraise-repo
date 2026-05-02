@@ -1,4 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("ReferralProgram");
 
 /**
  * Referral Program Service
@@ -21,7 +24,7 @@ export async function generateReferralCode(userId: string): Promise<string> {
   const code = `REF-${uuidv4().substring(0, 8).toUpperCase()}`;
   
   // Store in database (would be in referrals table)
-  console.log(`[Referral] Generated code ${code} for user ${userId}`);
+  log.info(`[Referral] Generated code ${code} for user ${userId}`);
   
   return code;
 }
@@ -33,16 +36,16 @@ export async function trackReferral(referralCode: string, newUserId: string, new
   try {
     // Validate referral code exists
     if (!referralCode.startsWith('REF-')) {
-      console.warn(`[Referral] Invalid referral code format: ${referralCode}`);
+      log.warn(`[Referral] Invalid referral code format: ${referralCode}`);
       return false;
     }
 
     // Log referral
-    console.log(`[Referral] Tracked referral: ${referralCode} -> ${newUserEmail}`);
+    log.info(`[Referral] Tracked referral: ${referralCode} -> ${newUserEmail}`);
     
     return true;
   } catch (error) {
-    console.error('[Referral] Error tracking referral:', error);
+    log.error('[Referral] Error tracking referral:', { err: error });
     return false;
   }
 }
@@ -103,18 +106,18 @@ export async function getTopReferrers(limit: number = 10): Promise<Array<{
 export async function requestPayout(userId: string, amount: number, bankAccount: string): Promise<boolean> {
   try {
     if (amount <= 0) {
-      console.warn(`[Referral] Invalid payout amount: ${amount}`);
+      log.warn(`[Referral] Invalid payout amount: ${amount}`);
       return false;
     }
 
     // Log payout request
-    console.log(`[Referral] Payout request: ${userId} - $${amount} to ${bankAccount}`);
+    log.info(`[Referral] Payout request: ${userId} - $${amount} to ${bankAccount}`);
     
     // In production, would integrate with payment processor (Stripe, ACH, etc.)
     
     return true;
   } catch (error) {
-    console.error('[Referral] Error requesting payout:', error);
+    log.error('[Referral] Error requesting payout:', { err: error });
     return false;
   }
 }
@@ -174,14 +177,14 @@ export async function sendReferralInvite(fromUserId: string, toEmail: string, re
   try {
     const inviteLink = `https://appraiseai-njpz7grd.manus.space/get-started?ref=${referralCode}`;
     
-    console.log(`[Referral] Sending invite from ${fromUserId} to ${toEmail}`);
-    console.log(`[Referral] Invite link: ${inviteLink}`);
+    log.info(`[Referral] Sending invite from ${fromUserId} to ${toEmail}`);
+    log.info(`[Referral] Invite link: ${inviteLink}`);
     
     // In production, would send email with invite link
     
     return true;
   } catch (error) {
-    console.error('[Referral] Error sending invite:', error);
+    log.error('[Referral] Error sending invite:', { err: error });
     return false;
   }
 }
@@ -202,7 +205,7 @@ export async function validateReferralCode(code: string): Promise<{ valid: boole
       discount: 0, // No discount, commission goes to referrer
     };
   } catch (error) {
-    console.error('[Referral] Error validating code:', error);
+    log.error('[Referral] Error validating code:', { err: error });
     return { valid: false };
   }
 }

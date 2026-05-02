@@ -17,6 +17,9 @@ import type { Express, Request, Response } from "express";
 import { signJWT, verifyJWT, COOKIE_NAME, ONE_YEAR_MS } from "./auth";
 import { getSessionCookieOptions } from "./cookies";
 import * as db from "../db";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("SupabaseAuth");
 
 function getSupabaseConfig(): { url: string; anonKey: string } {
   const url = process.env.SUPABASE_URL;
@@ -80,7 +83,7 @@ export function registerAuthRoutes(app: Express) {
 
     // PKCE code exchange — exchange auth code for Supabase session
     if (!code) {
-      console.error("[Auth] No code in callback");
+      log.error("[Auth] No code in callback");
       res.status(400).json({ error: "missing code" });
       return;
     }
@@ -101,7 +104,7 @@ export function registerAuthRoutes(app: Express) {
 
       if (!sbRes.ok) {
         const err = await sbRes.text();
-        console.error("[Auth] Supabase token exchange failed:", err);
+        log.error("[Auth] Supabase token exchange failed:", { err: err });
         res.status(500).json({ error: "auth exchange failed" });
         return;
       }
@@ -140,7 +143,7 @@ export function registerAuthRoutes(app: Express) {
 
       res.redirect(302, next);
     } catch (error) {
-      console.error("[Auth] Callback failed:", error);
+      log.error("[Auth] Callback failed:", { err: error });
       res.status(500).json({ error: "auth callback failed" });
     }
   });

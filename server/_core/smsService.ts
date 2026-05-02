@@ -1,4 +1,7 @@
 import twilio from 'twilio';
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("SmsService");
 
 /**
  * Twilio SMS Service
@@ -32,7 +35,7 @@ export async function sendSMS(notification: SMSNotification): Promise<boolean> {
   try {
     const client = getClient();
     if (!client || !messagingServiceSid) {
-      console.warn('[SMS] Twilio credentials not configured, logging instead');
+      log.warn('[SMS] Twilio credentials not configured, logging instead');
       logSMSLocally(notification);
       return true;
     }
@@ -43,10 +46,10 @@ export async function sendSMS(notification: SMSNotification): Promise<boolean> {
       to: notification.to,
     });
 
-    console.log(`[SMS] Sent ${notification.type} to ${notification.to} (SID: ${message.sid})`);
+    log.info(`[SMS] Sent ${notification.type} to ${notification.to} (SID: ${message.sid})`);
     return true;
   } catch (error) {
-    console.error('[SMS] Failed to send SMS:', error);
+    log.error('[SMS] Failed to send SMS:', { err: error });
     logSMSLocally(notification);
     return false;
   }
@@ -129,9 +132,9 @@ export async function notifyStatusUpdate(phoneNumber: string, status: string, de
  * Log SMS locally (for testing or when Twilio is not configured)
  */
 function logSMSLocally(notification: SMSNotification) {
-  console.log(`[SMS LOCAL] To: ${notification.to}`);
-  console.log(`[SMS LOCAL] Type: ${notification.type}`);
-  console.log(`[SMS LOCAL] Message: ${notification.message}`);
+  log.info(`[SMS LOCAL] To: ${notification.to}`);
+  log.info(`[SMS LOCAL] Type: ${notification.type}`);
+  log.info(`[SMS LOCAL] Message: ${notification.message}`);
 }
 
 /**

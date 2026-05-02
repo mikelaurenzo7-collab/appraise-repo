@@ -21,6 +21,9 @@ import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { filingJobs } from "../../drizzle/schema.pg";
 import { getDb, persistActivityLog } from "../db";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("LobWebhook");
 
 const LOB_RAW_LIMIT = "2mb";
 
@@ -156,7 +159,7 @@ export function registerLobWebhook(app: express.Application) {
       const rawBody = (req.body as Buffer).toString("utf8");
 
       if (!secret) {
-        console.warn("[LobWebhook] LOB_WEBHOOK_SECRET not set — rejecting");
+        log.warn("[LobWebhook] LOB_WEBHOOK_SECRET not set — rejecting");
         return res.status(503).json({ error: "webhook not configured" });
       }
 
@@ -166,7 +169,7 @@ export function registerLobWebhook(app: express.Application) {
         req.header("Lob-Signature-Timestamp");
 
       if (!verifyLobSignature(rawBody, signature, timestamp, secret)) {
-        console.warn("[LobWebhook] Signature verification failed");
+        log.warn("[LobWebhook] Signature verification failed");
         return res.status(401).json({ error: "invalid signature" });
       }
 
@@ -181,7 +184,7 @@ export function registerLobWebhook(app: express.Application) {
         const result = await handleLobEvent(event);
         return res.json({ received: true, ...result });
       } catch (err) {
-        console.error("[LobWebhook] handler error", err);
+        log.error("[LobWebhook] handler error", { err: err });
         // Return 200 so Lob doesn't retry indefinitely — we've already
         // logged. Acceptable for a dashboard-display webhook; if we
         // depend on this for billing we'd want retries.

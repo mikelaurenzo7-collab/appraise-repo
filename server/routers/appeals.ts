@@ -16,6 +16,9 @@ import {
 import { getDb } from "../db";
 import { propertySubmissions } from "../../drizzle/schema.pg";
 import { eq } from "drizzle-orm";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("Appeals");
 
 export const appealsRouter = router({
   /**
@@ -28,7 +31,7 @@ export const appealsRouter = router({
         const score = await calculateAppealStrengthScore(input.submissionId);
         return score;
       } catch (error) {
-        console.error("[Appeals] Error calculating strength score:", error);
+        log.error("[Appeals] Error calculating strength score:", { err: error });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to calculate appeal strength score",
@@ -74,7 +77,7 @@ export const appealsRouter = router({
           formattedCalendar: formatDeadlineCalendar([deadlines]),
         };
       } catch (error) {
-        console.error("[Appeals] Error getting deadline calendar:", error);
+        log.error("[Appeals] Error getting deadline calendar:", { err: error });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to get deadline calendar",
@@ -120,7 +123,7 @@ export const appealsRouter = router({
           totalCostToCure: results.reduce((sum, r) => sum + r.totalCostToCure, 0),
         };
       } catch (error) {
-        console.error("[Appeals] Error analyzing photos:", error);
+        log.error("[Appeals] Error analyzing photos:", { err: error });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to analyze photos",
@@ -170,7 +173,7 @@ export const appealsRouter = router({
           generatedAt: new Date(),
         };
       } catch (error) {
-        console.error("[Appeals] Error generating report:", error);
+        log.error("[Appeals] Error generating report:", { err: error });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to generate report",
@@ -241,7 +244,7 @@ export const appealsRouter = router({
           },
         };
       } catch (error) {
-        console.error("[Appeals] Error getting complete package:", error);
+        log.error("[Appeals] Error getting complete package:", { err: error });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to get appeal package",

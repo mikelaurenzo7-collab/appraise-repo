@@ -16,6 +16,9 @@
 import { getDb } from "../db";
 import { jurisdictionRules } from "../../drizzle/schema.pg";
 import { eq, and } from "drizzle-orm";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("JurisdictionSync");
 
 interface SyncSource {
   state: string;
@@ -35,7 +38,7 @@ interface SyncSource {
  */
 export async function syncJurisdictionRules() {
   try {
-    console.log("[Sync] Starting jurisdiction rules sync...");
+    log.info("[Sync] Starting jurisdiction rules sync...");
     const db = await getDb();
     if (!db) throw new Error("Database connection failed");
 
@@ -68,10 +71,10 @@ export async function syncJurisdictionRules() {
       updatedCount++;
     }
 
-    console.log(`[Sync] Updated ${updatedCount} jurisdiction rules`);
+    log.info(`[Sync] Updated ${updatedCount} jurisdiction rules`);
     return { success: true, updatedCount };
   } catch (err) {
-    console.error("[Sync] Error syncing jurisdiction rules:", err);
+    log.error("[Sync] Error syncing jurisdiction rules:", { err: err });
     throw err;
   }
 }
@@ -89,7 +92,7 @@ async function fetchLatestRules(): Promise<SyncSource[]> {
   // const caRules = await fetchCaliforniaRules();
   // return [...ilRules, ...txRules, ...caRules];
 
-  console.log("[Sync] Placeholder: No external API sources configured yet");
+  log.info("[Sync] Placeholder: No external API sources configured yet");
   return [];
 }
 

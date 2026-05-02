@@ -19,6 +19,9 @@ import { and, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 import { filingJobs } from "../../drizzle/schema.pg";
 import { getDb, persistActivityLog } from "../db";
 import { getLobLetterStatus } from "./lobDelivery";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("LobReconciliation");
 
 // The canonical event → internal status map mirrors lobWebhook.ts.
 const LOB_EVENT_TO_STATUS: Record<string, "in_transit" | "delivered" | "returned" | "failed"> = {
@@ -85,7 +88,7 @@ export async function reconcilePendingMailFilings(
       )
       .limit(limit);
   } catch (err) {
-    console.error("[LobReconcile] Failed to query pending filings", err);
+    log.error("[LobReconcile] Failed to query pending filings", { err: err });
     return result;
   }
 
@@ -125,7 +128,7 @@ export async function reconcilePendingMailFilings(
       result.updated += 1;
     } catch (err) {
       result.errors += 1;
-      console.error(`[LobReconcile] Failure for filing ${row.id}`, err);
+      log.error(`[LobReconcile] Failure for filing ${row.id}`, { err: err });
     }
   }
 
@@ -144,12 +147,10 @@ export function buildReconciliationInterval(options: {
       try {
         const result = await reconcilePendingMailFilings(batchSize);
         if (result.updated > 0 || result.errors > 0) {
-          console.log(
-            `[LobReconcile] checked=${result.checked} updated=${result.updated} errors=${result.errors}`
-          );
+          log.info(`[LobReconcile] checked=${result.checked} updated=${result.updated} errors=${result.errors}`);
         }
       } catch (err) {
-        console.error("[LobReconcile] top-level error", err);
+        log.error("[LobReconcile] top-level error", { err: err });
       }
     }, intervalMs);
 }

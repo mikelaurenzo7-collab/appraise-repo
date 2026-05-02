@@ -3,6 +3,9 @@ import { analyzeWithClaude, isClaudeAvailable } from "../_core/claude";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
 import { getScenarioContext, generateScenarioPromptContext, type UserScenario } from "./scenarioValuation";
 import type { PropertyData } from "./propertyDataAggregator";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("AppraisalAnalyzer");
 
 export interface AppraisalAnalysis {
   marketValueEstimate: number;
@@ -454,7 +457,7 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
     // The outer analysisJob catch handles this by marking the submission
     // as `error` so the owner / admin can investigate and re-queue. No
     // synthetic numbers ever land in the property_analysis row.
-    console.error("[AppraisalAnalyzer] LLM analysis failed for", propertyData.address, "—", error);
+    log.error("[AppraisalAnalyzer] LLM analysis failed", { address: propertyData.address, err: error instanceof Error ? error.message : String(error) });
     throw new Error(
       `Appraisal analysis failed: ${error instanceof Error ? error.message : String(error)}. ` +
       `No fallback analysis is generated; the submission has been marked for retry.`,

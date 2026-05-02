@@ -8,6 +8,9 @@
  */
 import { ENV } from "./env";
 import { storagePut } from "../storage";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("StreetViewCapture");
 
 const GOOGLE_BASE_URL = "https://maps.googleapis.com";
 
@@ -56,7 +59,7 @@ export async function captureStreetView(
     if (!metaRes.ok) return null;
     const meta = await metaRes.json() as { status?: string };
     if (meta.status !== "OK") {
-      console.log(`[StreetView] No coverage for: ${address} (status: ${meta.status})`);
+      log.info(`[StreetView] No coverage for: ${address} (status: ${meta.status})`);
       return null;
     }
 
@@ -76,7 +79,7 @@ export async function captureStreetView(
 
     return { url, address, type: "street_view" };
   } catch (error) {
-    console.error("[StreetViewCapture] Error:", error instanceof Error ? error.message : error);
+    log.error("[StreetViewCapture] Error:", { err: error instanceof Error ? error.message : error });
     return null;
   }
 }
@@ -97,7 +100,7 @@ export async function captureMultipleAngles(
     if (metaRes.ok) {
       const meta = await metaRes.json() as { status?: string };
       if (meta.status !== "OK") {
-        console.log(`[StreetView] No coverage for: ${address}`);
+        log.info(`[StreetView] No coverage for: ${address}`);
         return results;
       }
     }
@@ -144,7 +147,7 @@ export async function captureSatelliteImage(
 
     return { url, address, type: "satellite" };
   } catch (error) {
-    console.error("[SatelliteCapture] Error:", error instanceof Error ? error.message : error);
+    log.error("[SatelliteCapture] Error:", { err: error instanceof Error ? error.message : error });
     return null;
   }
 }
@@ -175,7 +178,7 @@ export async function captureRoadMapImage(
 
     return { url, address, type: "roadmap" };
   } catch (error) {
-    console.error("[RoadMapCapture] Error:", error instanceof Error ? error.message : error);
+    log.error("[RoadMapCapture] Error:", { err: error instanceof Error ? error.message : error });
     return null;
   }
 }
@@ -237,7 +240,7 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress |
       country: get("country", true),
     };
   } catch (error) {
-    console.error("[Geocode] Error:", error instanceof Error ? error.message : error);
+    log.error("[Geocode] Error:", { err: error instanceof Error ? error.message : error });
     return null;
   }
 }
