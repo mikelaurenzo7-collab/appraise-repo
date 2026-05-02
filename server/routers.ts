@@ -110,6 +110,9 @@ import { queueFilingJob } from "./services/filingJobQueue";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { generateImage } from "./_core/imageGeneration";
 import { ENV } from "./_core/env";
+import { scopedLogger } from "./_core/logger";
+
+const log = scopedLogger("Router");
 
 // Lazy Stripe init — importing this module should not crash when STRIPE_SECRET_KEY
 // is missing (e.g. during tests or first-time local setup). The first payment
@@ -454,7 +457,7 @@ export const appRouter = router({
             await notifyOwner({
               title: `🏠 New Appeal Request — ${fullAddress}`,
               content: `**From:** ${input.email}\n**Phone:** ${input.phone || "Not provided"}\n**Address:** ${input.address}\n**Filing Method:** ${input.filingMethod.toUpperCase()}\n\nAnalysis queued and will complete within 24 hours.`,
-            }).catch((err: unknown) => console.error("[Notification] Failed to notify owner:", err));
+            }).catch((err: unknown) => log.error("[Notification] Failed to notify owner:", { err: err }));
 
             // Queue analysis
             queueAnalysisJob(submission.id, 2000);
@@ -471,7 +474,7 @@ export const appRouter = router({
                   status: "submitted",
                   clickedAt: new Date(),
                 });
-                console.log(`[Referral] Tracked submission referral: ${input.referralCode} -> ${input.email}`);
+                log.info(`[Referral] Tracked submission referral: ${input.referralCode} -> ${input.email}`);
               }
             }
           }
@@ -483,7 +486,7 @@ export const appRouter = router({
           };
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error("[Properties] Error submitting address:", errorMsg, error);
+          log.error("[Properties] Error submitting address:", { err: errorMsg, error });
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to submit address: ${errorMsg}` });
         }
       }),
@@ -576,7 +579,7 @@ export const appRouter = router({
         );
         return withOutcomes;
       } catch (error) {
-        console.error("[User] Error fetching submissions:", error);
+        log.error("[User] Error fetching submissions:", { err: error });
         return [];
       }
     }),
@@ -696,7 +699,7 @@ export const appRouter = router({
                 : "";
           reply = reply.trim();
         } catch (err) {
-          console.error("[chat.ask] invokeLLM failed:", err);
+          log.error("[chat.ask] invokeLLM failed:", { err: err });
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Chat is temporarily unavailable. Please try again.",
@@ -722,7 +725,7 @@ export const appRouter = router({
             `Last message: ${lastUser.slice(0, 280)}`,
           ].join("\n");
           void notifyOwner({ title, content }).catch((err) => {
-            console.warn("[chat.ask] notifyOwner failed:", err);
+            log.warn("[chat.ask] notifyOwner failed:", { err: err });
           });
         }
 
@@ -1120,7 +1123,7 @@ export const appRouter = router({
             if (jsonMatch) taxBillData = JSON.parse(jsonMatch[0]);
           }
         } catch (ocrErr) {
-          console.warn("[TaxBill] OCR extraction failed (non-critical):", (ocrErr as Error).message);
+          log.warn("[TaxBill] OCR extraction failed (non-critical):", { err: (ocrErr as Error ).message });
         }
 
         // Persist extracted data to submission
@@ -1875,7 +1878,7 @@ export const appRouter = router({
         // manual data-entry step.
         if (input.outcome === "lost" || input.outcome === "withdrawn") {
           await maybeAutoRequestRefund(input.submissionId, ctx.user.id).catch((err) => {
-            console.error("[AutoRefund] Failed to request:", err);
+            log.error("[AutoRefund] Failed to request:", { err: err });
           });
         }
 

@@ -3,6 +3,9 @@
  * Now uses MAPBOX_ACCESS_TOKEN or direct API keys from ENV.
  */
 import { ENV } from "./env";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("DataApi");
 
 export type DataApiCallOptions = {
   query?: Record<string, unknown>;
@@ -11,7 +14,9 @@ export type DataApiCallOptions = {
   formData?: Record<string, unknown>;
 };
 
-// Google Places API — direct call (no Manus proxy needed)
+// Google Places API — direct call using the server-side Places API key.
+// The key is passed as a query parameter per Google's Places API spec;
+// no Authorization header is needed or appropriate here.
 export async function callGooglePlaces(
   input: string,
   sessionToken?: string
@@ -29,8 +34,7 @@ export async function callGooglePlaces(
   if (sessionToken) params.set("sessiontoken", sessionToken);
 
   const res = await fetch(
-    `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`,
-    { headers: { Authorization: `Bearer ${ENV.mapboxAccessToken}` } }
+    `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`
   );
 
   if (!res.ok) throw new Error(`Google Places error: ${res.status}`);
@@ -40,11 +44,10 @@ export async function callGooglePlaces(
 // Generic passthrough — for future API integrations
 export async function callDataApi(
   apiId: string,
-  options: DataApiCallOptions = {}
+  _options: DataApiCallOptions = {}
 ): Promise<unknown> {
-  // This function is a placeholder. For the Vercel pivot, all data API calls
-  // should go through their native providers (Google Places, Mapbox, etc.)
-  // which now have direct keys in ENV.
-  console.warn(`[dataApi] callDataApi called with "${apiId}" — verify this is still needed`);
+  // All data API calls now go through their native providers
+  // (Google Places, Mapbox, etc.) which have direct keys in ENV.
+  log.warn(`callDataApi called with "${apiId}" — verify this is still needed`, { apiId });
   return {};
 }

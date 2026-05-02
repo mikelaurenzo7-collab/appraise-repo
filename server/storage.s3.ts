@@ -10,6 +10,9 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { scopedLogger } from "./_core/logger";
+
+const log = scopedLogger("Storage");
 
 const S3_BUCKET = process.env.S3_BUCKET ?? "appraise-ai-uploads";
 const S3_REGION = process.env.AWS_REGION ?? "us-east-1";
@@ -82,7 +85,7 @@ export async function storageDelete(relKey: string): Promise<boolean> {
     await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key }));
     return true;
   } catch (err) {
-    console.error("[Storage] delete failed:", err);
+    log.error("[Storage] delete failed:", { err: err });
     return false;
   }
 }

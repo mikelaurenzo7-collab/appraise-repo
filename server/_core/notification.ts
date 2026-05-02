@@ -1,5 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./env";
+import { scopedLogger } from "./logger";
+
+const log = scopedLogger("Notification");
 
 export type NotificationPayload = {
   title: string;
@@ -83,7 +86,7 @@ export async function notifyOwner(
       });
       return true;
     } catch (err) {
-      console.warn("[Notification] Resend email fallback failed:", err);
+      log.warn("[Notification] Resend email fallback failed:", { err: err });
       return false;
     }
   }

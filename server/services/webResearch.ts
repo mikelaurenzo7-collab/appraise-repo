@@ -17,6 +17,9 @@
 import { getClaudeClient } from "../_core/claude";
 import { callAnthropic } from "../_core/llmProviders";
 import { getStateRules } from "./stateAssessmentRules";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("WebResearch");
 
 // ─── Types (kept for backward compatibility) ─────────────────────────────────
 
@@ -96,7 +99,7 @@ async function callClaudeWithWebSearch(
 ): Promise<{ text: string; sources: ResearchSource[] }> {
   const client = getClaudeClient();
   if (!client) {
-    console.warn("[Research] ANTHROPIC_API_KEY not set — skipping research");
+    log.warn("[Research] ANTHROPIC_API_KEY not set — skipping research");
     return { text: "", sources: [] };
   }
 
@@ -150,7 +153,7 @@ async function callClaudeWithWebSearch(
     return { text, sources };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[Research] Claude web search failed (${msg}) — falling back to knowledge-only`);
+    log.warn(`[Research] Claude web search failed (${msg}) — falling back to knowledge-only`);
 
     // Plain Claude call — no live search, but still produces structured research
     // from Claude's training knowledge. Silently degrades rather than blocking.
@@ -162,7 +165,7 @@ async function callClaudeWithWebSearch(
       );
       return { text: fallbackText, sources: [] };
     } catch (fallbackErr: unknown) {
-      console.warn("[Research] Claude fallback also failed:", (fallbackErr as Error).message);
+      log.warn("[Research] Claude fallback also failed:", { err: (fallbackErr as Error).message });
       return { text: "", sources: [] };
     }
   }
@@ -367,7 +370,7 @@ function parseResearchIntoInsights(
 export async function runPropertyResearch(
   ctx: PropertySearchContext
 ): Promise<ResearchInsight[]> {
-  console.log(`[Research] Starting Claude web-search research for ${ctx.address}, ${ctx.state}`);
+  log.info(`[Research] Starting Claude web-search research for ${ctx.address}, ${ctx.state}`);
 
   const prompt = buildResearchPrompt(ctx);
 
@@ -377,14 +380,14 @@ export async function runPropertyResearch(
   );
 
   if (!text) {
-    console.warn("[Research] Property research returned empty — analysis will proceed without web context");
+    log.warn("[Research] Property research returned empty — analysis will proceed without web context");
     return [];
   }
 
   const insights = parseResearchIntoInsights(text, sources, ctx);
 
   const totalSources = sources.length;
-  console.log(`[Research] ✓ Property research complete — ${insights.length} scenarios, ${totalSources} grounded sources`);
+  log.info(`[Research] ✓ Property research complete — ${insights.length} scenarios, ${totalSources} grounded sources`);
 
   return insights;
 }
@@ -399,7 +402,7 @@ export async function lookupCountyInfo(
   countyName: string,
   state: string
 ): Promise<DynamicCountyInfo> {
-  console.log(`[Research] Looking up county info for ${countyName}, ${state}`);
+  log.info(`[Research] Looking up county info for ${countyName}, ${state}`);
 
   const prompt = buildCountyLookupPrompt(countyName, state);
 
@@ -411,7 +414,7 @@ export async function lookupCountyInfo(
   const sourceUrls = sources.map((s) => s.link).filter(Boolean).slice(0, 6);
 
   if (!text) {
-    console.warn(`[Research] County lookup returned empty for ${countyName}, ${state}`);
+    log.warn(`[Research] County lookup returned empty for ${countyName}, ${state}`);
     return emptyCountyInfo(countyName, state, sourceUrls);
   }
 
@@ -439,10 +442,10 @@ export async function lookupCountyInfo(
       sources: sourceUrls,
     };
 
-    console.log(`[Research] ✓ County lookup complete for ${countyName}, ${state} — confidence: ${result.confidence}, deadline: ${result.appealDeadline ?? "not found"}`);
+    log.info(`[Research] ✓ County lookup complete for ${countyName}, ${state} — confidence: ${result.confidence}, deadline: ${result.appealDeadline ?? "not found"}`);
     return result;
   } catch (err) {
-    console.warn(`[Research] Failed to parse county info JSON for ${countyName}, ${state}:`, err);
+    log.warn(`[Research] Failed to parse county info JSON for ${countyName}, ${state}:`, { err: err });
     return emptyCountyInfo(countyName, state, sourceUrls);
   }
 }

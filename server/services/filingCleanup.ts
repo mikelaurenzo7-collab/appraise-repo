@@ -17,6 +17,9 @@ import { and, isNotNull, lt, or, sql } from "drizzle-orm";
 import { filingJobs } from "../../drizzle/schema.pg";
 import { getDb, persistActivityLog } from "../db";
 import { storageDelete } from "../storage";
+import { scopedLogger } from "../_core/logger";
+
+const log = scopedLogger("FilingCleanup");
 
 const DEFAULT_RETENTION_DAYS = 365;
 
@@ -56,7 +59,7 @@ export async function cleanupExpiredFilingArtifacts(opts: {
       )
       .limit(limit);
   } catch (err) {
-    console.error("[FilingCleanup] Failed to query", err);
+    log.error("[FilingCleanup] Failed to query", { err: err });
     return result;
   }
 
@@ -96,7 +99,7 @@ export async function cleanupExpiredFilingArtifacts(opts: {
         status: "success",
       });
     } catch (err) {
-      console.error(`[FilingCleanup] Failed to clear keys for filing ${row.id}`, err);
+      log.error(`[FilingCleanup] Failed to clear keys for filing ${row.id}`, { err: err });
       result.errors += 1;
     }
   }
@@ -110,12 +113,10 @@ export function buildCleanupInterval(intervalMs: number = 24 * 60 * 60 * 1000): 
       try {
         const r = await cleanupExpiredFilingArtifacts();
         if (r.scanned > 0) {
-          console.log(
-            `[FilingCleanup] scanned=${r.scanned} deleted=${r.artifactsDeleted} errors=${r.errors}`
-          );
+          log.info(`[FilingCleanup] scanned=${r.scanned} deleted=${r.artifactsDeleted} errors=${r.errors}`);
         }
       } catch (err) {
-        console.error("[FilingCleanup] top-level error", err);
+        log.error("[FilingCleanup] top-level error", { err: err });
       }
     }, intervalMs);
 }

@@ -7,6 +7,9 @@ import { getDb } from "./db";
 import { jurisdictionRules } from "../drizzle/schema.pg";
 import { eq, and } from "drizzle-orm";
 import { safeJsonParse } from "./_core/safeJson";
+import { scopedLogger } from "./_core/logger";
+
+const log = scopedLogger("JurisdictionHelpers");
 
 export interface JurisdictionRuleData {
   state: string;
@@ -62,7 +65,7 @@ export async function getJurisdictionRule(
   try {
     const db = await getDb();
     if (!db) {
-      console.warn("[Jurisdiction] DB connection failed, using default rule");
+      log.warn("[Jurisdiction] DB connection failed, using default rule");
       return DEFAULT_RULE;
     }
 
@@ -96,10 +99,10 @@ export async function getJurisdictionRule(
       };
     }
 
-    console.warn(`[Jurisdiction] Rule not found for ${state}/${county}, using default`);
+    log.warn(`[Jurisdiction] Rule not found for ${state}/${county}, using default`);
     return DEFAULT_RULE;
   } catch (err) {
-    console.error(`[Jurisdiction] Error fetching rule for ${state}/${county}:`, err);
+    log.error(`[Jurisdiction] Error fetching rule for ${state}/${county}:`, { err: err });
     return DEFAULT_RULE;
   }
 }
@@ -138,7 +141,7 @@ export async function getStateRules(state: string): Promise<JurisdictionRuleData
       lastVerifiedAt: rule.lastVerifiedAt,
     }));
   } catch (err) {
-    console.error(`[Jurisdiction] Error fetching rules for ${state}:`, err);
+    log.error(`[Jurisdiction] Error fetching rules for ${state}:`, { err: err });
     return [];
   }
 }
