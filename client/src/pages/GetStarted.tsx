@@ -352,6 +352,10 @@ export default function GetStarted() {
       toast.error("Please confirm that you are the property owner or authorized representative.");
       return;
     }
+    if (filingMethod !== "none" && !taxBillUploaded) {
+      toast.error("Please upload your tax bill — it's required for automatic filing tiers so we have your APN and assessed value on file.");
+      return;
+    }
     if (photoSubmissionId) {
       setStep(3);
       return;
@@ -830,7 +834,7 @@ export default function GetStarted() {
                     <FileText size={16} className="text-[#2563EB]" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-[#0F172A]">Upload Your Tax Bill <span className="text-[#94A3B8] font-normal">(recommended)</span></div>
+                    <div className="text-sm font-semibold text-[#0F172A]">Upload Your Tax Bill {filingMethod !== "none" ? <span className="text-red-500 font-semibold text-xs ml-1">Required for filing</span> : <span className="text-[#94A3B8] font-normal">(recommended)</span>}</div>
                     <div className="text-xs text-[#64748B]">We OCR your bill to extract your APN, exact assessed value, tax rate, and year-over-year changes.</div>
                   </div>
                 </div>

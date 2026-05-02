@@ -77,8 +77,14 @@ export default function PhotoUpload({
     setIsUploading(true);
     try {
       for (const file of newFiles) {
-        if (!file.type.startsWith("image/")) {
-          toast.error(`${file.name} is not an image`);
+        if (!file.type.match(/^image\/(jpeg|jpg|png|webp|heic|heif)$/i)) {
+          toast.error(`${file.name} must be a JPG, PNG, or WebP image`);
+          continue;
+        }
+
+        const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+        if (file.size > MAX_FILE_SIZE) {
+          toast.error(`${file.name} is too large (max 15 MB). Compress and try again.`);
           continue;
         }
 

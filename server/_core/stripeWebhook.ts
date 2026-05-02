@@ -10,7 +10,9 @@ import {
   getFilingTierBySubmission,
   updateFilingTierPayment,
   createFilingTier,
+  getPropertySubmissionById,
 } from "../db";
+import { sendPaymentConfirmationEmail } from "./emailService";
 
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe {
@@ -206,6 +208,22 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   console.log(
     `[Stripe Webhook] Payment completed for submission ${submissionId}: $${flatFeePaid} flat fee`
   );
+
+  // ── Send payment confirmation email ────────────────────────────────
+  try {
+    const sub = await getPropertySubmissionById(submissionId);
+    if (sub?.email) {
+      await sendPaymentConfirmationEmail({
+        userEmail: sub.email,
+        userName: sub.email.split("@")[0],
+        amount: (session.amount_total || 0) / 100,
+        propertyAddress: sub.address,
+        transactionId: paymentIntentId || session.id,
+      });
+    }
+  } catch (err) {
+    console.error("[Stripe Webhook] Payment confirmation email failed (non-blocking):", err);
+  }
 }
 
 /**

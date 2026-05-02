@@ -36,6 +36,7 @@ import {
   type UserScenario,
 } from "./scenarioValuation";
 import { broadcastAnalysisUpdate } from "../_core/sseBroadcaster";
+import { sendAnalysisConfirmationEmail } from "../_core/emailService";
 
 // Prevent duplicate concurrent jobs for the same submission
 const activeJobs = new Set<number>();
@@ -580,7 +581,14 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
     // Queue report generation (24-hour SLA)
 
     // ── Step 9b: Send user email confirmation ────────────────────────────────
-    // Email service not available in this environment
+    if (submission.email) {
+      sendAnalysisConfirmationEmail({
+        userEmail: submission.email,
+        userName: submission.email.split("@")[0],
+        propertyAddress: submission.address,
+        appealStrengthScore: appealStrengthAfterPhotos,
+      }).catch((err: unknown) => console.error("[AnalysisJob] Email send failed:", err));
+    }
     console.log(`[AnalysisJob] ✓ Completed #${submissionId} in ${durationMs}ms — score: ${appealStrengthAfterPhotos}/100, scenario: ${userScenario}`);
 
   } catch (error) {

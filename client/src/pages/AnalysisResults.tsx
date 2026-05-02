@@ -1173,15 +1173,26 @@ export default function AnalysisResults() {
                   <div>
                     <button
                       onClick={async () => {
-                        try {
-                          const result = await createCheckoutMutation.mutateAsync({
-                            submissionId: submissionId!,
-                          });
-                          if (result.url) {
-                            window.open(result.url, "_blank");
+                        let attempts = 0;
+                        const maxAttempts = 3;
+                        while (attempts < maxAttempts) {
+                          try {
+                            const result = await createCheckoutMutation.mutateAsync({
+                              submissionId: submissionId!,
+                            });
+                            if (result.url) {
+                              window.open(result.url, "_blank");
+                            }
+                            break;
+                          } catch (err) {
+                            attempts++;
+                            if (attempts >= maxAttempts) {
+                              toast.error("Checkout failed. Please try again in a moment.");
+                              console.error("Checkout failed after retries:", err);
+                            } else {
+                              await new Promise((r) => setTimeout(r, Math.pow(2, attempts) * 500));
+                            }
                           }
-                        } catch (err) {
-                          console.error("Checkout failed:", err);
                         }
                       }}
                       disabled={createCheckoutMutation.isPending}
