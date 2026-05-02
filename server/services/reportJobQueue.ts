@@ -384,10 +384,6 @@ async function processReportJobAsync(jobId: number): Promise<void> {
 export async function processPendingReportJobs(limit = 5): Promise<number> {
   try {
     const jobs = await listPendingReportJobs(limit);
-    if (jobs.length > 0) {
-      log.info(`Processing ${jobs.length} pending job(s)`, { count: jobs.length });
-    }
-
     let processed = 0;
     for (const job of jobs) {
       if (!activeJobs.has(job.id)) {
@@ -397,6 +393,8 @@ export async function processPendingReportJobs(limit = 5): Promise<number> {
         processed++;
       }
     }
+
+    log.info(`Processed ${processed} pending job(s)`, { count: processed });
 
     return processed;
   } catch (error) {

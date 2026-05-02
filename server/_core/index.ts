@@ -434,14 +434,14 @@ async function startServer() {
 
     // Process pending jobs immediately on startup
     processPendingReportJobs(5).then((count) => {
-      if (count > 0) log.info(`ReportQueue: processing ${count} pending job(s) on startup`, { count });
+      if (count > 0) log.info(`Processing ${count} pending report job(s) on startup`, { count });
     }).catch((err) => log.error("ReportQueue startup error", { err: (err as Error).message }));
 
     // Cleanup expired jobs every 5 minutes
     intervals.push(setInterval(async () => {
       try {
         const cleaned = await cleanupExpiredReportJobs();
-        if (cleaned > 0) log.info("ReportQueue: cleaned up expired jobs", { count: cleaned });
+        if (cleaned > 0) log.info("Cleaned up expired report jobs", { count: cleaned });
       } catch (err) {
         log.error("ReportQueue cleanup error", { err: (err as Error).message });
       }
