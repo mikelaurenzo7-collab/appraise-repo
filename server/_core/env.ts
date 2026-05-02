@@ -8,9 +8,12 @@ export const ENV = {
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? "",
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-  // Maps
+  // Maps — canonical key name is GOOGLE_MAPS_API_KEY; GOOGLE_MAPS_PLATFORM_API_KEY is a legacy alias
   mapboxAccessToken: process.env.MAPBOX_ACCESS_TOKEN ?? "",
-  googleMapsApiKey: process.env.GOOGLE_MAPS_PLATFORM_API_KEY ?? "",
+  googleMapsApiKey:
+    process.env.GOOGLE_MAPS_API_KEY ??
+    process.env.GOOGLE_MAPS_PLATFORM_API_KEY ??
+    "",
   googleCseApiKey: process.env.GOOGLE_CSE_API_KEY ?? "",
   googleCseCx: process.env.GOOGLE_CSE_CX ?? "",
   realieApiKey: process.env.REALIE_API_KEY ?? "",

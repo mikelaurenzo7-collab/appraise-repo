@@ -135,9 +135,12 @@ function formatPhotonFeature(f: PhotonFeature): string | null {
 }
 
 // ─── Google Places ────────────────────────────────────────────────────────────
-// Auth: GOOGLE_MAPS_PLATFORM_API_KEY passed as ?key= query param.
+// Auth: GOOGLE_MAPS_API_KEY (canonical) or GOOGLE_MAPS_PLATFORM_API_KEY (legacy alias).
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_API_KEY ?? "";
+const GOOGLE_MAPS_API_KEY =
+  process.env.GOOGLE_MAPS_API_KEY ??
+  process.env.GOOGLE_MAPS_PLATFORM_API_KEY ??
+  "";
 
 async function fetchFromGoogle(
   input: string,
