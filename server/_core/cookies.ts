@@ -39,17 +39,14 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
-  // sameSite: "none" is required because this app runs inside a Manus
-  // iframe (cross-origin context). "lax" or "strict" would break session
-  // sharing between the Manus portal and the embedded app. This is a
-  // deliberate product decision — we mitigate CSRF risk via:
-  // 1. httpOnly + secure flags (cookie not accessible to JS, HTTPS only)
-  // 2. tRPC batch links with credentials (same-origin-like behaviour)
-  // 3. No mutation endpoints accessible without authentication
+  // sameSite: "lax" is correct for a standalone Vercel app — the app is not
+  // embedded in a cross-origin iframe. "lax" allows session cookies to be sent
+  // on same-origin requests (including tRPC fetch calls with credentials:include)
+  // and on top-level navigations, while providing CSRF protection.
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

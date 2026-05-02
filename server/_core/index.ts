@@ -90,7 +90,16 @@ export async function createApp(): Promise<Express> {
   registerLobWebhook(app);
 
   // Supabase Auth (replaces Manus OAuth)
-  registerAuthRoutes(app);
+  try {
+    registerAuthRoutes(app);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[Auth] Auth routes not registered: ${msg}`);
+    // Register stub routes so callers get a clear 503 instead of a 404
+    app.get("/api/auth/login", (_req, res) => res.status(503).json({ error: "Auth not configured" }));
+    app.get("/api/auth/callback", (_req, res) => res.status(503).json({ error: "Auth not configured" }));
+    app.post("/api/auth/logout", (_req, res) => res.json({ ok: true }));
+  }
 
   // Liveness: cheap check that the Node process is responsive. Use this for
   // "is the pod alive" probes — no DB round-trip.

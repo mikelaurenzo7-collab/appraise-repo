@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 
 describe("Google API Keys Validation", () => {
   it("GOOGLE_MAPS_API_KEY is set", () => {
-    const key = process.env.GOOGLE_MAPS_API_KEY;
+    // Server-side Places autocomplete and Geocoding key.
+    // Also accepted as GOOGLE_MAPS_PLATFORM_API_KEY (legacy alias).
+    const key =
+      process.env.GOOGLE_MAPS_API_KEY ??
+      process.env.GOOGLE_MAPS_PLATFORM_API_KEY;
     expect(key).toBeDefined();
     expect(key!.length).toBeGreaterThan(10);
     expect(key!.startsWith("AIza")).toBe(true);
@@ -22,6 +26,7 @@ describe("Google API Keys Validation", () => {
   });
 
   it("VITE_GOOGLE_MAPS_API_KEY is set for frontend", () => {
+    // Client-side Google Maps JavaScript API key.
     const key = process.env.VITE_GOOGLE_MAPS_API_KEY;
     expect(key).toBeDefined();
     expect(key!.length).toBeGreaterThan(10);
@@ -29,7 +34,9 @@ describe("Google API Keys Validation", () => {
   });
 
   it("Google Maps Geocoding API responds successfully", async () => {
-    const key = process.env.GOOGLE_MAPS_API_KEY;
+    const key =
+      process.env.GOOGLE_MAPS_API_KEY ??
+      process.env.GOOGLE_MAPS_PLATFORM_API_KEY;
     if (!key) return;
 
     const res = await fetch(

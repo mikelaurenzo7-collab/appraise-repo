@@ -18,14 +18,16 @@ import { signJWT, verifyJWT, COOKIE_NAME, ONE_YEAR_MS } from "./auth";
 import { getSessionCookieOptions } from "./cookies";
 import * as db from "../db";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    "[Startup] Missing required environment variables: SUPABASE_URL, SUPABASE_ANON_KEY. " +
-    "Set them in your Vercel project settings or .env file."
-  );
+function getSupabaseConfig(): { url: string; anonKey: string } {
+  const url = process.env.SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    throw new Error(
+      "[Startup] Missing required environment variables: SUPABASE_URL, SUPABASE_ANON_KEY. " +
+      "Set them in your Vercel project settings or .env file."
+    );
+  }
+  return { url, anonKey };
 }
 
 function getQueryParam(req: Request, key: string): string | undefined {
@@ -38,6 +40,11 @@ function getQueryParam(req: Request, key: string): string | undefined {
  * Redirects to Supabase Auth page (email magic link, Google, GitHub, etc.)
  */
 export function registerAuthRoutes(app: Express) {
+  // Validate Supabase config lazily (at route registration time, not module load).
+  // Throws only when registerAuthRoutes is called so a missing config does not
+  // crash the process on import — useful in unit tests and CI environments.
+  const { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY } = getSupabaseConfig();
+
   // ── Login initiation ──────────────────────────────────────────────────────
   // GET /api/auth/login?returnTo=/dashboard
   // Redirects to Supabase Auth (you configure which providers in Supabase dashboard)
