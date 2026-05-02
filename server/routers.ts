@@ -285,6 +285,107 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+
+    /** Sign in with email + password via Supabase Auth (no OAuth providers needed). */
+    signin: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(6),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const SUPABASE_URL = process.env.SUPABASE_URL;
+        const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Auth not configured" });
+        }
+
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ email: input.email, password: input.password }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error_description: "Sign in failed" }));
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: (err as { error_description?: string }).error_description ?? "Invalid email or password",
+          });
+        }
+
+        const session = await res.json() as { user?: { id: string; email?: string; user_metadata?: Record<string, unknown> } };
+        const sbUser = session.user;
+        if (!sbUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in failed" });
+
+        const { upsertUser } = await import("./db");
+        const name = (sbUser.user_metadata?.full_name ?? sbUser.user_metadata?.name ?? null) as string | null;
+        await upsertUser({ openId: sbUser.id, name, email: sbUser.email ?? null, loginMethod: "email", lastSignedIn: new Date() });
+
+        const { signJWT, ONE_YEAR_MS } = await import("./_core/auth");
+        const token = await signJWT({ openId: sbUser.id, name: name ?? "" });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        return { success: true } as const;
+      }),
+
+    /** Register a new account with email + password. */
+    signup: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(8, "Password must be at least 8 characters"),
+        name: z.string().max(100).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const SUPABASE_URL = process.env.SUPABASE_URL;
+        const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Auth not configured" });
+        }
+
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            email: input.email,
+            password: input.password,
+            data: input.name ? { full_name: input.name } : undefined,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ msg: "Registration failed" }));
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: (err as { msg?: string; error_description?: string }).msg
+              ?? (err as { msg?: string; error_description?: string }).error_description
+              ?? "Registration failed",
+          });
+        }
+
+        const session = await res.json() as { user?: { id: string; email?: string } };
+        const sbUser = session.user;
+        if (!sbUser?.id) {
+          // Supabase may require email confirmation — tell the client
+          return { success: true, requiresConfirmation: true } as const;
+        }
+
+        const { upsertUser } = await import("./db");
+        await upsertUser({ openId: sbUser.id, name: input.name ?? null, email: input.email, loginMethod: "email", lastSignedIn: new Date() });
+
+        const { signJWT, ONE_YEAR_MS } = await import("./_core/auth");
+        const token = await signJWT({ openId: sbUser.id, name: input.name ?? "" });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        return { success: true, requiresConfirmation: false } as const;
+      }),
   }),
 
   // ─── PROPERTIES ──────────────────────────────────────────────────────────
@@ -402,6 +503,14 @@ export const appRouter = router({
           const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
           const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
           const activityLogs = await getActivityLogsBySubmission(input.submissionId);
+          const photoEvidence = await getLatestPhotoAnalysis(input.submissionId);
+
+          // Parse tax bill data stored on the submission
+          const taxBill = (() => {
+            if (!submission.taxBillData) return null;
+            try { return JSON.parse(submission.taxBillData as string) as Record<string, unknown>; }
+            catch { return null; }
+          })();
 
           return {
             submission,
@@ -413,6 +522,17 @@ export const appRouter = router({
             } : null,
             outcome: outcome || null,
             activityLogs: activityLogs || [],
+            photoEvidence: photoEvidence || null,
+            taxBill: taxBill ? {
+              apn: typeof taxBill.apn === "string" ? taxBill.apn : null,
+              currentAssessedValue: typeof taxBill.currentAssessedValue === "number" ? taxBill.currentAssessedValue : null,
+              priorYearAssessedValue: typeof taxBill.priorYearAssessedValue === "number" ? taxBill.priorYearAssessedValue : null,
+              annualTaxAmount: typeof taxBill.annualTaxAmount === "number" ? taxBill.annualTaxAmount : null,
+              effectiveTaxRate: typeof taxBill.effectiveTaxRate === "number" ? taxBill.effectiveTaxRate : null,
+              appealDeadline: typeof taxBill.appealDeadline === "string" ? taxBill.appealDeadline : null,
+              assessorOffice: typeof taxBill.assessorOffice === "string" ? taxBill.assessorOffice : null,
+              taxYear: typeof taxBill.taxYear === "string" || typeof taxBill.taxYear === "number" ? String(taxBill.taxYear) : null,
+            } : null,
           };
         } catch (error) {
           if (error instanceof TRPCError) throw error;
@@ -918,6 +1038,147 @@ export const appRouter = router({
         });
 
         return { url, fileName: input.fileName, category: input.category };
+      }),
+
+    /**
+     * Upload a property tax bill image/PDF and extract key data via Claude vision OCR.
+     * Extracted data (APN, assessed values, tax amounts, rates) feeds directly into
+     * the appraisal analysis prompt and strengthens the appeal evidence package.
+     */
+    uploadTaxBill: protectedProcedure
+      .input(z.object({
+        submissionId: z.number(),
+        fileData: z.string().max(50_000_000, "File exceeds 50MB"),
+        fileName: z.string().max(255),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
+        const rawSize = Buffer.byteLength(input.fileData, "base64");
+        if (rawSize > 20 * 1024 * 1024) {
+          throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "File exceeds 20MB" });
+        }
+
+        const buffer = Buffer.from(input.fileData, "base64");
+        const ext = input.fileName.split(".").pop()?.toLowerCase() ?? "jpg";
+        const mimeType = ext === "pdf" ? "application/pdf" : "image/jpeg";
+        const key = `tax-bills/${ctx.user.id}/${input.submissionId}/${Date.now()}-${input.fileName}`;
+        const { storagePut } = await import("./storage");
+        const { url } = await storagePut(key, buffer, mimeType);
+
+        // Claude vision OCR — extract structured data from the tax bill
+        let taxBillData: Record<string, unknown> = {};
+        try {
+          const { getClaudeClient } = await import("./_core/claude");
+          const client = getClaudeClient();
+          if (client) {
+            const TAX_BILL_OCR_PROMPT =
+              "You are a property tax document specialist. Extract all relevant data from this " +
+              "property tax bill document. Return a JSON object with these fields (null if not found):\n" +
+              "{\n" +
+              "  apn: string | null,              // Assessor Parcel Number / APN / Parcel ID\n" +
+              "  taxYear: number | null,           // Tax year\n" +
+              "  currentAssessedValue: number | null,   // Total assessed value (land + improvements)\n" +
+              "  landValue: number | null,         // Land assessed value\n" +
+              "  improvementValue: number | null,  // Improvement/structure assessed value\n" +
+              "  priorYearAssessedValue: number | null, // Prior year total assessed value\n" +
+              "  annualTaxAmount: number | null,   // Total annual property tax owed\n" +
+              "  effectiveTaxRate: number | null,  // Tax rate as decimal (e.g. 0.0125 for 1.25%)\n" +
+              "  exemptions: string[] | null,      // Any exemptions applied (homestead, senior, etc)\n" +
+              "  exemptionAmount: number | null,   // Total exemption value reduction\n" +
+              "  ownerName: string | null,         // Owner name on bill\n" +
+              "  propertyAddress: string | null,   // Property address on bill\n" +
+              "  mailingAddress: string | null,    // Mailing address if different\n" +
+              "  dueDate: string | null,           // Payment due date\n" +
+              "  assessorOffice: string | null,    // Assessor office name/contact\n" +
+              "  taxingDistricts: string[] | null, // List of taxing districts (school, city, county...)\n" +
+              "  appealDeadline: string | null,    // Appeal filing deadline if printed on bill\n" +
+              "  notes: string | null              // Any other relevant notes\n" +
+              "}\n\n" +
+              "Return ONLY valid JSON. Do not include commentary. Numbers should be plain numbers without $ or commas.";
+
+            const msg = await client.messages.create({
+              model: "claude-opus-4-7",
+              max_tokens: 1500,
+              system: TAX_BILL_OCR_PROMPT,
+              messages: [{
+                role: "user",
+                content: [{
+                  type: "image",
+                  source: { type: "url", url },
+                }],
+              }],
+            } as Parameters<typeof client.messages.create>[0]);
+
+            const msg2 = msg as { content: Array<{ type: string; text?: string }> };
+            const raw = (msg2.content.find(b => b.type === "text") as { type: "text"; text: string } | undefined)?.text ?? "";
+            const jsonMatch = raw.match(/\{[\s\S]*\}/);
+            if (jsonMatch) taxBillData = JSON.parse(jsonMatch[0]);
+          }
+        } catch (ocrErr) {
+          console.warn("[TaxBill] OCR extraction failed (non-critical):", (ocrErr as Error).message);
+        }
+
+        // Persist extracted data to submission
+        await updatePropertySubmission(input.submissionId, {
+          taxBillUrl: url,
+          apn: typeof taxBillData.apn === "string" ? taxBillData.apn : undefined,
+          annualTaxAmount: typeof taxBillData.annualTaxAmount === "number" ? Math.round(taxBillData.annualTaxAmount) : undefined,
+          effectiveTaxRate: typeof taxBillData.effectiveTaxRate === "number" ? String(taxBillData.effectiveTaxRate) : undefined,
+          priorYearAssessedValue: typeof taxBillData.priorYearAssessedValue === "number" ? Math.round(taxBillData.priorYearAssessedValue) : undefined,
+          taxBillData: JSON.stringify(taxBillData),
+          // If the bill has a more authoritative assessed value, prefer it
+          ...(typeof taxBillData.currentAssessedValue === "number" && taxBillData.currentAssessedValue > 0
+            ? { assessedValue: Math.round(taxBillData.currentAssessedValue as number) }
+            : {}),
+        });
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "tax_bill_uploaded",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Tax bill uploaded and OCR'd — APN: ${taxBillData.apn ?? "not found"}, assessed: $${taxBillData.currentAssessedValue?.toLocaleString() ?? "N/A"}, annual tax: $${taxBillData.annualTaxAmount?.toLocaleString() ?? "N/A"}`,
+          metadata: JSON.stringify({ url, ...taxBillData }),
+          status: "success",
+        });
+
+        return { url, taxBillData };
+      }),
+
+    /**
+     * Record owner attestation — "I am the owner of record or authorized representative."
+     * Required before formal report delivery or automated filing.
+     */
+    attestOwnership: protectedProcedure
+      .input(z.object({ submissionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const submission = await getPropertySubmissionById(input.submissionId);
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
+        await updatePropertySubmission(input.submissionId, {
+          ownerAttestation: true,
+          ownerAttestationAt: new Date(),
+        });
+
+        await persistActivityLog({
+          submissionId: input.submissionId,
+          type: "owner_attested",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Owner attestation recorded — ${ctx.user.email} confirmed ownership/authorization`,
+          metadata: JSON.stringify({ userId: ctx.user.id, email: ctx.user.email }),
+          status: "success",
+        });
+
+        return { success: true } as const;
       }),
 
     // Generate certified appraisal report

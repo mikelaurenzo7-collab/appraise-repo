@@ -168,16 +168,15 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       comparablesFound: propertyData.comparableSales?.length ?? 0,
     });
 
-    // ── Step 2.5: Gemini dual-model research (non-blocking, best-effort) ────────────────────
-    // Gemini 2.5 Pro with Google Search grounding synthesizes live market intelligence:
+    // ── Step 2.5: Claude dual-capability research (non-blocking, best-effort) ──────────────
+    // Claude Sonnet with web_search_20250305 synthesizes live market intelligence:
     // assessor overvaluation evidence, comparable sales, market trends, neighborhood
     // distress, zoning issues, and prior appeal outcomes in the same county.
-    // Gemini 2.5 Flash analyzes any user-uploaded property photos for condition scoring.
     let researchInsights = undefined;
-    let photoAnalysis = undefined;
 
-    // Run Gemini research + photo analysis in parallel
-    const [researchResult, photoResult] = await Promise.allSettled([
+    // Run Claude research only — photos are analyzed in the dedicated pre-analysis
+    // step below so we don't pay for duplicate vision calls.
+    const [researchResult] = await Promise.allSettled([
       Promise.race([
         runPropertyResearch({
           address: submission.address,
@@ -189,39 +188,21 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
         }),
         new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30000)),
       ]),
-      // Analyze uploaded photos if available
-      // Get submission photos from DB and analyze
-      getSubmissionPhotos(submission.id).then(photos => photos.length > 0 ? analyzePropertyPhotos(photos) : undefined),
     ]);
 
     if (researchResult.status === "fulfilled" && researchResult.value) {
       researchInsights = researchResult.value;
       const sourceCount = researchInsights.reduce((sum, i) => sum + i.results.length, 0);
-      console.log(`[AnalysisJob] ✓ Gemini research complete — ${researchInsights.length} scenarios, ${sourceCount} grounded sources`);
+      console.log(`[AnalysisJob] ✓ Claude research complete — ${researchInsights.length} scenarios, ${sourceCount} grounded sources`);
       await persistActivityLog({
         submissionId,
         type: "api_aggregation_complete",
         actor: "system",
-        description: `Gemini market intelligence complete — ${researchInsights.length} research scenarios with ${sourceCount} live sources (overvaluation evidence, comps, market trends, neighborhood distress, zoning, appeal outcomes)`,
+        description: `Claude web-search intelligence complete — ${researchInsights.length} research scenarios with ${sourceCount} live sources (overvaluation evidence, comps, market trends, neighborhood distress, zoning, appeal outcomes)`,
         status: "success",
       });
     } else if (researchResult.status === "rejected") {
-      console.warn("[AnalysisJob] Gemini research failed (non-critical):", (researchResult.reason as Error)?.message);
-    }
-
-    if (photoResult.status === "fulfilled" && photoResult.value) {
-      photoAnalysis = photoResult.value;
-      console.log(`[AnalysisJob] ✓ Photo analysis complete — condition score: ${photoAnalysis.overallConditionScore}/5, evidence: ${photoAnalysis.overallEvidenceStrength}`);
-      await persistActivityLog({
-        submissionId,
-        type: "api_aggregation_complete",
-        actor: "system",
-        description: `Property photo analysis complete — condition score: ${photoAnalysis.overallConditionScore}/5, ${photoAnalysis.topValueIssues.length} value issues identified, evidence strength: ${photoAnalysis.overallEvidenceStrength}`,
-        metadata: JSON.stringify(photoAnalysis),
-        status: "success",
-      });
-    } else if (photoResult.status === "rejected") {
-      console.warn("[AnalysisJob] Photo analysis failed (non-critical):", (photoResult.reason as Error)?.message);
+      console.warn("[AnalysisJob] Claude research failed (non-critical):", (researchResult.reason as Error)?.message);
     }
     // ── Step 3: Get jurisdiction rules ───────────────────────────────────────
     const state = submission.state || "";
@@ -288,21 +269,40 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       );
     }
 
-    const [analysis, photoSummaryParallel] = await Promise.all([
-      // Pass the userScenario so the LLM produces a scenario-shaped narrative
-      // (rental → income approach, distressed → cost-floor reasoning,
-      // recently_purchased → purchase-price ceiling, etc.) instead of a
-      // generic analysis that gets retroactively math-adjusted.
-      analyzeProperty(filteredPropertyData, propertyType, userScenario),
+    // ── Pre-analysis: run photos concurrently, then feed into LLM ───────────
+    // Photos are analyzed FIRST so their full context (USPAP ratings, assessor
+    // blind spots, functional obsolescence) is available when analyzeProperty
+    // builds its prompt. The tax bill data is pulled from the submission record.
+    const [photoSummaryForPrompt, taxBillDataForPrompt] = await Promise.all([
       photosForAnalysis.length > 0
         ? analyzePropertyPhotos(photosForAnalysis).catch((err) => {
-            console.warn(
-              `[AnalysisJob] Photo analysis failed (non-blocking) for #${submissionId}:`,
-              (err as Error).message,
-            );
+            console.warn(`[AnalysisJob] Photo pre-analysis failed:`, (err as Error).message);
             return null;
           })
         : Promise.resolve(null as PhotoAnalysisSummary | null),
+      // Load tax bill OCR data from submission record (uploaded during GetStarted flow)
+      Promise.resolve(
+        submission.taxBillData
+          ? (() => { try { return JSON.parse(submission.taxBillData as string) as Record<string, unknown>; } catch { return null; } })()
+          : null
+      ),
+    ]);
+
+    if (photoSummaryForPrompt) {
+      broadcastAnalysisUpdate(submissionId, "step", {
+        step: "photo_analysis_complete_pre",
+        photoCount: photoSummaryForPrompt.findings.length,
+        conditionScore: photoSummaryForPrompt.overallConditionScore,
+        assessorBlindSpots: photoSummaryForPrompt.assessorBlindSpotItems.length,
+      });
+    }
+
+    const [analysis, photoSummaryParallel] = await Promise.all([
+      // Pass photoContext + taxBillData so Claude has the full evidence package
+      // when producing the valuation narrative and appeal-strength score.
+      analyzeProperty(filteredPropertyData, propertyType, userScenario, photoSummaryForPrompt, taxBillDataForPrompt),
+      // photoSummaryParallel re-uses the already-computed result (no duplicate API call)
+      Promise.resolve(photoSummaryForPrompt),
     ]);
 
     // ── Step 4b: Apply scenario adjustments ──────────────────────────────────
@@ -354,6 +354,10 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           appealStrengthDelta: photoSummary.appealStrengthDelta,
           topObservations: photoSummary.topObservations,
           topValueIssues: photoSummary.topValueIssues,
+          uspapRatings: photoSummary.uspapRatings,
+          assessorBlindSpotItems: photoSummary.assessorBlindSpotItems,
+          functionalObsolescenceItems: photoSummary.functionalObsolescenceItems,
+          summaryParagraph: photoSummary.summaryParagraph,
         }),
         status: "success",
       });
@@ -387,7 +391,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       submissionId,
       type: "llm_analysis_complete",
       actor: "system",
-      description: `Gemini + LLM analysis complete — appeal strength: ${scenarioAppealStrength}/100, potential savings: $${scenarioTaxSavings?.toLocaleString() ?? "N/A"}, approach: ${finalApproach}${photoAnalysis ? `, condition: ${photoAnalysis.overallConditionScore}/5` : ""}`,
+      description: `Claude analysis complete — appeal strength: ${scenarioAppealStrength}/100, potential savings: $${scenarioTaxSavings?.toLocaleString() ?? "N/A"}, approach: ${finalApproach}${photoSummary ? `, condition: ${photoSummary.overallConditionScore}/100` : ""}`,
       metadata: JSON.stringify({
         appealStrengthScore: scenarioAppealStrength,
         potentialSavings: scenarioTaxSavings,

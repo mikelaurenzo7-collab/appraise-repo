@@ -6,6 +6,8 @@
 dist/
 build/
 *.dist
+api/*.js
+api/*.js.map
 
 # Environment variables
 .env
@@ -117,3 +119,5 @@ client/public/__manus__/version.json
 __pycache__/
 *.pyc
 *.pyo
+.vercel
+.env*.local

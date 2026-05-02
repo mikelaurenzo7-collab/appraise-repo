@@ -8,7 +8,7 @@ import { registerLobWebhook } from "./lobWebhook";
 import { registerAuthRoutes } from "./supabaseAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
+import { serveStatic } from "./vite";
 import {
   getActivityLogsBySubmission,
   getDb,
@@ -327,6 +327,11 @@ async function startServer() {
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
+    // String concat hides this from esbuild's static analyzer so the
+    // dev-only vite middleware (and its plugin tree: lightningcss,
+    // tailwind, etc.) never gets pulled into the production bundle.
+    const devVitePath = "./devVite";
+    const { setupVite } = await import(devVitePath);
     await setupVite(app, server);
   } else {
     serveStatic(app);

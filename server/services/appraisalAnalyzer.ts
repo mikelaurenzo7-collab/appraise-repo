@@ -143,11 +143,26 @@ export function computeCompPriceBand(propertyData: PropertyData): {
  *                        narrative reflects the owner's actual context (rental,
  *                        inherited, distressed, etc.) rather than producing a
  *                        generic analysis that gets retroactively adjusted.
+ * @param photoContext    Rich photo analysis summary with USPAP ratings, assessor
+ *                        blind spots, functional obsolescence — injected directly
+ *                        into the LLM prompt as evidence.
+ * @param taxBillData     Parsed tax bill OCR data — APN, actual tax amounts,
+ *                        prior-year values, exemptions — grounding the analysis
+ *                        in the owner's real tax document.
  */
 export async function analyzeProperty(
   propertyData: PropertyData,
   propertyType: string = "residential",
   scenario: UserScenario = "none",
+  photoContext?: {
+    llmContext: string;
+    overallConditionScore: number;
+    uspapRatings: string[];
+    assessorBlindSpotItems: string[];
+    functionalObsolescenceItems: string[];
+    topValueIssues: string[];
+  } | null,
+  taxBillData?: Record<string, unknown> | null,
 ): Promise<AppraisalAnalysis> {
   try {
     const compBand = computeCompPriceBand(propertyData);
@@ -209,6 +224,67 @@ ${
         ? "\n" + generateScenarioPromptContext(scenario, propertyData) + "\n"
         : "";
 
+    // ── Tax Bill Evidence Block ───────────────────────────────────────────────
+    // Real tax document data is the most authoritative evidence we have.
+    // OCR'd from the owner's actual bill: APN, true assessed value, tax amounts,
+    // prior-year comparison, exemptions already applied.
+    let taxBillBlock = "";
+    if (taxBillData && typeof taxBillData === "object") {
+      const tb = taxBillData as Record<string, unknown>;
+      const lines: string[] = ["## Tax Bill Evidence (Owner-Submitted Official Document)"];
+      if (tb.apn) lines.push(`- APN / Parcel ID: ${tb.apn}`);
+      if (tb.taxYear) lines.push(`- Tax Year: ${tb.taxYear}`);
+      if (tb.currentAssessedValue) lines.push(`- Assessed Value (from bill): $${Number(tb.currentAssessedValue).toLocaleString()}`);
+      if (tb.landValue) lines.push(`- Land Value: $${Number(tb.landValue).toLocaleString()}`);
+      if (tb.improvementValue) lines.push(`- Improvement Value: $${Number(tb.improvementValue).toLocaleString()}`);
+      if (tb.priorYearAssessedValue) {
+        const prior = Number(tb.priorYearAssessedValue);
+        const current = Number(tb.currentAssessedValue ?? 0);
+        const yoyChange = current && prior ? ((current - prior) / prior * 100).toFixed(1) : null;
+        lines.push(`- Prior Year Assessed Value: $${prior.toLocaleString()}${yoyChange ? ` (${yoyChange}% YoY change)` : ""}`);
+      }
+      if (tb.annualTaxAmount) lines.push(`- Annual Tax Bill: $${Number(tb.annualTaxAmount).toLocaleString()}`);
+      if (tb.effectiveTaxRate) lines.push(`- Effective Tax Rate: ${(Number(tb.effectiveTaxRate) * 100).toFixed(3)}%`);
+      if (Array.isArray(tb.exemptions) && tb.exemptions.length) {
+        lines.push(`- Exemptions Applied: ${(tb.exemptions as string[]).join(", ")}`);
+        if (tb.exemptionAmount) lines.push(`- Exemption Value: $${Number(tb.exemptionAmount).toLocaleString()}`);
+      }
+      if (tb.appealDeadline) lines.push(`- Appeal Deadline (from bill): ${tb.appealDeadline}`);
+      if (tb.assessorOffice) lines.push(`- Assessor Office: ${tb.assessorOffice}`);
+      if (lines.length > 1) {
+        taxBillBlock = "\n" + lines.join("\n") + "\n";
+        taxBillBlock +=
+          "\nINSTRUCTION: The tax bill above is primary-source evidence. Use the APN to " +
+          "anchor your analysis to the specific parcel. Use the actual assessed value from " +
+          "the bill (not the API estimate) as the authoritative current assessment. If the " +
+          "bill shows a YoY increase materially above market appreciation, cite this as an " +
+          "overvaluation indicator. Use the actual tax amount and rate for all savings calculations.\n";
+      }
+    }
+
+    // ── Photo Evidence Block ──────────────────────────────────────────────────
+    // Interior photos are the assessor's blind spot — they have no interior access.
+    // This block gives Claude the same evidence the owner sees but the assessor doesn't.
+    let photoEvidenceBlock = "";
+    if (photoContext?.llmContext) {
+      photoEvidenceBlock = "\n" + photoContext.llmContext + "\n";
+      if (photoContext.assessorBlindSpotItems?.length) {
+        photoEvidenceBlock +=
+          "\nINSTRUCTION: The 'Assessor Blind Spots' section above documents interior " +
+          "defects INVISIBLE to the assessor at the time of assessment. These are uniquely " +
+          "powerful: the assessor cannot rebut them without an inspection they did not " +
+          "perform. Weight these heavily as support for a below-median comp-band anchor. " +
+          "Name them explicitly in 'valuationJustification' and 'appealStrengthFactors'.\n";
+      }
+      if (photoContext.functionalObsolescenceItems?.length) {
+        photoEvidenceBlock +=
+          "\nINSTRUCTION: Functional obsolescence items above represent features that " +
+          "the market has already priced down but the assessor's records may not reflect. " +
+          "Each item typically supports a 2–8% downward adjustment depending on severity " +
+          "and market reaction. Cite these in the valuation justification.\n";
+      }
+    }
+
     const prompt = `You are preparing the analytical narrative for a property
 owner who intends to challenge an over-assessment by their county tax authority.
 You are NOT their attorney and you do NOT provide case-specific legal advice.
@@ -233,6 +309,8 @@ Posture & methodology:
 - Do not editorialize about the assessor. Stick to numbers and methodology.
 
 ${dataSummary}
+${taxBillBlock}
+${photoEvidenceBlock}
 ${scenarioBlock}
 
 Provide a JSON response with:
@@ -242,46 +320,54 @@ Provide a JSON response with:
    that band (Q1 ≤ value ≤ Q3 typically; never below the lower edge of the
    range and only at/above the median when the subject is materially
    superior to the comp set).
+   IMPORTANT: If photo evidence shows interior defects or functional obsolescence
+   the assessor has not seen, these SUPPORT anchoring at Q1. If a tax bill shows
+   a year-over-year assessment increase above market appreciation, this supports
+   the overvaluation argument. Use both to build the strongest defensible case.
 2. assessmentGap: assessedValue minus marketValueEstimate (positive = over-assessed).
+   Use the assessed value from the tax bill if provided — it's the authoritative figure.
 3. assessmentGapPercent: gap / assessedValue, expressed as a number.
-4. appealStrengthScore: 0-100. Reflects (a) the magnitude of the gap, (b) the
-   quantity and quality of corroborating comparable sales, and (c) the
-   consistency of the supporting public-record data.
-5. appealStrengthFactors: 3-5 concise, evidence-grade factors (e.g. "comparable
-   sales within 0.5 mi support a value of $X", "lot size discrepancy vs.
-   assessor record"). Each factor must be verifiable from the data shown.
+4. appealStrengthScore: 0-100. Reflects (a) magnitude of the gap, (b) quantity
+   and quality of comparable sales, (c) consistency of public-record data,
+   (d) photo evidence of defects unknown to assessor (+5 to +15 if present),
+   (e) functional obsolescence not in assessor records (+3 to +8 each item),
+   (f) tax bill showing above-market YoY increase (+5 to +10 if present).
+5. appealStrengthFactors: 4-7 concise, evidence-grade factors. Must include
+   photo-based and tax-bill-based factors when those data are present. Each
+   factor must be verifiable from the data shown above.
 6. recommendedApproach: "poa" (we file on the owner's behalf), "pro-se"
    (guided owner-filed appeal), or "not-recommended" (data does not support
    an appeal at this time).
-7. executiveSummary: 2-3 sentences. State the assessed value, the
-   evidence-supported fair market value, and the resulting over-assessment if
-   any, in plain professional language.
-8. valuationJustification: One paragraph (5-8 sentences). Walk through the
-   methodology used: which approach (sales comparison / income / cost) was
-   weighted most, the comp-band positioning of the conclusion (e.g. "anchored
-   at Q1 of the price-per-sqft distribution because the subject shows X, Y,
-   Z"), which specific comps drove the conclusion, and how public-record
-   data corroborates or refines the estimate.
-9. potentialSavings: Estimated annual property-tax savings if the assessment
-   were reduced to marketValueEstimate (use 1.2% as default effective rate
-   when not otherwise indicated).
-10. nextSteps: 3-4 concrete, professional next steps the owner can take
-    (e.g. "Verify assessed value on the most recent tax notice",
-    "Photograph any deferred-maintenance items prior to the hearing",
-    "Confirm appeal-filing deadline with the county assessor's office"). Do
-    not provide legal strategy or jurisdiction-specific procedural advice.
+7. executiveSummary: 2-3 sentences. State the assessed value (from tax bill if
+   available), the evidence-supported fair market value, and the resulting
+   over-assessment if any. Mention photo evidence and tax bill if present.
+8. valuationJustification: 6-10 sentences. Walk through: methodology used and
+   why; comp-band positioning and what factors drive the Q1 anchor; any
+   interior defects the assessor could not observe; any functional obsolescence;
+   how the tax bill data corroborates or refines the estimate; year-over-year
+   assessment trend if known. Be specific — cite actual comp addresses, actual
+   observed defects, actual dollar amounts.
+9. potentialSavings: Annual property-tax savings if assessment reduced to
+   marketValueEstimate. Use the ACTUAL effective tax rate from the tax bill if
+   provided — otherwise 1.2% default.
+10. nextSteps: 4-5 concrete next steps. Include: gather tax bill if not already
+    uploaded, photograph remaining deferred maintenance before hearing, confirm
+    appeal deadline, request assessor's property record card to check for data
+    errors (square footage, bedroom count, etc.).
 
 Respond ONLY with valid JSON matching this schema:
 ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
 
-    // Cache key derived from the property + scenario inputs. Identical
-    // (propertyData, propertyType, scenario) yields the same key, so admin
-    // retriggers and pipeline retries skip the LLM round-trip. Scenario is
-    // part of the key because the same property under a different scenario
-    // gets a meaningfully different narrative.
-    // 24h TTL aligns with the report-generation SLA window.
+    // Cache key derived from the property + scenario + evidence inputs.
+    // Include a hash of photo/taxBill presence so new evidence busts the cache.
     const source = isClaudeAvailable() ? "claude-opus-4-7" : "forge-gemini-2.5-flash";
-    const cacheKey = `llm:appraisal:${source}:${hashLLMInput([propertyData, propertyType, scenario])}`;
+    const evidenceHash = hashLLMInput([
+      photoContext ? photoContext.overallConditionScore : null,
+      photoContext ? photoContext.uspapRatings : null,
+      taxBillData ? (taxBillData as Record<string, unknown>).apn : null,
+      taxBillData ? (taxBillData as Record<string, unknown>).currentAssessedValue : null,
+    ]);
+    const cacheKey = `llm:appraisal:${source}:${hashLLMInput([propertyData, propertyType, scenario])}:${evidenceHash}`;
 
     const analysis = await withLLMCache<AppraisalAnalysis>(cacheKey, source, 24 * 3600, async () => {
       let rawJson: string;

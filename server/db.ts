@@ -427,6 +427,11 @@ export interface PhotoAnalysisRecord {
   appealStrengthDelta: number;
   topObservations: string[];
   topValueIssues: string[];
+  // USPAP evidence fields persisted from photoAnalyzer
+  uspapRatings: string[];
+  assessorBlindSpotItems: string[];
+  functionalObsolescenceItems: string[];
+  summaryParagraph: string;
 }
 
 /**
@@ -448,6 +453,10 @@ export async function getLatestPhotoAnalysis(submissionId: number): Promise<Phot
         appealStrengthDelta: meta.appealStrengthDelta ?? 0,
         topObservations: meta.topObservations ?? [],
         topValueIssues: meta.topValueIssues ?? [],
+        uspapRatings: meta.uspapRatings ?? [],
+        assessorBlindSpotItems: meta.assessorBlindSpotItems ?? [],
+        functionalObsolescenceItems: meta.functionalObsolescenceItems ?? [],
+        summaryParagraph: meta.summaryParagraph ?? "",
       };
     } catch {
       // skip malformed

@@ -36,6 +36,7 @@ Respond with ONLY one of these values (no explanation):
 - unknown (cannot determine)`;
 
       const response = await invokeLLM({
+        provider: "anthropic",
         // The classifier returns a single short label — no need to allocate
         // 32K output tokens per call. This caps the response budget.
         maxTokens: 32,

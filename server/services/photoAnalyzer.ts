@@ -41,14 +41,20 @@ export interface PhotoFinding {
   url: string;
   category: SubmissionPhoto["category"];
   caption?: string;
-  /** 0-100; higher = property is in BETTER condition than typical */
+  /** 0-100; higher = property is in BETTER condition than typical (for owner) */
   conditionScore: number;
   /** Descriptive condition rating */
   conditionLabel: "excellent" | "good" | "average" | "fair" | "poor";
-  /** Concrete, verifiable observations (max ~5 short bullets) */
+  /** USPAP C1-C6 condition rating */
+  uspapRating?: "C1" | "C2" | "C3" | "C4" | "C5" | "C6";
+  /** Concrete, verifiable observations (max ~7 short bullets) */
   observations: string[];
-  /** Items that, if present, would tend to support a downward valuation */
+  /** Items that support a downward valuation adjustment */
   valueImpactingIssues: string[];
+  /** Functional obsolescence items identified */
+  functionalObsolescence: string[];
+  /** Issues the assessor cannot know without interior access — uniquely powerful */
+  assessorBlindSpots: string[];
   /** 0-100; how strongly this single photo supports the appeal narrative */
   evidenceStrength: number;
 }
@@ -65,8 +71,16 @@ export interface PhotoAnalysisSummary {
   topObservations: string[];
   /** Top value-impacting issues across all photos, deduped (max 6) */
   topValueIssues: string[];
+  /** Functional obsolescence items found across all photos */
+  functionalObsolescenceItems: string[];
+  /** Interior/hidden defects the assessor cannot know (their blind spot) */
+  assessorBlindSpotItems: string[];
+  /** USPAP condition ratings found, e.g. ["C3", "C4"] */
+  uspapRatings: string[];
   /** One-paragraph professional summary suitable for the PDF report */
   summaryParagraph: string;
+  /** Formatted block ready to inject into the appraisal LLM prompt */
+  llmContext: string;
 }
 
 const PHOTO_VISION_TIMEOUT_MS = 25_000;
@@ -74,15 +88,79 @@ const PHOTO_VISION_TIMEOUT_MS = 25_000;
 // Stable system prompt — prompt-cached by Claude when multiple photos are
 // analyzed in sequence (e.g. the 8-photo cap per submission). The cache
 // eliminates repeated input-token costs for the identical instructions.
+// PHOTO_SYSTEM_PROMPT — the single most important lever for photo-based advocacy.
+//
+// Property tax assessors almost never have interior access. They drive by,
+// snap a street photo, and rely on permit records that may be years out of date.
+// Our client's uploaded photos are a legally powerful evidentiary advantage that
+// the assessor literally cannot rebut without an interior inspection.
+//
+// This prompt trains the vision model to:
+//   1. Identify USPAP Condition Ratings C1–C6 and explain each one
+//   2. Catch functional obsolescence the assessor missed entirely
+//   3. Produce evidence-grade language — short, neutral, verifiable phrases that
+//      survive cross-examination without puffery or speculation
+//   4. Flag interior-specific defects (the assessor's blind spot):
+//      outdated kitchens/baths, exposed/damaged mechanicals, moisture intrusion,
+//      structural settling, deferred maintenance throughout
+//   5. Size the valuation impact in percentage-of-value terms when clear
 const PHOTO_SYSTEM_PROMPT =
-  "You are a meticulous property condition analyst. You produce evidence-based, " +
-  "non-prescriptive observations. You never give legal advice and never overstate " +
-  "what an image shows. Output valid JSON only with these exact fields: " +
-  "conditionScore (0-100 integer, higher = better condition), " +
-  "conditionLabel (one of: excellent | good | average | fair | poor), " +
-  "observations (array of short neutral verifiable phrases, max 5), " +
-  "valueImpactingIssues (array of defect phrases that support lower value, max 5), " +
-  "evidenceStrength (0-100 integer, how strongly this photo supports the appeal).";
+  "You are a USPAP-certified property condition analyst preparing photographic " +
+  "evidence for a property tax appeal. Your role is to be the best possible " +
+  "advocate for the property owner, within the strict bounds of observable fact. " +
+  "Assessors NEVER have interior access — interior photos you receive are " +
+  "uniquely powerful evidence the assessor cannot rebut.\n\n" +
+
+  "CONDITION RATING SCALE (USPAP C1–C6):\n" +
+  "C1 = New/never occupied — no wear\n" +
+  "C2 = No deferred maintenance — updated finishes if older\n" +
+  "C3 = Minor deferred maintenance, cosmetic wear — normal effective age\n" +
+  "C4 = Obvious deferred maintenance — mechanicals need repair soon\n" +
+  "C5 = Poor condition — major repairs needed, diminished utility\n" +
+  "C6 = Substantial damage — structurally compromised, needs renovation\n\n" +
+
+  "FUNCTIONAL OBSOLESCENCE CATEGORIES (strong appeal levers):\n" +
+  "• Outdated kitchen (pre-2000 cabinets, laminate surfaces, original appliances)\n" +
+  "• Outdated bath (original fixtures, pink/blue tile, tub/shower combo only)\n" +
+  "• Single-car or carport in a 2-car garage market\n" +
+  "• Low ceiling heights (<8 ft in living areas)\n" +
+  "• No central A/C in warm climate\n" +
+  "• Galvanized, polybutylene, or cast-iron plumbing visible\n" +
+  "• Knob-and-tube or aluminum wiring indicators\n" +
+  "• Oil heat or wall-unit HVAC in forced-air market\n" +
+  "• Asbestos tile, popcorn ceiling, or vermiculite visible\n" +
+  "• Dated electrical panel (Zinsco, FPE, fuse box)\n\n" +
+
+  "DEFERRED MAINTENANCE CATALOGUE (most common appeal evidence):\n" +
+  "• Roof: granule loss, missing/cracked shingles, flashing failure, moss/lichen\n" +
+  "• Exterior: peeling paint, wood rot, damaged siding, failing caulk\n" +
+  "• Foundation: visible cracks (horizontal = severe), efflorescence, spalling\n" +
+  "• Interior: water stains on ceiling/walls/floors (moisture intrusion), " +
+  "soft/damaged subflooring, cracked plaster, mold indicators\n" +
+  "• Windows: fogged/failed sealed units, original single-pane, wood-frame rot\n" +
+  "• HVAC: visible rust, non-functioning units, age indicators\n\n" +
+
+  "EVIDENCE LANGUAGE RULES:\n" +
+  "• Describe ONLY what is VISIBLE. Never speculate beyond the image.\n" +
+  "• Use short, neutral, verifiable phrases — no adjectives like 'significant' " +
+  "or 'serious' unless the defect is unambiguous.\n" +
+  "• Quantify when possible: 'approximately 30% of visible shingles show granule " +
+  "loss', '3 ceiling stains consistent with water intrusion', '4-inch horizontal " +
+  "crack in south foundation wall'.\n" +
+  "• Never give legal advice, never state appeal conclusions, never recommend " +
+  "specific dollar adjustments.\n\n" +
+
+  "Output valid JSON only with these exact fields:\n" +
+  "conditionScore (0-100 integer, higher = BETTER condition for the owner),\n" +
+  "conditionLabel (one of: excellent | good | average | fair | poor),\n" +
+  "uspapRating (one of: C1 | C2 | C3 | C4 | C5 | C6),\n" +
+  "observations (array of verifiable phrases, max 7),\n" +
+  "valueImpactingIssues (array of defect phrases that SUPPORT a LOWER value, max 7),\n" +
+  "functionalObsolescence (array of obsolescence items found, or empty array),\n" +
+  "assessorBlindSpots (array of issues the assessor cannot know without interior access, max 4),\n" +
+  "evidenceStrength (0-100 integer — how strongly this single photo supports the appeal;\n" +
+  "  90-100 = major defect clearly visible, 70-89 = clear condition issue, " +
+  "  50-69 = moderate deferred maintenance, 30-49 = minor cosmetic, <30 = limited evidence).";
 
 async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding | null> {
   try {
@@ -123,10 +201,13 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
     const userInstruction =
       `Photo category: ${photo.category} (showing ${categoryLabel}).\n` +
       (photo.caption ? `Owner caption: "${photo.caption}"\n` : "") +
-      `Describe ONLY what is visible. Do not speculate beyond evidence. ` +
-      `Do not make legal recommendations. Write each observation as a short, neutral, ` +
-      `verifiable phrase (e.g. "missing gutter on north elevation", "interior wall ` +
-      `staining consistent with prior moisture intrusion"). If a defect is unclear, omit it.\n` +
+      `This photo will be used as EVIDENCE in a property tax appeal hearing. ` +
+      `The assessor has NOT seen the interior of this property — interior photos ` +
+      `are uniquely powerful evidence they cannot challenge without an inspection. ` +
+      `Identify EVERY condition defect, functional obsolescence item, and deferred ` +
+      `maintenance issue visible. Be thorough — missing an issue means losing ` +
+      `potential valuation support for the owner. ` +
+      `Describe ONLY what is visible. Write as short, neutral, verifiable phrases. ` +
       `Return JSON only.`;
 
     let rawJson: string;
@@ -197,14 +278,22 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
     const conditionScore = clampScore(parsed.conditionScore);
     const evidenceStrength = clampScore(parsed.evidenceStrength);
 
+    const validUspap = ["C1","C2","C3","C4","C5","C6"];
+    const uspapRating = validUspap.includes(parsed.uspapRating as string)
+      ? (parsed.uspapRating as PhotoFinding["uspapRating"])
+      : undefined;
+
     return {
       url: photo.url,
       category: photo.category,
       caption: photo.caption,
       conditionScore,
       conditionLabel: parsed.conditionLabel,
-      observations: (parsed.observations || []).slice(0, 5).map(s => s.trim()).filter(Boolean),
-      valueImpactingIssues: (parsed.valueImpactingIssues || []).slice(0, 5).map(s => s.trim()).filter(Boolean),
+      uspapRating,
+      observations: (parsed.observations || []).slice(0, 7).map(s => s.trim()).filter(Boolean),
+      valueImpactingIssues: (parsed.valueImpactingIssues || []).slice(0, 7).map(s => s.trim()).filter(Boolean),
+      functionalObsolescence: (parsed.functionalObsolescence || []).slice(0, 6).map(s => s.trim()).filter(Boolean),
+      assessorBlindSpots: (parsed.assessorBlindSpots || []).slice(0, 4).map(s => s.trim()).filter(Boolean),
       evidenceStrength,
     };
   } catch (err) {
@@ -247,6 +336,10 @@ export async function analyzePropertyPhotos(
     topObservations: [],
     topValueIssues: [],
     summaryParagraph: "",
+    functionalObsolescenceItems: [],
+    assessorBlindSpotItems: [],
+    uspapRatings: [],
+    llmContext: "",
   };
 
   if (!photos || photos.length === 0) return empty;
@@ -297,12 +390,21 @@ export async function analyzePropertyPhotos(
 
   const topObservations = dedupeShort(
     findings.flatMap(f => f.observations),
-    6,
+    8,
   );
   const topValueIssues = dedupeShort(
     findings.flatMap(f => f.valueImpactingIssues),
+    8,
+  );
+  const functionalObsolescenceItems = dedupeShort(
+    findings.flatMap(f => f.functionalObsolescence),
     6,
   );
+  const assessorBlindSpotItems = dedupeShort(
+    findings.flatMap(f => f.assessorBlindSpots),
+    6,
+  );
+  const uspapRatings = Array.from(new Set(findings.map(f => f.uspapRating).filter(Boolean))) as string[];
 
   const conditionWord =
     overallConditionScore >= 80 ? "above-average"
@@ -311,15 +413,58 @@ export async function analyzePropertyPhotos(
     : "materially impaired";
 
   const issuesClause = topValueIssues.length
-    ? ` Documented condition items observed in the photographs include ${topValueIssues.slice(0, 3).join("; ")}.`
+    ? ` Documented condition items observed in the photographs include: ${topValueIssues.slice(0, 4).join("; ")}.`
+    : "";
+
+  const blindSpotClause = assessorBlindSpotItems.length
+    ? ` Interior access by the assessor has not occurred; the following defects are visible only to the owner ` +
+      `and were not available to the assessor at the time of assessment: ${assessorBlindSpotItems.join("; ")}.`
+    : "";
+
+  const obsolescenceClause = functionalObsolescenceItems.length
+    ? ` Functional obsolescence items identified: ${functionalObsolescenceItems.join("; ")}.`
     : "";
 
   const summaryParagraph =
     `Visual inspection of ${findings.length} owner-submitted photograph${findings.length === 1 ? "" : "s"} ` +
     `indicates the subject property presents in ${conditionWord} condition relative to typical ` +
-    `comparable inventory (composite condition index: ${overallConditionScore}/100).` +
+    `comparable inventory (composite condition index: ${overallConditionScore}/100` +
+    (uspapRatings.length ? `; USPAP condition rating${uspapRatings.length > 1 ? "s" : ""}: ${uspapRatings.join(", ")}` : "") +
+    `).` +
     issuesClause +
+    blindSpotClause +
+    obsolescenceClause +
     ` These observations are descriptive in nature and supplement — but do not replace — the comparable-sales analysis.`;
+
+  // Rich LLM context block for injection into the appraisal prompt
+  const llmContextParts: string[] = [
+    `## Photo Evidence Analysis (${findings.length} owner-submitted photo${findings.length === 1 ? "" : "s"})`,
+    `Composite Condition Index: ${overallConditionScore}/100 (${conditionWord})`,
+    uspapRatings.length ? `USPAP Rating(s): ${uspapRatings.join(", ")}` : "",
+    `Evidence Strength: ${overallEvidenceStrength}/100`,
+    "",
+  ];
+  if (topValueIssues.length) {
+    llmContextParts.push("### Condition Defects Supporting Lower Value");
+    topValueIssues.forEach(i => llmContextParts.push(`- ${i}`));
+    llmContextParts.push("");
+  }
+  if (assessorBlindSpotItems.length) {
+    llmContextParts.push("### Assessor Blind Spots (Interior — Assessor Has No Access)");
+    llmContextParts.push("*These defects are invisible to the assessor without an interior inspection.*");
+    assessorBlindSpotItems.forEach(i => llmContextParts.push(`- ${i}`));
+    llmContextParts.push("");
+  }
+  if (functionalObsolescenceItems.length) {
+    llmContextParts.push("### Functional Obsolescence");
+    functionalObsolescenceItems.forEach(i => llmContextParts.push(`- ${i}`));
+    llmContextParts.push("");
+  }
+  if (topObservations.length) {
+    llmContextParts.push("### Additional Verified Observations");
+    topObservations.slice(0, 5).forEach(i => llmContextParts.push(`- ${i}`));
+  }
+  const llmContext = llmContextParts.filter(s => s !== undefined).join("\n");
 
   return {
     findings,
@@ -328,6 +473,10 @@ export async function analyzePropertyPhotos(
     appealStrengthDelta: delta,
     topObservations,
     topValueIssues,
+    functionalObsolescenceItems,
+    assessorBlindSpotItems,
+    uspapRatings,
     summaryParagraph,
+    llmContext,
   };
 }

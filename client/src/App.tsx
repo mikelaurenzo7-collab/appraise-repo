@@ -11,6 +11,7 @@ import { ShimmerCard } from "./components/ShimmerSkeleton";
 // Eager: landing + 404 (instant first paint, smallest fallback surface).
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
 // Lazy: everything else. Each becomes its own chunk so the initial JS
 // payload is the landing page only -- every other route loads on demand.
 const HowItWorks = lazy(() => import("./pages/HowItWorks"));
@@ -57,6 +58,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/tax-appeals" component={TaxAppeals} />
       <Route path="/pricing" component={Pricing} />

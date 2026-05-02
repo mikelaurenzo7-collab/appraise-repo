@@ -1,35 +1,27 @@
 /**
- * geminiResearch.ts
- * Elite dual-model research engine powered by Google Gemini.
+ * geminiResearch.ts  (Claude-powered — legacy name retained for import compat)
+ * Research engine powered by Claude + Anthropic web_search tool.
  *
  * ARCHITECTURE:
- *   • Gemini 2.5 Pro  — Deep market research synthesis (Google Search grounding)
- *     Reads actual web pages, synthesizes findings, returns structured market intelligence.
- *   • Gemini 2.5 Flash — Fast county info extraction and document parsing
+ *   • Claude Sonnet 4 + web_search_20250305 — Deep market research with live web grounding
+ *     Searches the web, synthesizes findings, returns structured market intelligence.
+ *   • Claude Sonnet 4 + web_search_20250305 — Fast county info extraction
  *     Grounded search for county assessor portals, deadlines, filing procedures.
- *
- * Gemini 2.5 Pro reads and synthesizes sources directly via Google Search grounding
  *
  * PIPELINE INTEGRATION:
  *   analysisJob.ts  → runPropertyResearch() → feeds into analyzeProperty()
  *   counties router → lookupCountyInfo()    → feeds into county eligibility
  *
- * EXPORTED INTERFACE: GeminiInsight, GeminiResearchResult, CountyInfo —
- * analysisJob.ts and appraisalAnalyzer.ts require minimal changes.
+ * EXPORTED INTERFACE: unchanged — GeminiInsight, GeminiResearchResult, CountyInfo
  */
 
-import { ENV } from "../_core/env";
+import { getClaudeClient } from "../_core/claude";
+import { callAnthropic } from "../_core/llmProviders";
 import { getStateRules } from "./stateAssessmentRules";
 
-// ─── Models ───────────────────────────────────────────────────────────────────
+// ─── Types (kept for backward compatibility) ─────────────────────────────────
 
-const GEMINI_PRO   = "gemini-2.5-pro";    // Deep research + synthesis
-const GEMINI_FLASH = "gemini-2.5-flash";  // Fast extraction + county lookup
-const GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1/models";
-
-// ─── Types (Gemini-native types) ─────────────────────────
-
-/** A single web source cited by Gemini */
+/** A single web source cited in research */
 export interface GeminiSource {
   title: string;
   link: string;
@@ -84,103 +76,96 @@ export interface PropertySearchContext {
   assessedValue?: number;
 }
 
-// ─── Core Gemini API Call ─────────────────────────────────────────────────────
+// ─── Core Claude Web-Search Call ─────────────────────────────────────────────
 
-interface GeminiPart {
-  text: string;
+function extractHostname(url: string): string {
+  try { return new URL(url).hostname.replace("www.", ""); }
+  catch { return url; }
 }
 
-interface GeminiContent {
-  role: "user" | "model";
-  parts: GeminiPart[];
-}
-
-interface GeminiGroundingChunk {
-  web?: { uri: string; title: string };
-}
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: { parts?: GeminiPart[] };
-    groundingMetadata?: {
-      groundingChunks?: GeminiGroundingChunk[];
-      webSearchQueries?: string[];
-    };
-  }>;
-  error?: { code: number; message: string; status: string };
-}
-
-async function callGemini(
-  model: string,
-  contents: GeminiContent[],
-  useGrounding = true,
-  timeoutMs = 25000
+/**
+ * Call Claude Sonnet with the web_search_20250305 built-in tool.
+ * Anthropic's servers execute the searches; we get a synthesized text response
+ * plus structured source citations from the web_search_tool_result blocks.
+ *
+ * Falls back to a plain Claude call (no live search) if web_search fails —
+ * Claude's training knowledge is still highly useful for property research.
+ */
+async function callClaudeWithWebSearch(
+  prompt: string,
+  timeoutMs = 30000,
 ): Promise<{ text: string; sources: GeminiSource[] }> {
-  const apiKey = ENV.geminiApiKey;
-  if (!apiKey) {
-    console.warn("[Gemini] GEMINI_API_KEY not set — skipping research");
+  const client = getClaudeClient();
+  if (!client) {
+    console.warn("[Research] ANTHROPIC_API_KEY not set — skipping research");
     return { text: "", sources: [] };
   }
 
-  const body: Record<string, unknown> = { contents };
-
-  if (useGrounding) {
-    body.tools = [{ googleSearch: {} }];
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Research timeout")), ms),
+      ),
+    ]);
 
   try {
-    const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    // Beta messages API supports the web_search_20250305 built-in tool.
+    // Anthropic's servers execute each search; Claude synthesizes across results.
+    const response = await withTimeout(
+      (client.beta.messages as unknown as {
+        create: (params: Record<string, unknown>) => Promise<{ content: Array<Record<string, unknown>> }>;
+      }).create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8000,
+        betas: ["web-search-2025-03-05"],
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [{ role: "user", content: prompt }],
+      }),
+      timeoutMs,
+    );
 
-    clearTimeout(timer);
+    let text = "";
+    const sources: GeminiSource[] = [];
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.warn(`[Gemini] API error ${res.status} for model ${model}: ${errText.slice(0, 200)}`);
-      return { text: "", sources: [] };
+    for (const block of response.content) {
+      if (block["type"] === "text") {
+        text += String(block["text"] ?? "");
+      } else if (block["type"] === "web_search_tool_result") {
+        const content = block["content"];
+        if (Array.isArray(content)) {
+          for (const result of content as Array<Record<string, unknown>>) {
+            if (result["type"] === "web_search_result" && result["url"]) {
+              sources.push({
+                title: String(result["title"] ?? ""),
+                link: String(result["url"]),
+                snippet: "",
+                source: extractHostname(String(result["url"])),
+              });
+            }
+          }
+        }
+      }
     }
-
-    const data: GeminiResponse = await res.json();
-
-    if (data.error) {
-      console.warn(`[Gemini] API returned error: ${data.error.message}`);
-      return { text: "", sources: [] };
-    }
-
-    const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.map((p) => p.text).join("") ?? "";
-
-    // Extract grounding sources
-    const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
-    const sources: GeminiSource[] = chunks
-      .filter((c) => c.web?.uri)
-      .map((c) => ({
-        title: c.web!.title ?? "",
-        link: c.web!.uri,
-        snippet: "",
-        source: (() => {
-          try { return new URL(c.web!.uri).hostname.replace("www.", ""); }
-          catch { return c.web!.uri; }
-        })(),
-      }));
 
     return { text, sources };
   } catch (err: unknown) {
-    clearTimeout(timer);
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("abort")) {
-      console.warn(`[Gemini] Request timed out after ${timeoutMs}ms for model ${model}`);
-    } else {
-      console.warn(`[Gemini] Request failed for model ${model}: ${msg}`);
+    console.warn(`[Research] Claude web search failed (${msg}) — falling back to knowledge-only`);
+
+    // Plain Claude call — no live search, but still produces structured research
+    // from Claude's training knowledge. Silently degrades rather than blocking.
+    try {
+      const fallbackText = await callAnthropic(
+        [{ role: "user" as const, content: prompt }],
+        "claude-sonnet-4-20250514",
+        6000,
+      );
+      return { text: fallbackText, sources: [] };
+    } catch (fallbackErr: unknown) {
+      console.warn("[Research] Claude fallback also failed:", (fallbackErr as Error).message);
+      return { text: "", sources: [] };
     }
-    return { text: "", sources: [] };
   }
 }
 
@@ -374,24 +359,22 @@ function parseResearchIntoInsights(
 // ─── Main Exports ─────────────────────────────────────────────────────────────
 
 /**
- * Runs comprehensive property research using Gemini 2.5 Pro with Google Search grounding.
- * Performs one deep synthesis call that
- * reads the source pages and returns structured market intelligence.
+ * Runs comprehensive property research using Claude + web_search_20250305.
+ * Performs one deep synthesis call with live web search grounding and returns
+ * structured market intelligence for each appeal scenario.
  *
  * Primary property research function
  */
 export async function runPropertyResearch(
   ctx: PropertySearchContext
 ): Promise<GeminiInsight[]> {
-  console.log(`[Gemini] Starting property research for ${ctx.address}, ${ctx.state}`);
+  console.log(`[Research] Starting Claude web-search research for ${ctx.address}, ${ctx.state}`);
 
   const prompt = buildResearchPrompt(ctx);
 
-  const { text, sources } = await callGemini(
-    GEMINI_PRO,
-    [{ role: "user", parts: [{ text: prompt }] }],
-    true,  // Use Google Search grounding
-    30000  // 30s timeout for deep research
+  const { text, sources } = await callClaudeWithWebSearch(
+    prompt,
+    30000, // 30s timeout for deep research
   );
 
   if (!text) {
@@ -408,9 +391,8 @@ export async function runPropertyResearch(
 }
 
 /**
- * Looks up county filing info using Gemini 2.5 Flash with Google Search grounding.
- * Performs one intelligent lookup that
- * reads the actual county assessor portal and returns structured filing data.
+ * Looks up county filing info using Claude + web_search_20250305.
+ * Searches official county assessor portals and returns structured filing data.
  *
  * Dynamic county information lookup
  */
@@ -418,21 +400,19 @@ export async function lookupCountyInfo(
   countyName: string,
   state: string
 ): Promise<DynamicCountyInfo> {
-  console.log(`[Gemini] Looking up county info for ${countyName}, ${state}`);
+  console.log(`[Research] Looking up county info for ${countyName}, ${state}`);
 
   const prompt = buildCountyLookupPrompt(countyName, state);
 
-  const { text, sources } = await callGemini(
-    GEMINI_FLASH,
-    [{ role: "user", parts: [{ text: prompt }] }],
-    true,  // Use Google Search grounding
-    20000  // 20s timeout
+  const { text, sources } = await callClaudeWithWebSearch(
+    prompt,
+    20000, // 20s timeout
   );
 
   const sourceUrls = sources.map((s) => s.link).filter(Boolean).slice(0, 6);
 
   if (!text) {
-    console.warn(`[Gemini] County lookup returned empty for ${countyName}, ${state}`);
+    console.warn(`[Research] County lookup returned empty for ${countyName}, ${state}`);
     return emptyCountyInfo(countyName, state, sourceUrls);
   }
 
@@ -460,146 +440,16 @@ export async function lookupCountyInfo(
       sources: sourceUrls,
     };
 
-    console.log(`[Gemini] ✓ County lookup complete for ${countyName}, ${state} — confidence: ${result.confidence}, deadline: ${result.appealDeadline ?? "not found"}`);
+    console.log(`[Research] ✓ County lookup complete for ${countyName}, ${state} — confidence: ${result.confidence}, deadline: ${result.appealDeadline ?? "not found"}`);
     return result;
   } catch (err) {
-    console.warn(`[Gemini] Failed to parse county info JSON for ${countyName}, ${state}:`, err);
+    console.warn(`[Research] Failed to parse county info JSON for ${countyName}, ${state}:`, err);
     return emptyCountyInfo(countyName, state, sourceUrls);
   }
 }
 
 /**
- * Analyzes property photos using Gemini 2.5 Pro's multimodal vision.
- * Returns a condition assessment with cost-to-cure estimates for appeal evidence.
- */
-export async function analyzePropertyPhotos(
-  photoUrls: string[],
-  propertyType: string,
-  address: string
-): Promise<{
-  conditionScore: number;       // 1-5 scale (1=poor, 5=excellent)
-  conditionNotes: string;       // Detailed condition observations
-  defectsFound: string[];       // List of specific defects/issues
-  costToCureEstimate: number;   // Estimated repair cost in dollars
-  appealImpact: string;         // How condition affects appeal strength
-}> {
-  if (!photoUrls.length) {
-    return {
-      conditionScore: 3,
-      conditionNotes: "No photos provided — condition assumed average.",
-      defectsFound: [],
-      costToCureEstimate: 0,
-      appealImpact: "No photo evidence available for condition adjustment.",
-    };
-  }
-
-  const apiKey = ENV.geminiApiKey;
-  if (!apiKey) {
-    return {
-      conditionScore: 3,
-      conditionNotes: "Photo analysis unavailable — API key not configured.",
-      defectsFound: [],
-      costToCureEstimate: 0,
-      appealImpact: "No photo evidence available.",
-    };
-  }
-
-  // Build multimodal content with images
-  const parts: Array<{ text: string } | { inlineData?: { mimeType: string; data: string } } | { fileData?: { mimeType: string; fileUri: string } }> = [
-    {
-      text: `You are a certified property appraiser conducting a condition inspection for a property tax appeal.
-
-Property: ${address}
-Property Type: ${propertyType}
-
-Analyze these ${photoUrls.length} property photo(s) and provide a detailed condition assessment. Focus on:
-
-1. OVERALL CONDITION SCORE (1-5):
-   1 = Poor (major deferred maintenance, structural issues)
-   2 = Fair (significant repairs needed, dated systems)
-   3 = Average (typical wear and tear, functional)
-   4 = Good (well-maintained, minor updates needed)
-   5 = Excellent (recently renovated, like-new condition)
-
-2. SPECIFIC DEFECTS OBSERVED:
-   List every visible defect, deferred maintenance item, or condition issue that would reduce value:
-   - Roof condition (missing shingles, sagging, age)
-   - Exterior (siding damage, paint peeling, foundation cracks)
-   - Windows (broken, fogged, single-pane)
-   - HVAC/mechanical (visible age, condition)
-   - Interior (dated finishes, water damage, flooring condition)
-   - Landscaping/site (drainage issues, overgrowth)
-
-3. COST-TO-CURE ESTIMATE:
-   Estimate the total cost to bring the property to average condition.
-   Use current contractor rates. Be specific (e.g., "roof replacement: $12,000").
-
-4. APPEAL IMPACT:
-   Explain in 2-3 sentences how the observed condition supports a lower assessed value.
-   Reference specific defects that an assessor may not have accounted for.
-
-Return your analysis as JSON:
-{
-  "conditionScore": number (1-5),
-  "conditionNotes": "detailed paragraph describing overall condition",
-  "defectsFound": ["defect 1", "defect 2", ...],
-  "costToCureEstimate": number (total dollars),
-  "appealImpact": "2-3 sentences on how condition supports lower value"
-}`,
-    },
-  ];
-
-  // Add image URLs as file references
-  for (const url of photoUrls.slice(0, 8)) { // Max 8 photos
-    parts.push({
-      fileData: {
-        mimeType: "image/jpeg",
-        fileUri: url,
-      },
-    });
-  }
-
-  try {
-    const res = await fetch(`${GEMINI_BASE}/${GEMINI_PRO}:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-      }),
-    });
-
-    if (!res.ok) {
-      throw new Error(`API error ${res.status}`);
-    }
-
-    const data: GeminiResponse = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") ?? "";
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in photo analysis response");
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      conditionScore: Math.min(5, Math.max(1, Number(parsed.conditionScore) || 3)),
-      conditionNotes: parsed.conditionNotes ?? "Condition analysis unavailable.",
-      defectsFound: Array.isArray(parsed.defectsFound) ? parsed.defectsFound : [],
-      costToCureEstimate: Number(parsed.costToCureEstimate) || 0,
-      appealImpact: parsed.appealImpact ?? "",
-    };
-  } catch (err) {
-    console.warn("[Gemini] Photo analysis failed:", err instanceof Error ? err.message : err);
-    return {
-      conditionScore: 3,
-      conditionNotes: "Photo analysis failed — condition assumed average.",
-      defectsFound: [],
-      costToCureEstimate: 0,
-      appealImpact: "Photo analysis unavailable.",
-    };
-  }
-}
-
-/**
- * Formats all Gemini insights into a single block of text for LLM consumption.
+ * Formats all research insights into a single block of text for LLM consumption.
  * Format research insights for LLM context injection
  */
 export function formatInsightsForLLM(insights: GeminiInsight[]): string {
@@ -621,7 +471,7 @@ export function formatInsightsForLLM(insights: GeminiInsight[]): string {
 
   if (!sections.length) return "";
 
-  return `\n\n## Gemini Market Intelligence (Live Research — Google Grounded)\n${sections.join("\n\n")}`;
+  return `\n\n## Claude Market Intelligence (Live Web Research)\n${sections.join("\n\n")}`;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

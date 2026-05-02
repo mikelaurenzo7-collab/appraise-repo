@@ -195,6 +195,10 @@ export default function GetStarted() {
   const [selectedCountyId, setSelectedCountyId] = useState<number | null>(null);
   const [photoSubmissionId, setPhotoSubmissionId] = useState<number | null>(null);
   const [photosUploaded, setPhotosUploaded] = useState<number>(0);
+  const [ownerAttestation, setOwnerAttestation] = useState(false);
+  const [taxBillUploading, setTaxBillUploading] = useState(false);
+  const [taxBillUploaded, setTaxBillUploaded] = useState(false);
+  const [taxBillData, setTaxBillData] = useState<Record<string, unknown> | null>(null);
   const [, navigate] = useLocation();
 
   // Fire once when the user first interacts (not on mount), so page views
@@ -260,6 +264,37 @@ export default function GetStarted() {
     }
   );
 
+  const uploadTaxBillMutation = trpc.payments.uploadTaxBill.useMutation({
+    onSuccess: (data) => {
+      setTaxBillUploaded(true);
+      setTaxBillData(data.taxBillData as Record<string, unknown>);
+      toast.success("Tax bill uploaded and processed!");
+    },
+    onError: (e) => toast.error(e.message || "Failed to upload tax bill"),
+  });
+
+  const handleTaxBillFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !photoSubmissionId) return;
+    setTaxBillUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const base64 = (ev.target?.result as string).split(",")[1];
+        uploadTaxBillMutation.mutate({
+          submissionId: photoSubmissionId,
+          fileData: base64,
+          fileName: file.name,
+        });
+        setTaxBillUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setTaxBillUploading(false);
+      toast.error("Failed to read file");
+    }
+  };
+
   // Pre-submission: create a draft submission to get an ID for photo uploads
   const preMutation = trpc.properties.submitAddress.useMutation({
     onSuccess: (data) => {
@@ -311,10 +346,13 @@ export default function GetStarted() {
     setStep((s) => s + 1);
   };
 
-  // Step 2 → Step 3: pre-create submission to get ID for photo uploads
+  // Step 2 → Step 3: verify attestation, then pre-create submission for uploads
   const handleGoToPhotos = () => {
+    if (!ownerAttestation) {
+      toast.error("Please confirm that you are the property owner or authorized representative.");
+      return;
+    }
     if (photoSubmissionId) {
-      // Already created, just advance
       setStep(3);
       return;
     }
@@ -351,13 +389,13 @@ export default function GetStarted() {
             <span className="gold-rule" />
             <h1 className="font-display text-3xl lg:text-4xl font-bold text-[#0F172A] mb-3">
               {step === 1 && "Tell Us About Your Property"}
-              {step === 2 && "Your Contact Information"}
-              {step === 3 && "Add Property Photos"}
+              {step === 2 && "Contact Info & Ownership"}
+              {step === 3 && "Upload Evidence"}
             </h1>
             <p className="text-[#64748B]">
               {step === 1 && "Enter your property address and type for the most accurate analysis."}
               {step === 2 && "We'll send your analysis results and keep you updated on your appeal."}
-              {step === 3 && "Photos give our AI visual evidence of your property's condition — a major advantage over the assessor's records."}
+              {step === 3 && "Tax bill + photos give our AI the strongest possible evidence package — the assessor has never seen inside your home."}
             </p>
           </div>
 
@@ -741,23 +779,37 @@ export default function GetStarted() {
                 >
                   <ArrowLeft size={16} /> Back
                 </button>
-                <button
-                  type="button"
-                  onClick={handleGoToPhotos}
-                  disabled={preMutation.isPending}
-                  className="btn-gold flex-1 py-3.5 rounded text-base font-semibold flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {preMutation.isPending ? (
-                    <><div className="w-4 h-4 border-2 border-[#020617] border-t-transparent rounded-full animate-spin" />Saving...</>
-                  ) : (
-                    <>Continue <ArrowRight size={18} /></>
-                  )}
-                </button>
+                <div className="flex-1 space-y-3">
+                  {/* Ownership attestation — required before proceeding */}
+                  <label className="flex items-start gap-3 p-4 rounded-xl border border-[#E2E8F0] bg-white cursor-pointer hover:border-[#7C3AED]/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={ownerAttestation}
+                      onChange={(e) => setOwnerAttestation(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 accent-[#7C3AED] shrink-0"
+                    />
+                    <span className="text-xs text-[#374151] leading-relaxed">
+                      <span className="font-semibold text-[#0F172A]">I confirm</span> that I am the owner of record or an authorized representative of the property above, and that the information provided is accurate to the best of my knowledge. I understand that AppraiseAI uses this to prepare a property tax appeal analysis solely for my use.
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGoToPhotos}
+                    disabled={preMutation.isPending || !ownerAttestation}
+                    className="btn-gold w-full py-3.5 rounded text-base font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {preMutation.isPending ? (
+                      <><div className="w-4 h-4 border-2 border-[#020617] border-t-transparent rounded-full animate-spin" />Saving...</>
+                    ) : (
+                      <>Continue to Evidence Upload <ArrowRight size={18} /></>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* ─── STEP 3: Photo Upload ─── */}
+          {/* ─── STEP 3: Evidence Upload (Tax Bill + Photos) ─── */}
           {step === 3 && (
             <div className="space-y-6">
               {/* Why photos matter callout */}
@@ -771,24 +823,88 @@ export default function GetStarted() {
                 </div>
               </div>
 
-              {/* Photo upload component */}
-              {photoSubmissionId && (
-                <PhotoUpload
-                  submissionId={photoSubmissionId}
-                  onPhotosUploaded={(count) => setPhotosUploaded(count)}
-                  maxPhotos={12}
-                />
-              )}
+              {/* ── Tax Bill Upload ── */}
+              <div className="rounded-xl border border-[#E2E8F0] bg-white overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-[#F1F5F9] bg-[#FAFAFA]">
+                  <div className="w-8 h-8 rounded-lg bg-[#2563EB]/10 flex items-center justify-center shrink-0">
+                    <FileText size={16} className="text-[#2563EB]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-[#0F172A]">Upload Your Tax Bill <span className="text-[#94A3B8] font-normal">(recommended)</span></div>
+                    <div className="text-xs text-[#64748B]">We OCR your bill to extract your APN, exact assessed value, tax rate, and year-over-year changes.</div>
+                  </div>
+                </div>
+                <div className="p-5 space-y-3">
+                  {taxBillUploaded && taxBillData ? (
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="text-xs text-emerald-800 space-y-0.5">
+                        <div className="font-semibold">Tax bill processed ✓</div>
+                        {taxBillData.apn != null && <div>APN: {String(taxBillData.apn as string)}</div>}
+                        {taxBillData.currentAssessedValue != null && <div>Assessed Value: ${Number(taxBillData.currentAssessedValue as number).toLocaleString()}</div>}
+                        {taxBillData.annualTaxAmount != null && <div>Annual Tax: ${Number(taxBillData.annualTaxAmount as number).toLocaleString()}</div>}
+                        {taxBillData.effectiveTaxRate != null && <div>Effective Rate: {(Number(taxBillData.effectiveTaxRate as number) * 100).toFixed(3)}%</div>}
+                      </div>
+                    </div>
+                  ) : (
+                    <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors text-sm font-medium ${taxBillUploading ? "border-[#2563EB]/40 text-[#2563EB] bg-[#EFF6FF]" : "border-[#CBD5E1] text-[#64748B] hover:border-[#2563EB]/50 hover:text-[#2563EB] hover:bg-[#EFF6FF]"}`}>
+                      {taxBillUploading
+                        ? <><div className="w-4 h-4 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" /> Processing...</>
+                        : <><FileText size={16} /> Upload Tax Bill (JPG, PNG, PDF)</>
+                      }
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        disabled={!photoSubmissionId || taxBillUploading}
+                        onChange={handleTaxBillFile}
+                      />
+                    </label>
+                  )}
+                  <div className="grid grid-cols-3 gap-2 text-xs text-[#64748B]">
+                    <div className="flex items-center gap-1"><CheckCircle2 size={11} className="text-[#7C3AED]" /> Extracts APN</div>
+                    <div className="flex items-center gap-1"><CheckCircle2 size={11} className="text-[#7C3AED]" /> Actual tax rate</div>
+                    <div className="flex items-center gap-1"><CheckCircle2 size={11} className="text-[#7C3AED]" /> YoY assessment trend</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Photo Upload ── */}
+              <div className="rounded-xl border border-[#E2E8F0] bg-white overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-[#F1F5F9] bg-[#FAFAFA]">
+                  <div className="w-8 h-8 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center shrink-0">
+                    <Shield size={16} className="text-[#7C3AED]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-[#0F172A]">Property Photos <span className="text-[#94A3B8] font-normal">(major advantage)</span></div>
+                    <div className="text-xs text-[#64748B]">The assessor has never been inside your home. Interior photos of defects are evidence they cannot challenge.</div>
+                  </div>
+                </div>
+                <div className="p-5">
+                  {photoSubmissionId && (
+                    <PhotoUpload
+                      submissionId={photoSubmissionId}
+                      onPhotosUploaded={(count) => setPhotosUploaded(count)}
+                      maxPhotos={12}
+                    />
+                  )}
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[#64748B]">
+                    {["Roof condition", "Outdated kitchen/bath", "Water damage / stains", "Foundation cracks", "Aging mechanicals", "Deferred maintenance"].map(h => (
+                      <div key={h} className="flex items-center gap-1"><CheckCircle2 size={11} className="text-[#7C3AED]" /> {h}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               {/* What happens next */}
               <div className="p-5 rounded-xl bg-[#0F172A]/5 border border-[#0F172A]/10">
                 <div className="text-xs font-semibold text-[#0F172A] uppercase tracking-widest mb-3">What Happens Next</div>
                 <div className="space-y-2.5">
                   {[
-                    "AI queries 4 property data APIs simultaneously",
-                    "Your photos are analyzed for condition adjustments",
-                    "Comparable sales and market data are analyzed",
-                    "LLM generates your personalized appraisal report",
+                    "Claude OCRs your tax bill → extracts APN, assessed value, tax rate",
+                    "Claude vision analyzes each photo for appeal evidence",
+                    "4 property data APIs queried for comps and market data",
+                    "Claude Opus generates USPAP-aligned valuation with full evidence",
                     "Results ready in 30–60 seconds",
                   ].map((item, i) => (
                     <div key={i} className="flex items-start gap-2.5 text-sm text-[oklch(0.35_0.04_255)]">
@@ -821,9 +937,9 @@ export default function GetStarted() {
                   className="btn-gold flex-1 py-3.5 rounded text-base font-semibold flex items-center justify-center gap-2"
                 >
                   <Zap size={18} />
-                  {photosUploaded > 0
-                    ? `Start Analysis with ${photosUploaded} Photo${photosUploaded !== 1 ? 's' : ''}`
-                    : 'Start Analysis (Skip Photos)'}
+                  {photosUploaded > 0 || taxBillUploaded
+                    ? `Start Analysis${taxBillUploaded ? " + Tax Bill" : ""}${photosUploaded > 0 ? ` + ${photosUploaded} Photo${photosUploaded !== 1 ? "s" : ""}` : ""}`
+                    : "Start Analysis"}
                 </button>
               </div>
 

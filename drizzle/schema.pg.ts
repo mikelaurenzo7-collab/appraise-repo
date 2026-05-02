@@ -302,6 +302,16 @@ export const propertySubmissions = pgTable("property_submissions", {
   roadmapUrl: varchar("roadmap_url", { length: 500 }),
   lat: varchar("lat", { length: 20 }),
   lng: varchar("lng", { length: 20 }),
+  // Tax bill upload + OCR extraction
+  taxBillUrl: varchar("tax_bill_url", { length: 500 }),
+  apn: varchar("apn", { length: 100 }),           // Assessor Parcel Number from tax bill
+  annualTaxAmount: integer("annual_tax_amount"),   // Actual annual tax from bill
+  effectiveTaxRate: decimal("effective_tax_rate", { precision: 6, scale: 5 }), // from bill
+  priorYearAssessedValue: integer("prior_year_assessed_value"), // for trend analysis
+  taxBillData: text("tax_bill_data"),              // full JSON blob from OCR
+  // Ownership verification
+  ownerAttestation: boolean("owner_attestation").default(false),
+  ownerAttestationAt: timestamp("owner_attestation_at", { withTimezone: true }),
   status: submissionStatusEnum("status").default("pending").notNull(),
   filingMethod: filingMethodEnum("filing_method"),
   createdAt: timestamp("created_at", { withTimezone: true })

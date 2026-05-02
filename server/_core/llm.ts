@@ -70,10 +70,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }));
 
   let text: string;
-  if (provider === "anthropic") {
-    text = await callAnthropic(flatMessages, model, tokenLimit);
-  } else {
+  if (provider === "gemini") {
+    // Explicit opt-in to Gemini (legacy / testing only)
     text = await callGemini(flatMessages, model, tokenLimit);
+  } else {
+    // Default: Anthropic Claude — fast, reliable, no Gemini credits required
+    text = await callAnthropic(flatMessages, model, tokenLimit);
   }
 
   return {

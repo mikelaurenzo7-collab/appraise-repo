@@ -1,0 +1,12 @@
+import postgres from "postgres";
+const url = "postgresql://postgres.paixbscktsamtgjjlkdm:appraiseaivercel@aws-1-us-east-2.pooler.supabase.com:6543/postgres";
+const sql = postgres(url, { prepare: false, connect_timeout: 10, max: 1 });
+const rows = await sql`SELECT id, address, city, state, zip_code, email, status, filing_method, created_at FROM property_submissions ORDER BY id DESC LIMIT 5`;
+console.log("recent submissions:");
+for (const r of rows) console.log(JSON.stringify(r));
+const pa = await sql`SELECT id, submission_id, executive_summary FROM property_analysis WHERE submission_id = ${rows[0]?.id ?? 0}`;
+console.log("analysis rows:", pa.length);
+for (const r of pa) console.log("  exec:", (r.executive_summary || "").slice(0, 200));
+const pp = await sql`SELECT id, submission_id, category FROM property_photos WHERE submission_id = ${rows[0]?.id ?? 0}`;
+console.log("photos:", pp.length);
+await sql.end({ timeout: 1 });

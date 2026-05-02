@@ -10,7 +10,7 @@
  * memory survives.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createApp } from "../server/_core/index";
+import { createApp } from "../../server/_core/index";
 
 let appPromise: ReturnType<typeof createApp> | null = null;
 

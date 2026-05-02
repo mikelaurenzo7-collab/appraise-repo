@@ -25,6 +25,8 @@ import {
   Heart,
   TrendingUp,
   Info,
+  Eye,
+  Receipt,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -895,6 +897,144 @@ export default function AnalysisResults() {
           </div>
         </div>
       </section>
+
+      {/* ─── EVIDENCE PANELS: Photo + Tax Bill ─────────────────────────── */}
+      {(data?.photoEvidence || data?.taxBill) && (
+        <section className="pb-12">
+          <div className="container">
+            <div className="grid lg:grid-cols-2 gap-6">
+
+              {/* Photo Evidence Panel */}
+              {data?.photoEvidence && (
+                <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center">
+                      <Eye size={16} className="text-[#7C3AED]" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-[#64748B] uppercase tracking-widest">Photo Evidence</div>
+                      <div className="text-sm font-semibold text-[#0F172A]">
+                        {data.photoEvidence.photoCount} Photo{data.photoEvidence.photoCount !== 1 ? "s" : ""} Analyzed
+                      </div>
+                    </div>
+                    <div className="ml-auto text-right">
+                      <div className="text-2xl font-bold text-[#0F172A]">{data.photoEvidence.overallConditionScore}</div>
+                      <div className="text-xs text-[#64748B]">/ 100 Condition</div>
+                    </div>
+                  </div>
+
+                  {data.photoEvidence.summaryParagraph && (
+                    <p className="text-sm text-[#64748B] leading-relaxed mb-4">{data.photoEvidence.summaryParagraph}</p>
+                  )}
+
+                  {data.photoEvidence.assessorBlindSpotItems.length > 0 && (
+                    <div className="mb-4">
+                      <div className="text-xs font-semibold text-[#7C3AED] uppercase tracking-wide mb-2">
+                        🔒 Assessor Blind Spots (Interior)
+                      </div>
+                      <div className="space-y-1.5">
+                        {data.photoEvidence.assessorBlindSpotItems.map((item: string, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-[#0F172A]">
+                            <Shield size={11} className="text-[#7C3AED] mt-0.5 shrink-0" />
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {data.photoEvidence.functionalObsolescenceItems.length > 0 && (
+                    <div className="mb-4">
+                      <div className="text-xs font-semibold text-[#64748B] uppercase tracking-wide mb-2">
+                        Functional Obsolescence
+                      </div>
+                      <div className="space-y-1.5">
+                        {data.photoEvidence.functionalObsolescenceItems.map((item: string, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-[#64748B]">
+                            <TrendingDown size={11} className="text-amber-500 mt-0.5 shrink-0" />
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {data.photoEvidence.uspapRatings.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {data.photoEvidence.uspapRatings.map((r: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full bg-[#7C3AED]/10 text-[#7C3AED] text-xs font-semibold">
+                          USPAP {r}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tax Bill Panel */}
+              {data?.taxBill && (
+                <div className="p-6 rounded-xl bg-white border border-[#E2E8F0] shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-[#2563EB]/10 flex items-center justify-center">
+                      <Receipt size={16} className="text-[#2563EB]" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-[#64748B] uppercase tracking-widest">Tax Bill Data</div>
+                      <div className="text-sm font-semibold text-[#0F172A]">
+                        {data.taxBill.apn ? `APN: ${data.taxBill.apn}` : "Extracted from Tax Bill"}
+                      </div>
+                    </div>
+                    {data.taxBill.taxYear && (
+                      <div className="ml-auto px-2 py-0.5 rounded-full bg-[#2563EB]/10 text-[#2563EB] text-xs font-semibold">
+                        Tax Year {data.taxBill.taxYear}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {data.taxBill.currentAssessedValue != null && (
+                      <div className="p-3 rounded-lg bg-[#F1F5F9]">
+                        <div className="text-xs text-[#64748B] mb-1">Assessed Value</div>
+                        <div className="font-bold text-[#0F172A]">${Number(data.taxBill.currentAssessedValue).toLocaleString()}</div>
+                      </div>
+                    )}
+                    {data.taxBill.annualTaxAmount != null && (
+                      <div className="p-3 rounded-lg bg-[#F1F5F9]">
+                        <div className="text-xs text-[#64748B] mb-1">Annual Tax</div>
+                        <div className="font-bold text-[#0F172A]">${Number(data.taxBill.annualTaxAmount).toLocaleString()}</div>
+                      </div>
+                    )}
+                    {data.taxBill.effectiveTaxRate != null && (
+                      <div className="p-3 rounded-lg bg-[#F1F5F9]">
+                        <div className="text-xs text-[#64748B] mb-1">Effective Rate</div>
+                        <div className="font-bold text-[#0F172A]">{(Number(data.taxBill.effectiveTaxRate) * 100).toFixed(3)}%</div>
+                      </div>
+                    )}
+                    {data.taxBill.priorYearAssessedValue != null && data.taxBill.currentAssessedValue != null && (
+                      <div className="p-3 rounded-lg bg-[#F1F5F9]">
+                        <div className="text-xs text-[#64748B] mb-1">YoY Change</div>
+                        <div className={`font-bold ${Number(data.taxBill.currentAssessedValue) > Number(data.taxBill.priorYearAssessedValue) ? "text-red-600" : "text-emerald-600"}`}>
+                          {Number(data.taxBill.currentAssessedValue) > Number(data.taxBill.priorYearAssessedValue) ? "+" : ""}
+                          {(((Number(data.taxBill.currentAssessedValue) - Number(data.taxBill.priorYearAssessedValue)) / Number(data.taxBill.priorYearAssessedValue)) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {data.taxBill.appealDeadline && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                      <Clock size={14} className="text-amber-600 shrink-0" />
+                      <div className="text-xs text-amber-800">
+                        <span className="font-semibold">Appeal Deadline:</span> {data.taxBill.appealDeadline}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Next Steps */}
       {analysis?.nextSteps && analysis.nextSteps.length > 0 && (
