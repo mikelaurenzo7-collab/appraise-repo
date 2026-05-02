@@ -743,6 +743,13 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
             equalizationGap: uniformity.equalizationGap,
             argument: uniformity.uniformityArgument,
             strength: uniformity.uniformityStrength,
+            // Per-comp ratio rows so the PDF can render a verifiable table.
+            comparableRatios: uniformity.comparableRatios.map((c) => ({
+              address: c.address,
+              salePrice: c.salePrice,
+              assessedValue: c.assessedValue,
+              assessmentRatio: c.assessmentRatio,
+            })),
           },
           recordErrors: {
             hasErrors: recordErrors.hasErrors,

@@ -79,17 +79,28 @@ describe("Scenario Valuation Engine", () => {
       expect(adjusted).toBeLessThanOrEqual(357000); // 340k * 1.05
     });
 
-    it("blends income approach for rental property", () => {
+    it("does NOT inject a synthetic 50/50 income blend for rental property", () => {
+      // Prior version applied annualRent * 0.6 / 0.08 then blended 50/50 with
+      // the market-value estimate. Both the 0.6 expense ratio and the 0.08
+      // cap rate were synthetic constants. Now removed: the LLM appraisal
+      // pipeline handles income approach for rental scenarios using the
+      // actual rental comps, and only the documented condition + market-
+      // condition adjustments touch the value here.
       const adjusted = calculateScenarioAdjustedValue(350000, "rental_property", mockPropertyData);
-      // NOI = 2200 * 12 * 0.6 = 15840; value = 15840 / 0.08 = 198000
-      // Blended: 350000 * 0.5 + 198000 * 0.5 = 274000
-      expect(adjusted).toBeLessThan(350000);
+      // The result should be the base value adjusted by the scenario's
+      // condition + market-condition multipliers — NOT halved by an
+      // invented income-approach figure.
+      expect(adjusted).toBeGreaterThanOrEqual(300000);
     });
 
-    it("returns floor for distressed with square footage", () => {
+    it("does NOT apply a synthetic $/sqft cost floor for distressed properties", () => {
+      // Prior version forced adjusted value ≥ squareFeet * $60. That floor
+      // was a fabricated number injected into the marketValueEstimate that
+      // landed in the appeal record. Removed; the value flows from the
+      // documented condition / market-condition adjustments only.
       const data = { ...mockPropertyData, squareFeet: 1000 };
       const adjusted = calculateScenarioAdjustedValue(50000, "distressed_condition", data);
-      expect(adjusted).toBeGreaterThanOrEqual(60000); // 1000 * 60 floor
+      expect(adjusted).toBeLessThan(60000); // No synthetic floor — base * adjustments only
     });
 
     it("leaves primary residence value mostly unchanged", () => {

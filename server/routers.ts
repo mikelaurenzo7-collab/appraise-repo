@@ -522,6 +522,19 @@ export const appRouter = router({
               comparableSales: safeJsonParse<unknown[]>(analysis.comparableSales, [], "routers.analysis.comparableSales"),
               appealStrengthFactors: safeJsonParse<string[]>(analysis.appealStrengthFactors, [], "routers.analysis.appealStrengthFactors"),
               nextSteps: safeJsonParse<unknown[]>(analysis.nextSteps, [], "routers.analysis.nextSteps"),
+              // Surface the three-grounds persuasion package + hearing prep
+              // doc to the dashboard. These are persisted inside scenarioContext
+              // JSON to avoid a schema migration; the client renders them as
+              // standalone sections on /analysis.
+              scenarioContext: safeJsonParse<{
+                scenario?: string;
+                scenarioLabel?: string;
+                urgencyLevel?: string;
+                uniformity?: unknown;
+                recordErrors?: unknown;
+                persuasionBrief?: unknown;
+                hearingPrep?: unknown;
+              } | null>(analysis.scenarioContext, null, "routers.analysis.scenarioContext"),
             } : null,
             outcome: outcome || null,
             activityLogs: activityLogs || [],

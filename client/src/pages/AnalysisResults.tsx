@@ -540,6 +540,119 @@ export default function AnalysisResults() {
         </section>
       )}
 
+      {/* ─── PERSUASION BRIEF — 60-SECOND SUMMARY + RANKED GROUNDS ─────── */}
+      {(() => {
+        const ctx = (analysis as { scenarioContext?: { persuasionBrief?: { sixtySecondSummary?: string; prayerForRelief?: string; rankedGrounds?: Array<{ ground: string; strength: number; headline: string; bullets: string[] }>; exhibitIndex?: Array<{ tag: string; title: string; description: string }> } } } | null)?.scenarioContext;
+        const brief = ctx?.persuasionBrief;
+        if (!brief?.sixtySecondSummary) return null;
+        const groundLabel = (g: string) =>
+          g === "market_value"
+            ? "Excessive Market Value"
+            : g === "uniformity"
+              ? "Lack of Uniformity"
+              : g === "record_errors"
+                ? "Errors of Fact in Assessor's Record"
+                : g;
+        const activeGrounds = (brief.rankedGrounds ?? []).filter((g) => g.strength > 10);
+        return (
+          <section className="pb-12">
+            <div className="container">
+              <div className="rounded-2xl bg-gradient-to-br from-[#0F172A] via-[#1E1B4B] to-[#0F172A] text-white p-6 sm:p-8 shadow-xl border border-white/10">
+                <div className="flex items-center gap-2 mb-4">
+                  <Scale size={16} className="text-[#FBBF24]" />
+                  <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#A78BFA]">
+                    Persuasion Brief — 60-Second Summary
+                  </span>
+                </div>
+                <p className="text-sm sm:text-base leading-relaxed text-white/85">
+                  {brief.sixtySecondSummary}
+                </p>
+                {brief.prayerForRelief && (
+                  <p className="mt-4 text-xs italic text-white/60 border-t border-white/10 pt-3">
+                    {brief.prayerForRelief}
+                  </p>
+                )}
+              </div>
+
+              {activeGrounds.length > 0 && (
+                <div className="mt-6 grid md:grid-cols-3 gap-4">
+                  {activeGrounds.map((g, i) => (
+                    <div
+                      key={`${g.ground}-${i}`}
+                      className="p-5 rounded-xl bg-white border border-[#E2E8F0] shadow-sm"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-semibold tracking-wider uppercase text-[#7C3AED]">
+                          Ground {i + 1}
+                        </span>
+                        <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#F3F0FF] text-[#5B21B6]">
+                          {g.strength}/100
+                        </span>
+                      </div>
+                      <h4 className="font-display text-sm font-bold text-[#0F172A] mb-2 leading-tight">
+                        {groundLabel(g.ground)}
+                      </h4>
+                      <p className="text-xs text-[#64748B] leading-relaxed line-clamp-4">
+                        {g.headline}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ─── HEARING PREP CALL-OUT — owner-only study guide ─────────────── */}
+      {(() => {
+        const ctx = (analysis as { scenarioContext?: { hearingPrep?: { openingStatement?: string; anticipatedQuestions?: unknown[]; preHearingChecklist?: string[] } } } | null)?.scenarioContext;
+        const hp = ctx?.hearingPrep;
+        if (!hp?.openingStatement) return null;
+        return (
+          <section className="pb-12">
+            <div className="container">
+              <div className="rounded-2xl bg-white border-2 border-[#FBBF24]/40 p-6 sm:p-8 shadow-sm relative overflow-hidden">
+                <div
+                  aria-hidden="true"
+                  className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-[#FBBF24] opacity-10 blur-2xl"
+                />
+                <div className="flex items-center gap-2 mb-3 relative">
+                  <Star size={14} className="text-[#FBBF24]" />
+                  <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#7C3AED]">
+                    Owner Study Guide
+                  </span>
+                </div>
+                <h3 className="font-display text-xl sm:text-2xl font-bold text-[#0F172A] mb-2 relative">
+                  Your hearing prep is ready
+                </h3>
+                <p className="text-sm text-[#64748B] mb-5 max-w-2xl leading-relaxed relative">
+                  Opening + closing scripts, talking points for each ground,{" "}
+                  <strong className="text-[#0F172A]">{hp.anticipatedQuestions?.length ?? 0} anticipated assessor questions</strong> with verbatim
+                  response templates, per-comparable walkthroughs, and a{" "}
+                  <strong className="text-[#0F172A]">{hp.preHearingChecklist?.length ?? 0}-item</strong> pre-hearing checklist.
+                  Studied the night before. <span className="text-[#7C3AED]">Owner copy only — never seen by the assessor.</span>
+                </p>
+                <div className="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-4 mb-5 relative">
+                  <div className="text-[10px] font-semibold tracking-wider uppercase text-[#64748B] mb-1.5">
+                    Opening preview
+                  </div>
+                  <p className="text-xs text-[#0F172A] leading-relaxed line-clamp-3">
+                    {hp.openingStatement}
+                  </p>
+                </div>
+                <Link
+                  href={`/report?id=${submissionId}`}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F172A] text-white text-sm font-semibold hover:bg-[#1E293B] transition-colors relative"
+                >
+                  Open full hearing prep <ArrowRight size={14} />
+                </Link>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
       {/* ─── SCENARIO-SPECIFIC UPSELL PROMPTS ─────────────────────────────── */}
       {submission?.userScenario && submission.userScenario !== "none" && (() => {
         const scenario = submission.userScenario as string;

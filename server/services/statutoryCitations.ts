@@ -152,6 +152,186 @@ const CITATIONS: Record<string, StatutoryCitations> = {
     practitionerNotes:
       "Local Board of Assessors → Appellate Tax Board (ATB) or county commissioners; deadline typically by date of first installment due (varies by city).",
   },
+
+  // ─── NEW JERSEY ────────────────────────────────────────────────────────────
+  NJ: {
+    state: "New Jersey",
+    stateCode: "NJ",
+    marketValueGround:
+      "N.J.S.A. 54:4-1 (true value standard); 54:3-22 (county tax board appeal on overvaluation).",
+    uniformityGround:
+      "N.J. Const. Art. VIII §1 ¶1 (uniform rule of taxation); N.J.S.A. 54:51A-6 (Tax Court review under the common-level-ratio Chapter 123 ratio test).",
+    recordErrorGround:
+      "N.J.S.A. 54:4-43 (correction of clerical or factual errors in the assessment list).",
+    filingForm: "Form A-1 (Petition of Appeal — County Tax Board); Form 10001 (Tax Court).",
+    practitionerNotes:
+      "County Board of Taxation → Tax Court of New Jersey; deadline April 1 (or May 1 in counties undergoing revaluation).",
+  },
+
+  // ─── OHIO ──────────────────────────────────────────────────────────────────
+  OH: {
+    state: "Ohio",
+    stateCode: "OH",
+    marketValueGround:
+      "Ohio Rev. Code §5713.03 (true value in money standard); §5715.19(A) (complaint against valuation to county Board of Revision).",
+    uniformityGround:
+      "Ohio Const. Art. XII §2 (uniform tax rule); §5715.19 BOR jurisdiction encompasses uniformity challenges.",
+    recordErrorGround:
+      "Ohio Rev. Code §5713.20 (correction of records); §5715.19(A)(2)–(7) (BOR jurisdiction over factual errors in the assessment).",
+    filingForm: "DTE 1 (Complaint Against the Valuation of Real Property)",
+    practitionerNotes:
+      "County Board of Revision (BOR) → Ohio Board of Tax Appeals (BTA) or Common Pleas Court; deadline March 31 of the year following the tax year.",
+  },
+
+  // ─── PENNSYLVANIA ──────────────────────────────────────────────────────────
+  PA: {
+    state: "Pennsylvania",
+    stateCode: "PA",
+    marketValueGround:
+      "53 Pa.C.S. §8842 (assessment at predetermined ratio of actual value); county-specific appeal statutes (e.g., 72 P.S. §5347 second-class A counties).",
+    uniformityGround:
+      "Pa. Const. Art. VIII §1 (uniformity clause); Downingtown Area Sch. Dist. v. Chester Cnty. Bd. of Assessment Appeals (PA uniformity remedy via common-level-ratio).",
+    recordErrorGround:
+      "County assessment law (e.g., 53 Pa.C.S. §8853) authorizes revision for clerical / mathematical / factual errors in the assessment record.",
+    filingForm: "Annual Appeal Form (county-specific; e.g., Allegheny County Board of Property Assessment Appeals & Review Form).",
+    practitionerNotes:
+      "County Board of Assessment Appeals → Court of Common Pleas; annual appeal deadline typically Aug 1 or Sep 1 by county; interim appeals available on assessment changes.",
+  },
+
+  // ─── MICHIGAN ──────────────────────────────────────────────────────────────
+  MI: {
+    state: "Michigan",
+    stateCode: "MI",
+    marketValueGround:
+      "M.C.L. §211.27 (true cash value standard); §211.30 (Board of Review jurisdiction).",
+    uniformityGround:
+      "Mich. Const. Art. IX §3 (uniform rule of taxation; assessments at not more than 50% of true cash value); M.C.L. §205.737 (Tax Tribunal jurisdiction over uniformity).",
+    recordErrorGround:
+      "M.C.L. §211.53b (qualified-error correction); §211.154 (errors of fact).",
+    filingForm: "MTT Form (Michigan Tax Tribunal Petition); Form 4546 for Board of Review residential.",
+    practitionerNotes:
+      "Local Board of Review (March) → Michigan Tax Tribunal (MTT); residential MTT petition deadline July 31; commercial / industrial May 31.",
+  },
+
+  // ─── NORTH CAROLINA ────────────────────────────────────────────────────────
+  NC: {
+    state: "North Carolina",
+    stateCode: "NC",
+    marketValueGround:
+      "N.C. Gen. Stat. §105-283 (true value in money standard); §105-322 (county Board of Equalization and Review jurisdiction over value).",
+    uniformityGround:
+      "N.C. Const. Art. V §2(2) (just and equitable rule); §105-322 BER + §105-290 Property Tax Commission jurisdiction over uniformity.",
+    recordErrorGround:
+      "N.C. Gen. Stat. §105-322(g) (correction of clerical and factual errors); §105-381 (refund / release on assessment errors).",
+    filingForm: "AV-14 (Notice of Appeal); county-specific appeal forms.",
+    practitionerNotes:
+      "County Board of Equalization and Review → NC Property Tax Commission → Court of Appeals; BER session typically April-May.",
+  },
+
+  // ─── COLORADO ──────────────────────────────────────────────────────────────
+  CO: {
+    state: "Colorado",
+    stateCode: "CO",
+    marketValueGround:
+      "C.R.S. §39-1-103 (actual value standard, market approach for residential); §39-5-122 (assessor protest on grounds of value).",
+    uniformityGround:
+      "Colo. Const. Art. X §3 (uniform taxation); §39-8-108 (BAA jurisdiction encompasses uniformity).",
+    recordErrorGround:
+      "C.R.S. §39-5-125 (correction of errors); §39-10-114 (refund / abatement on factual errors).",
+    filingForm: "DR 4015 (Petition for Abatement / Refund); county-specific protest forms during May.",
+    practitionerNotes:
+      "County Assessor → County Board of Equalization → Board of Assessment Appeals (BAA) or District Court; protest period May 1-Jun 1 for real property.",
+  },
+
+  // ─── ARIZONA ───────────────────────────────────────────────────────────────
+  AZ: {
+    state: "Arizona",
+    stateCode: "AZ",
+    marketValueGround:
+      "A.R.S. §42-11001 (full cash value standard); §42-16201 (administrative appeal on grounds of value).",
+    uniformityGround:
+      "Ariz. Const. Art. IX §1 (uniform clause); §42-16252 (Tax Court jurisdiction encompasses uniformity / equalization).",
+    recordErrorGround:
+      "A.R.S. §42-16252 (correction of valuation / classification errors); §42-16215 (assessor's authority to correct).",
+    filingForm: "Petition for Review of Real Property Valuation (DOR-prescribed).",
+    practitionerNotes:
+      "County Assessor → State Board of Equalization (Maricopa, Pima) or County BOE → Arizona Tax Court; appeal deadline 60 days from notice mailing.",
+  },
+
+  // ─── WASHINGTON ────────────────────────────────────────────────────────────
+  WA: {
+    state: "Washington",
+    stateCode: "WA",
+    marketValueGround:
+      "RCW 84.40.030 (true and fair value standard); RCW 84.40.038 (petition to county Board of Equalization on grounds of value).",
+    uniformityGround:
+      "Wash. Const. Art. VII §1 (uniformity); RCW 84.48.010 (BOE equalization jurisdiction).",
+    recordErrorGround:
+      "RCW 84.48.065 (correction of manifest errors in the assessment).",
+    filingForm: "REV 64 0075 (Petition for Property Tax Refund / Adjustment); county-specific BOE petition forms.",
+    practitionerNotes:
+      "County Board of Equalization → Washington State Board of Tax Appeals (BTA); BOE petition typically due July 1 or 60 days from notice.",
+  },
+
+  // ─── VIRGINIA ──────────────────────────────────────────────────────────────
+  VA: {
+    state: "Virginia",
+    stateCode: "VA",
+    marketValueGround:
+      "Va. Code §58.1-3201 (fair market value standard); §58.1-3984 (judicial review on grounds of value).",
+    uniformityGround:
+      "Va. Const. Art. X §1 (uniform clause); §58.1-3379 (BOE equalization jurisdiction); §58.1-3984 (judicial uniformity remedy).",
+    recordErrorGround:
+      "Va. Code §58.1-3981 (correction of erroneous assessments).",
+    filingForm: "Locality-specific BOE application; Form for Application for Correction of Erroneous Assessment.",
+    practitionerNotes:
+      "Local Commissioner of the Revenue → Board of Equalization → Circuit Court; Application deadline varies by locality (often 1-3 years from assessment).",
+  },
+
+  // ─── MINNESOTA ─────────────────────────────────────────────────────────────
+  MN: {
+    state: "Minnesota",
+    stateCode: "MN",
+    marketValueGround:
+      "Minn. Stat. §273.11 (estimated market value standard); §274.01 (Local Board of Appeal and Equalization).",
+    uniformityGround:
+      "Minn. Const. Art. X §1 (uniform tax); §271.06 (MN Tax Court jurisdiction over equalization / uniformity).",
+    recordErrorGround:
+      "Minn. Stat. §273.13 + §272.02 (classification + factual error correction); §274.01 (LBAE jurisdiction over factual errors).",
+    filingForm: "Minnesota Tax Court Real Estate Petition; county-specific LBAE application.",
+    practitionerNotes:
+      "Local Board → County Board of Appeal and Equalization → MN Tax Court (regular or small-claims division); Tax Court petition deadline April 30 of year following.",
+  },
+
+  // ─── MISSOURI ──────────────────────────────────────────────────────────────
+  MO: {
+    state: "Missouri",
+    stateCode: "MO",
+    marketValueGround:
+      "Mo. Rev. Stat. §137.115 (true value in money standard); §138.060 (county BOE protest on grounds of value).",
+    uniformityGround:
+      "Mo. Const. Art. X §3 (uniform clause); §138.430 (State Tax Commission appeal on grounds of overvaluation OR unequal assessment).",
+    recordErrorGround:
+      "Mo. Rev. Stat. §137.270 (correction of errors); §139.031 (refund on factual error).",
+    filingForm: "Form 11A (Application for Hearing — STC); county-specific BOE complaint forms.",
+    practitionerNotes:
+      "County BOE → State Tax Commission → Circuit Court; BOE deadline typically second Monday in July; STC appeal deadline Aug 15 or 30 days from BOE decision.",
+  },
+
+  // ─── MARYLAND ──────────────────────────────────────────────────────────────
+  MD: {
+    state: "Maryland",
+    stateCode: "MD",
+    marketValueGround:
+      "Md. Tax-Property Code §8-104 (full cash value standard); §14-503 (administrative appeal on grounds of value).",
+    uniformityGround:
+      "Md. Const. Decl. of Rights Art. 15 (uniform rule); §14-512 (Property Tax Assessment Appeals Board jurisdiction over uniformity).",
+    recordErrorGround:
+      "Md. Tax-Property §14-1001 (correction of errors); §14-503 (administrative correction on factual error).",
+    filingForm: "Petition for Review (filed with the Supervisor of Assessments) — SDAT-prescribed form.",
+    practitionerNotes:
+      "Supervisor of Assessments → Property Tax Assessment Appeals Board (PTAAB) → Maryland Tax Court → Circuit Court; petition deadline 45 days from assessment notice.",
+  },
 };
 
 /**

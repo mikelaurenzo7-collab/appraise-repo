@@ -154,6 +154,18 @@ export interface AppraisalReportData {
     equalizationGap: number;
     argument: string;
     strength: number;
+    /**
+     * Per-comp ratio rows used to derive the median. Rendered as a table
+     * in the Equity & Uniformity section so the assessor can verify each
+     * underlying number against their own roll. Optional for
+     * backward-compatibility with old analysis rows.
+     */
+    comparableRatios?: Array<{
+      address: string;
+      salePrice: number;
+      assessedValue?: number;
+      assessmentRatio?: number;
+    }>;
   };
   recordErrors?: {
     hasErrors: boolean;
@@ -1981,6 +1993,70 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       y = kvTable(doc, eqRows, y, cw, { highlight: true });
 
       y = bodyText(doc, u.argument, y, cw);
+
+      // Per-comp ratio table — every comp the analyzer used to derive the
+      // peer-median, with assessor's own roll data. The assessor can verify
+      // each row directly against their database. Comps without a usable
+      // assessment ratio are intentionally omitted (no fabrication).
+      const usable = (u.comparableRatios ?? []).filter(
+        (r) => r.assessmentRatio !== undefined && r.assessedValue !== undefined,
+      );
+      if (usable.length > 0) {
+        y += 8;
+        y = ensureSpace(doc, y, 60, reportId, pageCounter);
+        y = subHeader(doc, "Per-Parcel Assessment Ratios (from the Assessor's Own Roll)", y, cw);
+
+        const colW = cw / 4;
+        const headerH = 22;
+        const rowH = 20;
+        // Table header
+        y = ensureSpace(doc, y, headerH + rowH * (usable.length + 1), reportId, pageCounter);
+        doc.rect(LM, y, cw, headerH).fill(NAVY);
+        doc.fontSize(8).fillColor(WHITE).font("Helvetica-Bold");
+        doc.text("Parcel Address", LM + 6, y + 6, { width: colW * 1.6 - 6, lineBreak: false });
+        doc.text("Sale Price", LM + colW * 1.6, y + 6, { width: colW * 0.8, align: "right", lineBreak: false });
+        doc.text("Assessed Value", LM + colW * 2.4, y + 6, { width: colW * 0.8, align: "right", lineBreak: false });
+        doc.text("Ratio", LM + colW * 3.2, y + 6, { width: colW * 0.8 - 6, align: "right", lineBreak: false });
+        y += headerH;
+
+        // Subject row (highlighted)
+        doc.rect(LM, y, cw, rowH).lineWidth(0.5).fillAndStroke(LIGHT_BG, PURPLE);
+        doc.fontSize(8).fillColor(NAVY).font("Helvetica-Bold");
+        doc.text("SUBJECT", LM + 6, y + 5, { width: colW * 1.6 - 6, lineBreak: false });
+        doc.text(fmt(data.assessedValue ? Math.round(data.assessedValue / u.subjectRatio) : null), LM + colW * 1.6, y + 5, { width: colW * 0.8, align: "right", lineBreak: false });
+        doc.text(fmt(data.assessedValue), LM + colW * 2.4, y + 5, { width: colW * 0.8, align: "right", lineBreak: false });
+        doc.text(fmtPct(u.subjectRatio * 100), LM + colW * 3.2, y + 5, { width: colW * 0.8 - 6, align: "right", lineBreak: false });
+        y += rowH;
+
+        // Comp rows
+        for (let i = 0; i < usable.length; i++) {
+          const r = usable[i];
+          const bg = i % 2 === 0 ? WHITE : LIGHT_BG;
+          y = ensureSpace(doc, y, rowH, reportId, pageCounter);
+          doc.rect(LM, y, cw, rowH).lineWidth(0.3).fillAndStroke(bg, BORDER);
+          doc.fontSize(7.5).fillColor(BODY_TEXT).font("Helvetica");
+          doc.text(r.address, LM + 6, y + 5, { width: colW * 1.6 - 6, lineBreak: false, ellipsis: true });
+          doc.text(fmt(r.salePrice), LM + colW * 1.6, y + 5, { width: colW * 0.8, align: "right", lineBreak: false });
+          doc.text(fmt(r.assessedValue ?? null), LM + colW * 2.4, y + 5, { width: colW * 0.8, align: "right", lineBreak: false });
+          doc.text(
+            r.assessmentRatio !== undefined ? fmtPct(r.assessmentRatio * 100) : "—",
+            LM + colW * 3.2, y + 5,
+            { width: colW * 0.8 - 6, align: "right", lineBreak: false },
+          );
+          y += rowH;
+        }
+
+        // Median footer row
+        doc.rect(LM, y, cw, rowH).lineWidth(0.5).fillAndStroke("#F8FAFC", PURPLE);
+        doc.fontSize(8).fillColor(NAVY).font("Helvetica-Bold");
+        doc.text(`Peer Median (n=${usable.length})`, LM + 6, y + 5, { width: colW * 3.2 - 6, lineBreak: false });
+        doc.text(
+          u.medianComparableRatio !== null ? fmtPct(u.medianComparableRatio * 100) : "—",
+          LM + colW * 3.2, y + 5,
+          { width: colW * 0.8 - 6, align: "right", lineBreak: false },
+        );
+        y += rowH + 8;
+      }
     } else {
       // No peer assessment-roll data available — say so plainly. Do not
       // estimate. This honesty preserves the credibility of the rest of

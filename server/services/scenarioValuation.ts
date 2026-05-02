@@ -736,26 +736,26 @@ export function calculateScenarioAdjustedValue(
   // Apply market conditions adjustment
   adjustedValue *= 1 + adjustments.marketConditionsAdjustment;
 
-  // For distressed properties, also consider cost approach floor
-  if (scenario === "distressed_condition" && propertyData.squareFeet) {
-    const costFloor = propertyData.squareFeet * 60; // $60/sqft minimum for distressed
-    adjustedValue = Math.max(adjustedValue, costFloor);
-  }
-
-  // For recently purchased, purchase price is the ceiling
+  // RECENTLY-PURCHASED CEILING: USPAP best evidence is an arms-length
+  // purchase. The owner cannot defensibly argue a market value materially
+  // ABOVE a recent arms-length purchase price — but assessors and boards
+  // routinely give a 3-5% allowance for normal market drift between sale
+  // and assessment date. We cap at +5% of the actual lastSalePrice (a real
+  // number, not a fabrication). The rationale is documentary: lastSalePrice
+  // is in the public record; this is a defensible ceiling, not a synthetic
+  // floor.
   if (scenario === "recently_purchased" && propertyData.lastSalePrice) {
-    adjustedValue = Math.min(adjustedValue, propertyData.lastSalePrice * 1.05); // Allow 5% market movement
+    adjustedValue = Math.min(adjustedValue, propertyData.lastSalePrice * 1.05);
   }
 
-  // For rental properties, ensure income approach is considered
-  if (scenario === "rental_property" && propertyData.rentalComps && propertyData.rentalComps.length > 0) {
-    const avgRent = propertyData.rentalComps.reduce((sum, c) => sum + c.monthlyRent, 0) / propertyData.rentalComps.length;
-    const annualRent = avgRent * 12;
-    const noi = annualRent * 0.6; // 40% expense ratio
-    const incomeValue = noi / 0.08; // 8% cap rate
-    // Blend market and income approaches
-    adjustedValue = adjustedValue * 0.5 + incomeValue * 0.5;
-  }
+  // NOTE: prior versions injected a $60/sqft "distressed-condition floor"
+  // and a 50/50 income-approach blend computed from a 40% expense ratio
+  // and 8% cap rate. Both have been removed because they put fabricated
+  // numbers into the marketValueEstimate that lands in the appeal record.
+  // The income approach for rental properties is handled by the LLM with
+  // the actual comp / rental data; if the owner needs an explicit income-
+  // approach valuation, the dedicated incomeApproachCalculator service is
+  // wired through the methodology integrator.
 
   return Math.round(adjustedValue);
 }
