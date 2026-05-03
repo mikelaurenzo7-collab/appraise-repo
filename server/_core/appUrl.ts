@@ -1,4 +1,4 @@
-const DEFAULT_PUBLIC_APP_URL = "https://appraise-ai.manus.space";
+const DEFAULT_PUBLIC_APP_URL = "https://appraise-repo.vercel.app";
 
 function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");
