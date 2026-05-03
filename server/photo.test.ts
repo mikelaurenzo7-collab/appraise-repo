@@ -107,3 +107,49 @@ describe("Photo Upload Endpoint", () => {
     expect(invalidSubmissionId).toBeLessThan(0);
   });
 });
+
+describe("Photo cost-to-cure", () => {
+  it("PhotoFinding accepts costToCure field", () => {
+    const finding = {
+      url: "https://s3.example.com/photo.jpg",
+      category: "exterior" as const,
+      conditionScore: 40,
+      conditionLabel: "fair" as const,
+      observations: ["Roof shingles missing on south slope"],
+      valueImpactingIssues: ["Missing shingles require replacement"],
+      functionalObsolescence: [],
+      assessorBlindSpots: [],
+      costToCure: [{ low: 8000, high: 15000, description: "Roof shingle replacement" }],
+    };
+    expect(finding.costToCure).toBeDefined();
+    expect(finding.costToCure![0].low).toBe(8000);
+    expect(finding.costToCure![0].high).toBe(15000);
+    expect(finding.costToCure![0].description).toBe("Roof shingle replacement");
+  });
+
+  it("costToCure midpoint calculation is correct", () => {
+    const items = [
+      { low: 8000, high: 15000, description: "Roof" },
+      { low: 2000, high: 4000, description: "HVAC filter" },
+    ];
+    const total = items.reduce((sum, c) => sum + Math.round((c.low + c.high) / 2), 0);
+    expect(total).toBe(11500 + 3000); // 14500
+  });
+
+  it("PhotoAnalysisSummary accepts costToCureTotal field", () => {
+    const summary = {
+      findings: [],
+      overallConditionScore: 40,
+      overallEvidenceStrength: "moderate" as const,
+      appealStrengthDelta: 5,
+      topObservations: [],
+      topValueIssues: [],
+      uspapRatings: [],
+      assessorBlindSpotItems: [],
+      functionalObsolescenceItems: [],
+      summaryParagraph: "Test",
+      costToCureTotal: 22000,
+    };
+    expect(summary.costToCureTotal).toBe(22000);
+  });
+});

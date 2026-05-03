@@ -39,6 +39,8 @@ export interface PropertyData {
   propertyTax?: number;
   comparableSales?: ComparableSale[];
   rentalComps?: RentalComp[];
+  /** Monthly rent per unit from RentCast */
+  marketRent?: number;
   /** Redfin region ID for the city — cached for subsequent queries */
   redfinRegionId?: string;
   source: string;

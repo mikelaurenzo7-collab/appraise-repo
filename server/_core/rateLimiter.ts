@@ -25,6 +25,18 @@ function userAwareKeyGen(req: Request): string {
 }
 
 /**
+ * Returns true when the request should bypass all rate limits.
+ * Only works in non-production environments.
+ * Uses a fixed well-known header value so Playwright tests can set it
+ * without needing any secret configuration — safe because NODE_ENV gate
+ * ensures this never fires in production.
+ */
+function isE2ETestRequest(req: Request): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  return req.headers['x-e2e-test-bypass'] === 'playwright-e2e-bypass-2026';
+}
+
+/**
  * Global rate limiter: 500 requests per 15 minutes.
  * Generous ceiling — only blocks genuine abuse, not normal usage.
  * Authenticated users are keyed by user ID so shared IPs (offices, NAT)
@@ -36,7 +48,7 @@ export const globalLimiter = rateLimit({
   handler: jsonHandler('Too many requests. Please try again in a few minutes.'),
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/health',
+  skip: (req) => req.path === '/health' || isE2ETestRequest(req),
   keyGenerator: userAwareKeyGen,
 });
 
@@ -66,6 +78,7 @@ export const apiLimiter = rateLimit({
   handler: jsonHandler('Too many API requests. Please slow down and try again.'),
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => isE2ETestRequest(req),
   keyGenerator: userAwareKeyGen,
 });
 

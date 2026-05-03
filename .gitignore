@@ -124,3 +124,4 @@ __pycache__/
 *.pyo
 .vercel
 .env*.local
+test-results/
