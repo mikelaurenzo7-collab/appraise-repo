@@ -58,6 +58,8 @@ export interface PhotoFinding {
   functionalObsolescence: string[];
   /** Issues the assessor cannot know without interior access — uniquely powerful */
   assessorBlindSpots: string[];
+  /** Dollar-range cost-to-cure estimates per value-impacting issue */
+  costToCure?: Array<{ low: number; high: number; description: string }>;
   /** 0-100; how strongly this single photo supports the appeal narrative */
   evidenceStrength: number;
 }
@@ -84,6 +86,8 @@ export interface PhotoAnalysisSummary {
   summaryParagraph: string;
   /** Formatted block ready to inject into the appraisal LLM prompt */
   llmContext: string;
+  /** Sum of midpoint cost-to-cure estimates across all findings (dollars) */
+  costToCureTotal?: number;
 }
 
 const PHOTO_VISION_TIMEOUT_MS = 25_000;
@@ -161,6 +165,10 @@ const PHOTO_SYSTEM_PROMPT =
   "valueImpactingIssues (array of defect phrases that SUPPORT a LOWER value, max 7),\n" +
   "functionalObsolescence (array of obsolescence items found, or empty array),\n" +
   "assessorBlindSpots (array of issues the assessor cannot know without interior access, max 4),\n" +
+  "costToCure: [{\"low\": <number>, \"high\": <number>, \"description\": \"<repair description>\"}]\n" +
+  "  // Include ONLY when a valueImpactingIssue has a clear repair cost (roof replacement, HVAC, foundation)\n" +
+  "  // Omit for cosmetic issues or when cost is speculative\n" +
+  "  // Typical ranges: minor repair $500-$2k, moderate $2k-$10k, major $10k-$50k\n" +
   "evidenceStrength (0-100 integer — how strongly this single photo supports the appeal;\n" +
   "  90-100 = major defect clearly visible, 70-89 = clear condition issue, " +
   "  50-69 = moderate deferred maintenance, 30-49 = minor cosmetic, <30 = limited evidence).";
@@ -287,6 +295,19 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
       ? (parsed.uspapRating as PhotoFinding["uspapRating"])
       : undefined;
 
+    const rawCostToCure = (parsed as any).costToCure;
+    const costToCure: PhotoFinding["costToCure"] = Array.isArray(rawCostToCure)
+      ? rawCostToCure
+          .filter(
+            (c: unknown) =>
+              c && typeof c === "object" &&
+              typeof (c as any).low === "number" &&
+              typeof (c as any).high === "number" &&
+              typeof (c as any).description === "string",
+          )
+          .map((c: any) => ({ low: c.low, high: c.high, description: c.description }))
+      : undefined;
+
     return {
       url: photo.url,
       category: photo.category,
@@ -298,6 +319,7 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
       valueImpactingIssues: (parsed.valueImpactingIssues || []).slice(0, 7).map(s => s.trim()).filter(Boolean),
       functionalObsolescence: (parsed.functionalObsolescence || []).slice(0, 6).map(s => s.trim()).filter(Boolean),
       assessorBlindSpots: (parsed.assessorBlindSpots || []).slice(0, 4).map(s => s.trim()).filter(Boolean),
+      ...(costToCure && costToCure.length > 0 ? { costToCure } : {}),
       evidenceStrength,
     };
   } catch (err) {
@@ -410,6 +432,10 @@ export async function analyzePropertyPhotos(
   );
   const uspapRatings = Array.from(new Set(findings.map(f => f.uspapRating).filter(Boolean))) as string[];
 
+  const costToCureTotal = findings
+    .flatMap((f) => f.costToCure ?? [])
+    .reduce((sum, c) => sum + Math.round((c.low + c.high) / 2), 0);
+
   const conditionWord =
     overallConditionScore >= 80 ? "above-average"
     : overallConditionScore >= 60 ? "average"
@@ -470,7 +496,7 @@ export async function analyzePropertyPhotos(
   }
   const llmContext = llmContextParts.filter(s => s !== undefined).join("\n");
 
-  return {
+  const summary: PhotoAnalysisSummary = {
     findings,
     overallConditionScore,
     overallEvidenceStrength,
@@ -483,4 +509,8 @@ export async function analyzePropertyPhotos(
     summaryParagraph,
     llmContext,
   };
+  if (costToCureTotal > 0) {
+    summary.costToCureTotal = costToCureTotal;
+  }
+  return summary;
 }
