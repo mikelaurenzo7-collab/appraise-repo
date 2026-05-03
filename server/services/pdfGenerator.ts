@@ -253,6 +253,8 @@ export interface AppraisalReportData {
     summaryParagraph: string;
     topObservations: string[];
     topValueIssues: string[];
+    costToCureTotal?: number;
+    costToCureItems?: Array<{ low: number; high: number; description: string }>;
   };
   // Tier: "free" | "pro_se" | "poa" — determines report depth
   tier?: string;
@@ -2284,6 +2286,21 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
             .text(`-  ${issue}`, LM + 8, y, { width: cw - 16, lineGap: 2 });
           y = doc.y + 4;
         }
+      }
+
+      if (
+        data.photoFindings.costToCureItems &&
+        data.photoFindings.costToCureItems.length > 0
+      ) {
+        y = ensureSpace(doc, y, 80, reportId, pageCounter);
+        y = subHeader(doc, "Estimated Cost to Cure", y, cw);
+        const cureRows: Array<[string, string]> = data.photoFindings.costToCureItems.map(
+          (item) => [item.description, `${fmt(item.low)} – ${fmt(item.high)}`],
+        );
+        if (data.photoFindings.costToCureTotal && data.photoFindings.costToCureTotal > 0) {
+          cureRows.push(["TOTAL ESTIMATED COST TO CURE", fmt(data.photoFindings.costToCureTotal)]);
+        }
+        y = kvTable(doc, cureRows, y, cw, { highlight: true });
       }
     }
 

@@ -435,6 +435,8 @@ export interface PhotoAnalysisRecord {
   assessorBlindSpotItems: string[];
   functionalObsolescenceItems: string[];
   summaryParagraph: string;
+  costToCureTotal?: number;
+  costToCureItems?: Array<{ low: number; high: number; description: string }>;
 }
 
 /**
@@ -460,6 +462,8 @@ export async function getLatestPhotoAnalysis(submissionId: number): Promise<Phot
         assessorBlindSpotItems: meta.assessorBlindSpotItems ?? [],
         functionalObsolescenceItems: meta.functionalObsolescenceItems ?? [],
         summaryParagraph: meta.summaryParagraph ?? "",
+        costToCureTotal: meta.costToCureTotal,
+        costToCureItems: meta.costToCureItems,
       };
     } catch {
       // skip malformed
