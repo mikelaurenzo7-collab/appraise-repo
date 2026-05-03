@@ -435,6 +435,8 @@ export interface PhotoAnalysisRecord {
   assessorBlindSpotItems: string[];
   functionalObsolescenceItems: string[];
   summaryParagraph: string;
+  costToCureTotal?: number;
+  costToCureItems?: Array<{ low: number; high: number; description: string }>;
 }
 
 /**
@@ -449,6 +451,14 @@ export async function getLatestPhotoAnalysis(submissionId: number): Promise<Phot
     try {
       const meta = JSON.parse(log.metadata) as Partial<PhotoAnalysisRecord>;
       if (typeof meta.overallConditionScore !== "number") continue;
+      const safeCostToCureItems = Array.isArray(meta.costToCureItems)
+        ? meta.costToCureItems.filter(
+            (i): i is { low: number; high: number; description: string } =>
+              typeof i?.low === "number" &&
+              typeof i?.high === "number" &&
+              typeof i?.description === "string",
+          )
+        : undefined;
       return {
         photoCount: meta.photoCount ?? 0,
         overallConditionScore: meta.overallConditionScore,
@@ -460,6 +470,12 @@ export async function getLatestPhotoAnalysis(submissionId: number): Promise<Phot
         assessorBlindSpotItems: meta.assessorBlindSpotItems ?? [],
         functionalObsolescenceItems: meta.functionalObsolescenceItems ?? [],
         summaryParagraph: meta.summaryParagraph ?? "",
+        costToCureTotal:
+          typeof meta.costToCureTotal === "number" ? meta.costToCureTotal : undefined,
+        costToCureItems:
+          safeCostToCureItems && safeCostToCureItems.length > 0
+            ? safeCostToCureItems
+            : undefined,
       };
     } catch {
       // skip malformed

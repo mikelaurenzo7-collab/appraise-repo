@@ -253,6 +253,8 @@ export interface AppraisalReportData {
     summaryParagraph: string;
     topObservations: string[];
     topValueIssues: string[];
+    costToCureTotal?: number;
+    costToCureItems?: Array<{ low: number; high: number; description: string }>;
   };
   // Tier: "free" | "pro_se" | "poa" — determines report depth
   tier?: string;
@@ -393,7 +395,7 @@ function kvTable(doc: PDFKit.PDFDocument, rows: [string, string][], y: number, c
     doc.rect(LM, y, cw, rowH).lineWidth(0.3).fillAndStroke(bg, BORDER);
     doc.fontSize(8.5).fillColor(BODY_TEXT).font("Helvetica-Bold")
       .text(label, LM + 10, y + 6, { width: labelW - 16, lineBreak: false });
-    const isHighlight = opts?.highlight && (value.includes("STRONG") || label.includes("FINAL") || label.includes("SAVINGS"));
+    const isHighlight = opts?.highlight && (value.includes("STRONG") || label.includes("FINAL") || label.includes("SAVINGS") || label.includes("TOTAL"));
     doc.fontSize(8.5).fillColor(isHighlight ? PURPLE : DARK_TEXT).font(isHighlight ? "Helvetica-Bold" : "Helvetica")
       .text(value, LM + labelW, y + 6, { width: valW - 10, lineBreak: false });
     y += rowH;
@@ -2284,6 +2286,21 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
             .text(`-  ${issue}`, LM + 8, y, { width: cw - 16, lineGap: 2 });
           y = doc.y + 4;
         }
+      }
+
+      if (
+        data.photoFindings.costToCureItems &&
+        data.photoFindings.costToCureItems.length > 0
+      ) {
+        y = ensureSpace(doc, y, 80, reportId, pageCounter);
+        y = subHeader(doc, "Estimated Cost to Cure", y, cw);
+        const cureRows: Array<[string, string]> = data.photoFindings.costToCureItems.map(
+          (item) => [item.description, `${fmt(item.low)} – ${fmt(item.high)}`],
+        );
+        if (data.photoFindings.costToCureTotal && data.photoFindings.costToCureTotal > 0) {
+          cureRows.push(["TOTAL ESTIMATED COST TO CURE", fmt(data.photoFindings.costToCureTotal)]);
+        }
+        y = kvTable(doc, cureRows, y, cw, { highlight: true });
       }
     }
 

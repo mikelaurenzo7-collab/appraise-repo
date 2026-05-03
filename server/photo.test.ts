@@ -152,4 +152,49 @@ describe("Photo cost-to-cure", () => {
     };
     expect(summary.costToCureTotal).toBe(22000);
   });
+
+  it("costToCure round-trips through activity-log JSON metadata", () => {
+    // Mirrors the persistence path:
+    //   analysisJob writes JSON.stringify(meta) → activity_logs.metadata
+    //   getLatestPhotoAnalysis reads JSON.parse + filters bad shapes
+    const written = {
+      photoCount: 2,
+      overallConditionScore: 55,
+      overallEvidenceStrength: 70,
+      appealStrengthDelta: 4,
+      topObservations: ["Visible roof wear"],
+      topValueIssues: ["Missing shingles"],
+      uspapRatings: ["C4"],
+      assessorBlindSpotItems: [],
+      functionalObsolescenceItems: [],
+      summaryParagraph: "Test summary",
+      costToCureTotal: 14500,
+      costToCureItems: [
+        { low: 8000, high: 15000, description: "Roof shingle replacement" },
+        { low: 2000, high: 4000, description: "HVAC service" },
+        // Malformed entry that the reader must filter out
+        { low: "bad", high: 4000, description: "Invalid" } as unknown as {
+          low: number;
+          high: number;
+          description: string;
+        },
+      ],
+    };
+    const serialized = JSON.stringify(written);
+    const parsed = JSON.parse(serialized);
+
+    const safeCostToCureItems = Array.isArray(parsed.costToCureItems)
+      ? parsed.costToCureItems.filter(
+          (i: { low: unknown; high: unknown; description: unknown }) =>
+            typeof i?.low === "number" &&
+            typeof i?.high === "number" &&
+            typeof i?.description === "string",
+        )
+      : undefined;
+
+    expect(parsed.costToCureTotal).toBe(14500);
+    expect(safeCostToCureItems).toHaveLength(2);
+    expect(safeCostToCureItems?.[0].description).toBe("Roof shingle replacement");
+    expect(safeCostToCureItems?.[1].low).toBe(2000);
+  });
 });

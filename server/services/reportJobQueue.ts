@@ -245,6 +245,8 @@ async function processReportJobAsync(jobId: number): Promise<void> {
               `Visual inspection of ${photoAnalysis.photoCount} owner-submitted photograph${photoAnalysis.photoCount === 1 ? "" : "s"} indicates a composite condition index of ${photoAnalysis.overallConditionScore}/100. These observations supplement the comparable-sales analysis and are descriptive in nature.`,
             topObservations: photoAnalysis.topObservations,
             topValueIssues: photoAnalysis.topValueIssues,
+            costToCureTotal: photoAnalysis.costToCureTotal,
+            costToCureItems: photoAnalysis.costToCureItems,
           }
         : undefined,
       // Three-grounds persuasion package — only renders when present.

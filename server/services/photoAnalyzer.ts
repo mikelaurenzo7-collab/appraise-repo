@@ -88,6 +88,8 @@ export interface PhotoAnalysisSummary {
   llmContext: string;
   /** Sum of midpoint cost-to-cure estimates across all findings (dollars) */
   costToCureTotal?: number;
+  /** Flat list of every cost-to-cure entry across all findings (PDF-ready) */
+  costToCureItems?: Array<{ low: number; high: number; description: string }>;
 }
 
 const PHOTO_VISION_TIMEOUT_MS = 25_000;
@@ -432,9 +434,11 @@ export async function analyzePropertyPhotos(
   );
   const uspapRatings = Array.from(new Set(findings.map(f => f.uspapRating).filter(Boolean))) as string[];
 
-  const costToCureTotal = findings
-    .flatMap((f) => f.costToCure ?? [])
-    .reduce((sum, c) => sum + Math.round((c.low + c.high) / 2), 0);
+  const costToCureItems = findings.flatMap((f) => f.costToCure ?? []);
+  const costToCureTotal = costToCureItems.reduce(
+    (sum, c) => sum + Math.round((c.low + c.high) / 2),
+    0,
+  );
 
   const conditionWord =
     overallConditionScore >= 80 ? "above-average"
@@ -511,6 +515,7 @@ export async function analyzePropertyPhotos(
   };
   if (costToCureTotal > 0) {
     summary.costToCureTotal = costToCureTotal;
+    summary.costToCureItems = costToCureItems;
   }
   return summary;
 }

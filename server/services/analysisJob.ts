@@ -402,6 +402,8 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           assessorBlindSpotItems: photoSummary.assessorBlindSpotItems,
           functionalObsolescenceItems: photoSummary.functionalObsolescenceItems,
           summaryParagraph: photoSummary.summaryParagraph,
+          costToCureTotal: photoSummary.costToCureTotal,
+          costToCureItems: photoSummary.costToCureItems,
         }),
         status: "success",
       });
