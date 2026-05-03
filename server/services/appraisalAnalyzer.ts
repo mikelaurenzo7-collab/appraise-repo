@@ -371,8 +371,11 @@ Provide a JSON response with:
    assessment trend if known. Be specific — cite actual comp addresses, actual
    observed defects, actual dollar amounts.
 9. potentialSavings: Annual property-tax savings if assessment reduced to
-   marketValueEstimate. Use the ACTUAL effective tax rate from the tax bill if
-   provided — otherwise 1.2% default.
+   marketValueEstimate. Use the ACTUAL effective tax rate from the tax bill
+   ONLY. If no tax rate is shown in the data above, return 0 — the
+   downstream pipeline will recompute savings from the real rate when
+   available, and will surface "rate unknown" rather than display a
+   fabricated savings figure to the owner.
 10. nextSteps: 4-5 concrete next steps. Include: gather tax bill if not already
     uploaded, photograph remaining deferred maintenance before hearing, confirm
     appeal deadline, request assessor's property record card to check for data
