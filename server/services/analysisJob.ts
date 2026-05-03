@@ -46,6 +46,11 @@ import {
 } from "./assessorPersuasionBrief";
 import { generateHearingPrepDocument, type HearingPrepDocument } from "./hearingPrepDocument";
 import { scopedLogger } from "../_core/logger";
+import { buildAdjustmentGrid } from "./comparableSalesAnalyzer";
+import { calculateCostApproach } from "./costApproachCalculator";
+import { calculateIncomeApproach } from "./incomeApproachCalculator";
+import { analyzeMarketTrends } from "./marketTrendAnalyzer";
+import { generateReconciliationNarrative } from "./reconciliationNarrative";
 
 const log = scopedLogger("AnalysisJob");
 
@@ -682,6 +687,57 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
       appealDeadline.setDate(appealDeadline.getDate() + jurisdictionRules.appealDeadlineDays);
     }
 
+    // ── Step 5: Advanced valuation calculators ────────────────────────────────
+    const [computedAdjGrid, computedCostApproach, computedIncomeApproach, computedMarketTrend] =
+      await Promise.all([
+        Promise.resolve(
+          buildAdjustmentGrid(
+            {
+              squareFeet: propertyData.squareFeet,
+              bedrooms: propertyData.bedrooms,
+              bathrooms: propertyData.bathrooms,
+              yearBuilt: propertyData.yearBuilt,
+              lotSize: propertyData.lotSize,
+            },
+            propertyData.comparableSales ?? [],
+            { excludeNonArmsLength: true },
+          )
+        ),
+        Promise.resolve(
+          calculateCostApproach({
+            squareFeet: propertyData.squareFeet,
+            yearBuilt: propertyData.yearBuilt,
+            assessedValue: propertyData.assessedValue,
+            estimatedValue: propertyData.marketValue,
+            propertyType,
+          })
+        ),
+        Promise.resolve(
+          calculateIncomeApproach(propertyData, userScenario)
+        ),
+        Promise.resolve(
+          analyzeMarketTrends(propertyData.comparableSales ?? [])
+        ),
+      ]);
+
+    const computedReconciliation = await generateReconciliationNarrative({
+      salesCompValue: scenarioAdjustedValue,
+      costApproachValue: computedCostApproach.costApproachValue ?? null,
+      incomeApproachValue: computedIncomeApproach?.incomeValue ?? null,
+      assessedValue: propertyData.assessedValue ?? 0,
+      propertyType,
+      scenario: userScenario,
+      appealStrengthFactors: analysis.appealStrengthFactors ?? [],
+      approachWeights: {
+        market: scenarioContext.valuationAdjustments.marketApproachWeight,
+        cost: scenarioContext.valuationAdjustments.costApproachWeight,
+        income: scenarioContext.valuationAdjustments.incomeApproachWeight,
+      },
+    }).catch((err) => {
+      log.warn("Reconciliation narrative failed", { submissionId, err: (err as Error).message });
+      return analysis.valuationJustification ?? null;
+    });
+
     // ── Step 7: Persist analysis record (with scenario context) ──────────────
     const existingAnalysis = await getPropertyAnalysisBySubmissionId(submissionId);
     if (!existingAnalysis) {
@@ -796,30 +852,14 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           strategy: scenarioContext.compFilterStrategy,
         }),
         // Detailed valuation data for professional report generation
-        adjustmentGrid: analysis.adjustmentGrid ? JSON.stringify(analysis.adjustmentGrid) : null,
-        incomeApproachData: analysis.incomeApproach ? JSON.stringify(analysis.incomeApproach) : null,
+        adjustmentGrid: computedAdjGrid.length > 0 ? JSON.stringify(computedAdjGrid) : (analysis.adjustmentGrid ? JSON.stringify(analysis.adjustmentGrid) : null),
+        incomeApproachData: computedIncomeApproach ? JSON.stringify(computedIncomeApproach) : (analysis.incomeApproach ? JSON.stringify(analysis.incomeApproach) : null),
         costApproachData: JSON.stringify({
-          landValue: (propertyData as any).landValue || null,
-          improvementValue: (propertyData as any).improvementValue || null,
-          replacementCostNew: (propertyData as any).replacementCostNew || null,
-          totalDepreciation: (propertyData as any).totalDepreciation || null,
-          effectiveAge: propertyData.yearBuilt ? (new Date().getFullYear() - propertyData.yearBuilt) : null,
-          remainingEconomicLife: propertyData.yearBuilt ? Math.max(0, 75 - (new Date().getFullYear() - propertyData.yearBuilt)) : null,
-          costApproachValue: (propertyData as any).costApproachValue || null,
+          ...computedCostApproach,
+          costApproachValue: computedCostApproach.costApproachValue ?? (propertyData as any).costApproachValue ?? null,
         }),
-        marketTrendData: JSON.stringify({
-          medianSalePrice: propertyData.marketValue || null,
-          medianPricePerSF: propertyData.squareFeet && propertyData.marketValue
-            ? Math.round(propertyData.marketValue / propertyData.squareFeet)
-            : null,
-          averageDaysOnMarket: propertyData.comparableSales?.length
-            ? Math.round(propertyData.comparableSales.reduce((s, c) => s + (c.daysOnMarket || 0), 0) / propertyData.comparableSales.length)
-            : null,
-          inventoryCount: propertyData.comparableSales?.length || null,
-          priceChangeYoY: null, // Populated by web research if available
-          absorptionRate: null, // Populated by web research if available
-        }),
-        reconciliationNarrative: analysis.valuationJustification || null,
+        marketTrendData: JSON.stringify(computedMarketTrend),
+        reconciliationNarrative: computedReconciliation ?? analysis.valuationJustification ?? null,
       });
     }
 
