@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { scopedLogger } from "../_core/logger";
+import { buildAppUrl } from "../_core/appUrl";
 
 const log = scopedLogger("ReferralProgram");
 
@@ -175,7 +176,7 @@ export async function getReferralHistory(userId: string, limit: number = 50): Pr
  */
 export async function sendReferralInvite(fromUserId: string, toEmail: string, referralCode: string): Promise<boolean> {
   try {
-    const inviteLink = `https://appraiseai-njpz7grd.manus.space/get-started?ref=${referralCode}`;
+    const inviteLink = buildAppUrl(`/get-started?ref=${referralCode}`);
     
     log.info(`[Referral] Sending invite from ${fromUserId} to ${toEmail}`);
     log.info(`[Referral] Invite link: ${inviteLink}`);
