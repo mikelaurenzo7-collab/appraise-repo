@@ -17,8 +17,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Use 1 worker locally to stay well within the server's rate limit (500 req/15 min).
+   * CI uses 1 worker to avoid race conditions; PARALLEL=1 env re-enables parallel workers. */
+  workers: process.env.CI ? 1 : (process.env.PARALLEL ? undefined : 1),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -29,33 +30,43 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
 
-  /* Configure projects for major browsers */
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-
-    /* Test against mobile viewports. */
-    {
-      name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
-    },
-    {
-      name: 'Mobile Safari',
-      use: { ...devices['iPhone 12'] },
-    },
-  ],
+  /* Configure projects for major browsers.
+   *
+   * LOCAL: only Chromium to avoid exhausting the server's 500 req/15 min
+   *        global rate limiter when running the full suite locally.
+   *        Pass --project=firefox etc. explicitly when you need cross-browser.
+   * CI:    all browsers are enabled via the FULL_BROWSER_MATRIX env variable
+   *        or by explicitly passing --project flags.
+   */
+  projects: process.env.FULL_BROWSER_MATRIX
+    ? [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+        {
+          name: 'firefox',
+          use: { ...devices['Desktop Firefox'] },
+        },
+        {
+          name: 'webkit',
+          use: { ...devices['Desktop Safari'] },
+        },
+        {
+          name: 'Mobile Chrome',
+          use: { ...devices['Pixel 5'] },
+        },
+        {
+          name: 'Mobile Safari',
+          use: { ...devices['iPhone 12'] },
+        },
+      ]
+    : [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+      ],
 
   /* Run your local dev server before starting the tests */
   webServer: {
