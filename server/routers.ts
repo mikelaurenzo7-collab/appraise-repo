@@ -994,21 +994,42 @@ export const appRouter = router({
     // customer and filtering client-side.
     getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
       if (!ctx.user.email) return [];
-      const sessions = await getStripe().checkout.sessions.list({
+      const stripe = getStripe();
+      const sessions = await stripe.checkout.sessions.list({
         customer_details: { email: ctx.user.email },
         limit: 50,
+        // Expand the payment_intent and its latest_charge to surface the
+        // hosted Stripe receipt URL without an extra round-trip per session.
+        expand: ["data.payment_intent", "data.payment_intent.latest_charge"],
       });
+
+      // Stripe expands payment_intent as a full object; latest_charge carries receipt_url.
+      type ExpandedPaymentIntent = Stripe.PaymentIntent & {
+        latest_charge?: Stripe.Charge | string | null;
+      };
 
       return sessions.data
         .filter((s) => s.payment_status === "paid")
-        .map((s) => ({
-          id: s.id,
-          amount: (s.amount_total ?? 0) / 100,
-          currency: (s.currency ?? "usd").toUpperCase(),
-          status: s.payment_status,
-          created: new Date(s.created * 1000),
-          description: s.line_items?.data[0]?.description ?? null,
-        }));
+        .map((s) => {
+          let receiptUrl: string | null = null;
+          const pi = s.payment_intent;
+          if (pi && typeof pi === "object") {
+            const charge = (pi as ExpandedPaymentIntent).latest_charge;
+            if (charge && typeof charge === "object") {
+              receiptUrl = charge.receipt_url ?? null;
+            }
+          }
+
+          return {
+            id: s.id,
+            amount: (s.amount_total ?? 0) / 100,
+            currency: (s.currency ?? "usd").toUpperCase(),
+            status: s.payment_status,
+            created: new Date(s.created * 1000),
+            description: s.line_items?.data[0]?.description ?? null,
+            receiptUrl,
+          };
+        });
     }),
 
     // Upload property photos to S3

@@ -89,10 +89,12 @@ export default function PaymentHistory() {
                     variant="outline"
                     size="sm"
                     className="gap-2"
+                    disabled={!payment.receiptUrl}
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Download receipt functionality
-                      console.log("Download receipt for payment:", payment.id);
+                      if (payment.receiptUrl) {
+                        window.open(payment.receiptUrl, "_blank", "noopener,noreferrer");
+                      }
                     }}
                   >
                     <Download size={16} />
