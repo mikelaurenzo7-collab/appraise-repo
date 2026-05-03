@@ -117,6 +117,7 @@ describe("PDF audience split (assessor vs owner)", () => {
       "year-by-year tax savings projection",
       "over-assessment amount", // advocacy framing replaced with "indicated reduction"
       "over-assessment percentage",
+      "over-assessment:", // value-comparison callout label (advocacy framing)
     ];
     for (const phrase of banned) {
       expect(text, `assessor PDF leaked owner-only phrase: "${phrase}"`).not.toContain(phrase);

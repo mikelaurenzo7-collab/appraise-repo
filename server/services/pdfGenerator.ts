@@ -759,7 +759,7 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       "Reconciliation & Final Value Opinion",
       "Assessor's Valuation Critique",
       "Equity & Uniformity Analysis",
-      "Tax Impact Analysis",
+      ...(!isAssessor ? ["Tax Impact Analysis"] : []),
       ...(data.photoFindings ? ["Property Condition Findings"] : []),
       ...(photoBufs.length > 0 ? ["Property Photo Evidence"] : []),
       "Appendices",
@@ -1057,10 +1057,14 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         .text(fmt(data.marketValueEstimate), LM + 6, y + 3, { width: barWidth * marketPct - 12 });
       y += 24;
 
-      // Difference callout
+      // Difference callout — neutral phrasing for assessor exhibit
       doc.rect(LM, y, cw, 24).lineWidth(0.5).fillAndStroke(LIGHT_BG, PURPLE);
       doc.fontSize(9).fillColor(NAVY).font("Helvetica-Bold")
-        .text(`OVER-ASSESSMENT: ${fmt(data.assessmentGap)} (${overAssessmentPct})`, LM + 10, y + 6, { width: cw - 20, align: "center" });
+        .text(
+          isAssessor
+            ? `INDICATED REDUCTION: ${fmt(data.assessmentGap)} (${overAssessmentPct})`
+            : `OVER-ASSESSMENT: ${fmt(data.assessmentGap)} (${overAssessmentPct})`,
+          LM + 10, y + 6, { width: cw - 20, align: "center" });
       y += 36;
     }
 
@@ -1553,7 +1557,7 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
 
         y = bodyText(doc,
           `The comparable sales exhibit a price per square foot range of ${fmtPSF(minPSF)} to ${fmtPSF(maxPSF)}, ` +
-          `with an average of ${fmtPSF(avgPSF)}. ${data.squareFeet ? `The subject property's assessed value implies a price per square foot of ${fmtPSF((data.assessedValue || 0) / data.squareFeet)}, which ${(data.assessedValue || 0) / data.squareFeet > avgPSF * 1.1 ? "exceeds the comparable average by a significant margin, further supporting the over-assessment conclusion" : "is within the range of comparable sales"}.` : ""}`,
+          `with an average of ${fmtPSF(avgPSF)}. ${data.squareFeet ? `The subject property's assessed value implies a price per square foot of ${fmtPSF((data.assessedValue || 0) / data.squareFeet)}, which ${(data.assessedValue || 0) / data.squareFeet > avgPSF * 1.1 ? `exceeds the comparable average by a significant margin, further supporting the ${isAssessor ? "indicated reduction in assessed value" : "over-assessment conclusion"}` : "is within the range of comparable sales"}.` : ""}`,
           y, cw
         );
       }
