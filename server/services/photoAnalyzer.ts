@@ -201,14 +201,18 @@ async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding 
 async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<PhotoFinding | null> {
   try {
     const categoryLabel =
-      photo.category === "roof"
-        ? "the roof"
-        : photo.category === "foundation"
-        ? "the foundation"
-        : photo.category === "exterior"
+      photo.category === "exterior"
         ? "the exterior of the property"
         : photo.category === "interior"
         ? "the interior of the property"
+        : photo.category === "damage"
+        ? "specific damage or deferred maintenance"
+        : photo.category === "condition"
+        ? "the property's overall condition"
+        : photo.category === "comparable"
+        ? "a comparable property"
+        : photo.category === "neighborhood"
+        ? "the surrounding neighborhood"
         : "the property";
 
     const userInstruction =

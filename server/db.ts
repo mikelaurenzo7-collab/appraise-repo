@@ -24,6 +24,8 @@ import {
   referralTracking, ReferralTrackingEntry, InsertReferralTrackingEntry,
   referralPayouts, ReferralPayout, InsertReferralPayout,
   jurisdictionRules, JurisdictionRule, InsertJurisdictionRule,
+  propertyPhotos, PropertyPhoto, InsertPropertyPhoto,
+  reportPreferences, ReportPreference, InsertReportPreference,
 } from "../drizzle/schema.pg";
 import { ENV } from './_core/env';
 import { scopedLogger } from "./_core/logger";
@@ -372,12 +374,34 @@ export async function getActivityLogsBySubmission(submissionId: number) {
   }
 }
 
+export type PhotoCategory = NonNullable<PropertyPhoto["category"]>;
+
 export interface SubmissionPhoto {
   url: string;
-  category: "exterior" | "interior" | "roof" | "foundation" | "other";
+  category: PhotoCategory;
   caption?: string;
   fileName?: string;
   uploadedAt: Date;
+  /** Database row id when the photo is persisted to property_photos. */
+  id?: number;
+  /** Storage key (S3 object key) when available — needed for delete. */
+  photoKey?: string;
+}
+
+const VALID_PHOTO_CATEGORIES = new Set<PhotoCategory>([
+  "exterior",
+  "interior",
+  "damage",
+  "condition",
+  "comparable",
+  "neighborhood",
+  "other",
+]);
+
+function normalizePhotoCategory(value: unknown): PhotoCategory {
+  return typeof value === "string" && VALID_PHOTO_CATEGORIES.has(value as PhotoCategory)
+    ? (value as PhotoCategory)
+    : "other";
 }
 
 /**
@@ -393,16 +417,18 @@ export function parsePhotosFromLogs(
     try {
       const meta = JSON.parse(log.metadata) as {
         url?: string;
-        category?: SubmissionPhoto["category"];
+        category?: unknown;
         caption?: string;
         fileName?: string;
+        photoKey?: string;
       };
       if (!meta.url) continue;
       photos.push({
         url: meta.url,
-        category: meta.category ?? "other",
+        category: normalizePhotoCategory(meta.category),
         caption: meta.caption,
         fileName: meta.fileName,
+        photoKey: meta.photoKey,
         uploadedAt: log.createdAt,
       });
     } catch {
@@ -414,13 +440,90 @@ export function parsePhotosFromLogs(
 }
 
 /**
- * Extract uploaded photos for a submission by reading the `photo_uploaded`
- * activity-log entries. Photos are stored in S3 via storagePut and only the
- * URL + category + caption are persisted (as JSON in `metadata`).
+ * Returns photos for a submission. Reads the dedicated `property_photos` table
+ * when available, and falls back to parsing legacy `photo_uploaded` activity
+ * logs (for rows uploaded before the table was wired up).
  */
 export async function getSubmissionPhotos(submissionId: number): Promise<SubmissionPhoto[]> {
+  const db = await getDb();
+  if (db) {
+    try {
+      const rows = await db
+        .select()
+        .from(propertyPhotos)
+        .where(eq(propertyPhotos.submissionId, submissionId))
+        .orderBy(propertyPhotos.displayOrder, propertyPhotos.createdAt);
+      if (rows.length > 0) {
+        return rows.map((r) => ({
+          id: r.id,
+          url: r.photoUrl,
+          photoKey: r.photoKey,
+          category: normalizePhotoCategory(r.category),
+          caption: r.caption ?? undefined,
+          uploadedAt: r.createdAt,
+        }));
+      }
+    } catch (error) {
+      log.error("[Database] Failed to read property_photos:", { err: error });
+    }
+  }
+  // Fallback: photos uploaded before the table was wired up only exist in
+  // activity logs.
   const logs = await getActivityLogsBySubmission(submissionId);
   return parsePhotosFromLogs(logs);
+}
+
+/**
+ * Persist a freshly uploaded photo to the `property_photos` table. Returns
+ * the inserted row id when the DB is available, or null when running without
+ * a database (callers still log to activity_logs as a safety net).
+ */
+export async function addSubmissionPhoto(input: {
+  submissionId: number;
+  photoUrl: string;
+  photoKey: string;
+  category: PhotoCategory;
+  caption?: string;
+}): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const insert: InsertPropertyPhoto = {
+      submissionId: input.submissionId,
+      photoUrl: input.photoUrl,
+      photoKey: input.photoKey,
+      category: input.category,
+      caption: input.caption ?? null,
+    };
+    const result = await db
+      .insert(propertyPhotos)
+      .values(insert)
+      .returning({ id: propertyPhotos.id });
+    return result[0]?.id ?? null;
+  } catch (error) {
+    log.error("[Database] Failed to insert property_photo:", { err: error });
+    return null;
+  }
+}
+
+/**
+ * Delete a single photo row by id. Returns the deleted row (with photoKey,
+ * so callers can also remove the underlying S3 object) or null when the row
+ * does not exist or the DB is unavailable.
+ */
+export async function deleteSubmissionPhoto(id: number): Promise<PropertyPhoto | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = await db
+      .delete(propertyPhotos)
+      .where(eq(propertyPhotos.id, id))
+      .returning();
+    return rows[0] ?? null;
+  } catch (error) {
+    log.error("[Database] Failed to delete property_photo:", { err: error });
+    return null;
+  }
 }
 
 export interface PhotoAnalysisRecord {
@@ -494,6 +597,48 @@ export async function getRecentActivityLogs(limit = 50) {
   } catch (error) {
     log.error("[Database] Failed to get recent activity logs:", { err: error });
     return [];
+  }
+}
+
+// ─── REPORT PREFERENCES ──────────────────────────────────────────────────────
+
+export async function getReportPreferences(submissionId: number): Promise<ReportPreference | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = await db
+      .select()
+      .from(reportPreferences)
+      .where(eq(reportPreferences.submissionId, submissionId))
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    log.error("[Database] Failed to read report_preferences:", { err: error });
+    return null;
+  }
+}
+
+/** Insert or update the report preferences row for a submission. */
+export async function upsertReportPreferences(
+  submissionId: number,
+  patch: Partial<Omit<InsertReportPreference, "id" | "submissionId" | "createdAt">>,
+): Promise<ReportPreference | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const updateSet = { ...patch, updatedAt: new Date() };
+    const rows = await db
+      .insert(reportPreferences)
+      .values({ submissionId, ...patch })
+      .onConflictDoUpdate({
+        target: reportPreferences.submissionId,
+        set: updateSet,
+      })
+      .returning();
+    return rows[0] ?? null;
+  } catch (error) {
+    log.error("[Database] Failed to upsert report_preferences:", { err: error });
+    return null;
   }
 }
 

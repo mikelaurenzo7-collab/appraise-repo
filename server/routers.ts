@@ -27,6 +27,10 @@ import {
   persistActivityLog,
   evictExpiredCache,
   getSubmissionPhotos,
+  addSubmissionPhoto,
+  deleteSubmissionPhoto,
+  getReportPreferences,
+  upsertReportPreferences,
   getLatestPhotoAnalysis,
   getFilingTierBySubmission,
   createFilingTier,
@@ -59,7 +63,7 @@ import {
   type IncomeApproachSummary,
   type MarketTrendData,
 } from "./services/pdfGenerator";
-import { storagePut, storageGet } from "./storage";
+import { storagePut, storageGet, storageDelete } from "./storage";
 import {
   CHAT_MAX_CHARS_PER_MESSAGE,
   CHAT_MAX_MESSAGES,
@@ -1063,18 +1067,92 @@ export const appRouter = router({
         const photoKey = `photos/${ctx.user.id}/${input.submissionId}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(photoKey, buffer, "image/jpeg");
 
-        // Log activity
+        // Persist to property_photos so the data survives without log scraping.
+        const photoId = await addSubmissionPhoto({
+          submissionId: input.submissionId,
+          photoUrl: url,
+          photoKey,
+          category: input.category,
+          caption: input.caption,
+        });
+
+        // Keep the activity log entry for the audit trail and as a fallback
+        // for environments where the DB write failed.
         await persistActivityLog({
           submissionId: input.submissionId,
           type: "photo_uploaded",
           actor: "user",
           actorId: ctx.user.id,
           description: `Photo uploaded: ${input.fileName}`,
-          metadata: JSON.stringify({ category: input.category, url }),
+          metadata: JSON.stringify({
+            category: input.category,
+            url,
+            photoKey,
+            fileName: input.fileName,
+            caption: input.caption,
+            photoId,
+          }),
           status: "success",
         });
 
-        return { url, fileName: input.fileName, category: input.category };
+        return { id: photoId, url, fileName: input.fileName, category: input.category };
+      }),
+
+    // Delete a property photo by id (owner or admin only).
+    deletePhoto: protectedProcedure
+      .input(z.object({ photoId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        // Find the row first so we can authorize via the parent submission.
+        const photos = await (async () => {
+          const db = await getDbForReports();
+          if (!db) return null;
+          const { propertyPhotos } = await import("../drizzle/schema.pg");
+          const rows = await db
+            .select()
+            .from(propertyPhotos)
+            .where(eq(propertyPhotos.id, input.photoId))
+            .limit(1);
+          return rows[0] ?? null;
+        })();
+        if (!photos) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Photo not found" });
+        }
+        const submission = await getPropertySubmissionById(photos.submissionId);
+        if (!submission) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        }
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
+        const deleted = await deleteSubmissionPhoto(input.photoId);
+        if (deleted?.photoKey) {
+          // Best-effort S3 cleanup — the row is already gone, so swallow errors.
+          try {
+            await storageDelete(deleted.photoKey);
+          } catch (err) {
+            await persistActivityLog({
+              submissionId: photos.submissionId,
+              type: "photo_delete_storage_failed",
+              actor: "system",
+              description: `Failed to delete S3 object ${deleted.photoKey}`,
+              metadata: JSON.stringify({ err: String(err) }),
+              status: "error",
+            });
+          }
+        }
+
+        await persistActivityLog({
+          submissionId: photos.submissionId,
+          type: "photo_deleted",
+          actor: "user",
+          actorId: ctx.user.id,
+          description: `Photo deleted: ${photos.photoKey ?? `id=${input.photoId}`}`,
+          metadata: JSON.stringify({ photoId: input.photoId, photoKey: deleted?.photoKey }),
+          status: "success",
+        });
+
+        return { ok: true };
       }),
 
     /**

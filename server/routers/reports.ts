@@ -4,6 +4,7 @@
  */
 
 import { router, protectedProcedure } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { ProfessionalReportTemplate, ReportData } from "../services/reportTemplate";
 import { storagePut } from "../storage";
@@ -12,10 +13,16 @@ import {
   getDb,
   getReportJobBySubmissionId,
   getPropertySubmissionById,
+  getReportPreferences,
+  upsertReportPreferences,
 } from "../db";
 import { reportJobs } from "../../drizzle/schema.pg";
 import { eq } from "drizzle-orm";
 import { scopedLogger } from "../_core/logger";
+
+const includeOption = z.enum(["yes", "no", "auto"]);
+const strategyOption = z.enum(["poa", "pro-se", "both", "auto"]);
+const targetAudience = z.enum(["assessor", "board", "attorney", "owner"]);
 
 const log = scopedLogger("Reports");
 
@@ -124,7 +131,12 @@ export const reportsRouter = router({
    */
   listReports: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return [];
+    if (!db) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Reports are temporarily unavailable. Please try again shortly.",
+      });
+    }
     const jobs = await db
       .select()
       .from(reportJobs)
@@ -139,4 +151,59 @@ export const reportsRouter = router({
         generatedAt: j.completedAt ?? j.updatedAt,
       }));
   }),
+
+  /**
+   * Read the report preferences row for a submission. Returns the row when
+   * one exists, otherwise null so the client can fall back to defaults.
+   */
+  getPreferences: protectedProcedure
+    .input(z.object({ submissionId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const submission = await getPropertySubmissionById(input.submissionId);
+      if (!submission) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+      }
+      if (submission.email !== ctx.user!.email && ctx.user!.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+      }
+      return getReportPreferences(input.submissionId);
+    }),
+
+  /**
+   * Persist report preferences for a submission. Used by the report download
+   * UI to pick the audience and toggle which approaches/sections to include.
+   */
+  setPreferences: protectedProcedure
+    .input(
+      z.object({
+        submissionId: z.number(),
+        targetAudience: targetAudience.optional(),
+        recommendedStrategy: strategyOption.optional(),
+        includeCostApproach: includeOption.optional(),
+        includeSalesComparison: includeOption.optional(),
+        includeIncomeApproach: includeOption.optional(),
+        emphasizePhotos: includeOption.optional(),
+        includeMarketAnalysis: includeOption.optional(),
+        includeComparableProperties: includeOption.optional(),
+        additionalNotes: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const submission = await getPropertySubmissionById(input.submissionId);
+      if (!submission) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+      }
+      if (submission.email !== ctx.user!.email && ctx.user!.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+      }
+      const { submissionId, ...patch } = input;
+      const row = await upsertReportPreferences(submissionId, patch);
+      if (!row) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Could not save preferences. Please try again shortly.",
+        });
+      }
+      return row;
+    }),
 });

@@ -1,6 +1,18 @@
 import { describe, it, expect } from "vitest";
 
 describe("Photo Upload Endpoint", () => {
+  // Matches the photoCategoryEnum in drizzle/schema.pg.ts and the
+  // uploadPhoto mutation's category whitelist.
+  const SUPPORTED_CATEGORIES = [
+    "exterior",
+    "interior",
+    "damage",
+    "condition",
+    "comparable",
+    "neighborhood",
+    "other",
+  ] as const;
+
   it("should validate photo upload schema", () => {
     const photoUpload = {
       submissionId: 1,
@@ -13,18 +25,14 @@ describe("Photo Upload Endpoint", () => {
     expect(photoUpload.submissionId).toBeGreaterThan(0);
     expect(photoUpload.fileName).toContain(".jpg");
     expect(photoUpload.category).toBe("exterior");
-    expect(["exterior", "interior", "roof", "foundation", "other"]).toContain(photoUpload.category);
+    expect(SUPPORTED_CATEGORIES).toContain(photoUpload.category);
   });
 
   it("should support all photo categories", () => {
-    const categories = ["exterior", "interior", "roof", "foundation", "other"] as const;
-
-    expect(categories).toHaveLength(5);
-    expect(categories).toContain("exterior");
-    expect(categories).toContain("interior");
-    expect(categories).toContain("roof");
-    expect(categories).toContain("foundation");
-    expect(categories).toContain("other");
+    expect(SUPPORTED_CATEGORIES).toHaveLength(7);
+    for (const c of ["exterior", "interior", "damage", "condition", "comparable", "neighborhood", "other"]) {
+      expect(SUPPORTED_CATEGORIES).toContain(c);
+    }
   });
 
   it("should generate S3 photo key with user isolation", () => {

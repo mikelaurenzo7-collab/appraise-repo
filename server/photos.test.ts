@@ -27,8 +27,8 @@ describe("parsePhotosFromLogs", () => {
       log({
         createdAt: new Date("2024-06-01T09:00:00Z"),
         metadata: JSON.stringify({
-          url: "https://cdn.example/roof.jpg",
-          category: "roof",
+          url: "https://cdn.example/damage.jpg",
+          category: "damage",
         }),
       }),
     ]);
@@ -36,11 +36,25 @@ describe("parsePhotosFromLogs", () => {
     expect(photos).toHaveLength(2);
     // Input is newest-first (mirrors activity log ordering); output is reversed
     // so the PDF renders in upload order.
-    expect(photos[0].url).toBe("https://cdn.example/roof.jpg");
-    expect(photos[0].category).toBe("roof");
+    expect(photos[0].url).toBe("https://cdn.example/damage.jpg");
+    expect(photos[0].category).toBe("damage");
     expect(photos[1].url).toBe("https://cdn.example/front.jpg");
     expect(photos[1].caption).toBe("Front of house");
     expect(photos[1].fileName).toBe("front.jpg");
+  });
+
+  it("normalizes unknown categories to 'other'", () => {
+    const photos = parsePhotosFromLogs([
+      log({
+        metadata: JSON.stringify({
+          // "roof" was a legacy category that's no longer in the schema enum.
+          url: "https://cdn.example/legacy.jpg",
+          category: "roof",
+        }),
+      }),
+    ]);
+    expect(photos).toHaveLength(1);
+    expect(photos[0].category).toBe("other");
   });
 
   it("ignores non-photo_uploaded rows", () => {

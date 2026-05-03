@@ -241,7 +241,16 @@ export interface AppraisalReportData {
   parcelNumber?: string;
   photos?: Array<{
     url: string;
-    category: "exterior" | "interior" | "roof" | "foundation" | "other";
+    category:
+      | "exterior"
+      | "interior"
+      | "roof"
+      | "foundation"
+      | "damage"
+      | "condition"
+      | "comparable"
+      | "neighborhood"
+      | "other";
     caption?: string;
   }>;
   streetViewUrl?: string;
@@ -2313,12 +2322,26 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       sectionNum++;
 
       // Group photos by category
-      const categoryOrder = ["exterior", "interior", "roof", "foundation", "other"];
+      const categoryOrder = [
+        "exterior",
+        "interior",
+        "roof",
+        "foundation",
+        "damage",
+        "condition",
+        "comparable",
+        "neighborhood",
+        "other",
+      ];
       const categoryLabels: Record<string, string> = {
         exterior: "Exterior Views & Curb Appeal",
         interior: "Interior Condition & Finishes",
         roof: "Roof & Upper Structure",
         foundation: "Foundation & Structural Elements",
+        damage: "Damage & Deferred Maintenance",
+        condition: "Condition Documentation",
+        comparable: "Comparable Properties",
+        neighborhood: "Neighborhood Context",
         other: "Additional Property Documentation",
       };
       const categoryDescriptions: Record<string, string> = {
@@ -2326,6 +2349,10 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
         interior: "Interior photographs document the condition of living spaces, kitchen, bathrooms, flooring, walls, and fixtures. Interior condition is a significant factor in determining the property's effective age and overall market appeal.",
         roof: "Roof photographs document the condition, material type, and apparent age of the roofing system. Roof condition is a major component of the cost approach depreciation estimate and can significantly impact market value.",
         foundation: "Foundation and structural photographs document the condition of the building's base structure, including any visible settling, cracking, or moisture intrusion. Structural integrity is fundamental to the property's long-term value.",
+        damage: "Damage photographs document specific defects, deferred maintenance, or items that materially reduce the property's market value relative to comparable sales.",
+        condition: "Condition photographs document the property's overall state and any features that affect its effective age, rated against the USPAP condition scale.",
+        comparable: "Comparable property photographs provide visual support for the comparable sales analysis, illustrating physical similarities and differences relative to the subject.",
+        neighborhood: "Neighborhood photographs document surrounding influences — including adjacent uses, street character, and environmental factors — that affect the subject's market appeal.",
         other: "Additional photographs provide supplementary documentation of property features, site conditions, or other relevant characteristics not captured in the primary categories above.",
       };
 

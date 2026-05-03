@@ -1019,23 +1019,50 @@ function appealStrategyForPrep(state: string | null, county: string | null): str
     : "the local board of equalization";
 }
 
+/**
+ * Pure inference: chooses a brief audience given an explicit preference and
+ * the submission's filing method. Exported for unit tests.
+ */
+export function inferBriefAudience(
+  preference: string | null | undefined,
+  filingMethod: string | null | undefined,
+): BriefAudience {
+  if (
+    preference === "assessor" ||
+    preference === "board" ||
+    preference === "attorney" ||
+    preference === "owner"
+  ) {
+    return preference;
+  }
+  if (
+    filingMethod === "poa" ||
+    filingMethod === "pro-se" ||
+    filingMethod === "automated_standard" ||
+    filingMethod === "automated_express"
+  ) {
+    return "assessor";
+  }
+  return "board";
+}
+
 async function resolveBriefAudience(submissionId: number): Promise<BriefAudience> {
   try {
-    const { getDb } = await import("../db");
+    const { getDb, getPropertySubmissionById } = await import("../db");
     const db = await getDb();
-    if (!db) return "board";
-    const { reportPreferences } = await import("../../drizzle/schema.pg");
-    const { eq } = await import("drizzle-orm");
-    const rows = await db
-      .select({ targetAudience: reportPreferences.targetAudience })
-      .from(reportPreferences)
-      .where(eq(reportPreferences.submissionId, submissionId))
-      .limit(1);
-    const a = rows[0]?.targetAudience;
-    if (a === "assessor" || a === "board" || a === "attorney" || a === "owner") {
-      return a;
+    let preference: string | null = null;
+    if (db) {
+      const { reportPreferences } = await import("../../drizzle/schema.pg");
+      const { eq } = await import("drizzle-orm");
+      const rows = await db
+        .select({ targetAudience: reportPreferences.targetAudience })
+        .from(reportPreferences)
+        .where(eq(reportPreferences.submissionId, submissionId))
+        .limit(1);
+      preference = rows[0]?.targetAudience ?? null;
     }
-    return "board";
+    const submission = await getPropertySubmissionById(submissionId);
+    return inferBriefAudience(preference, submission?.filingMethod);
   } catch {
     return "board";
   }
