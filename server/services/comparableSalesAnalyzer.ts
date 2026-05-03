@@ -44,7 +44,9 @@ const MS_PER_MONTH = 30 * 24 * 60 * 60 * 1000;
  * Rate: 0.3% per month.
  */
 export function applyTimeAdjustment(salePrice: number, saleDate: string): number {
-  const monthsSinceSale = (Date.now() - new Date(saleDate).getTime()) / MS_PER_MONTH;
+  const saleTime = new Date(saleDate).getTime();
+  if (isNaN(saleTime)) return 0;
+  const monthsSinceSale = (Date.now() - saleTime) / MS_PER_MONTH;
   return Math.round(salePrice * monthsSinceSale * TIME_ADJUSTMENT_RATE);
 }
 
@@ -104,7 +106,7 @@ export function buildAdjustmentGrid(
   // Compute median PSF from all filtered comps (before per-comp processing)
   const medianPSF = computeMedianPricePerSF(filtered);
 
-  const entries: AdjustmentGridEntry[] = filtered.map((comp) => {
+  const entries: AdjustmentGridEntry[] = filtered.filter((comp) => comp.salePrice > 0).map((comp) => {
     const adjustments: Record<string, number> = {};
 
     // Time adjustment
@@ -124,7 +126,7 @@ export function buildAdjustmentGrid(
 
     // Bedroom adjustment
     if (subject.bedrooms != null && comp.bedrooms != null) {
-      adjustments.bedrooms = (subject.bedrooms - comp.bedrooms) * BEDROOM_ADJUSTMENT;
+      adjustments.bedrooms = Math.round((subject.bedrooms - comp.bedrooms) * BEDROOM_ADJUSTMENT);
     }
 
     // Bathroom adjustment
@@ -136,7 +138,7 @@ export function buildAdjustmentGrid(
 
     // Age adjustment
     if (subject.yearBuilt != null && comp.yearBuilt != null) {
-      adjustments.age = (comp.yearBuilt - subject.yearBuilt) * AGE_ADJUSTMENT;
+      adjustments.age = Math.round((comp.yearBuilt - subject.yearBuilt) * AGE_ADJUSTMENT);
     }
 
     // Lot size adjustment
