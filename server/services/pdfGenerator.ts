@@ -33,6 +33,7 @@
 import PDFDocument from "pdfkit";
 import { nanoid } from "nanoid";
 import { storagePut } from "../storage";
+import { getPublicAppUrl } from "../_core/appUrl";
 import https from "https";
 import http from "http";
 
@@ -642,7 +643,7 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
           "The Professional Report includes: detailed comparable sales adjustment grid with dollar-amount calculations, " +
           "cost approach analysis, income capitalization approach (if applicable), full reconciliation narrative, " +
           "assessor valuation critique, equity/uniformity analysis, tax impact projections, property condition findings, " +
-          "photo gallery, and USPAP-compliant certification. Visit appraiseai.manus.space to upgrade.",
+          `photo gallery, and USPAP-compliant certification. Visit ${getPublicAppUrl().replace(/^https?:\/\//, "")} to upgrade.`,
           LM + 15, y + 30, { width: cw - 30, lineGap: 2.5 }
         );
 
@@ -722,7 +723,7 @@ export async function generateAppraisalPDF(data: AppraisalReportData): Promise<{
       "Respectfully submitted,",
       "",
       "AppraiseAI Valuation Engine",
-      "appraiseai.manus.space",
+      getPublicAppUrl().replace(/^https?:\/\//, ""),
     ];
     doc.fontSize(9.5).fillColor(BODY_TEXT).font("Helvetica");
     for (const line of transmittalClose) {
