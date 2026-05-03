@@ -69,17 +69,21 @@ export function analyzeMarketTrends(comps: ComparableSale[]): MarketTrendData {
       : null;
 
   // inventoryCount
-  const inventoryCount = comps.length;
+  const inventoryCount = comps.length > 0 ? comps.length : null;
 
   // priceChangeYoY
   const now = Date.now();
   const MS_PER_MONTH = 30 * 24 * 60 * 60 * 1000;
   const recentComps = comps.filter((c) => {
-    const age = (now - new Date(c.saleDate).getTime()) / MS_PER_MONTH;
+    const saleTime = new Date(c.saleDate).getTime();
+    if (isNaN(saleTime)) return false; // skip comps with invalid dates
+    const age = (now - saleTime) / MS_PER_MONTH;
     return age >= 0 && age <= 12;
   });
   const priorComps = comps.filter((c) => {
-    const age = (now - new Date(c.saleDate).getTime()) / MS_PER_MONTH;
+    const saleTime = new Date(c.saleDate).getTime();
+    if (isNaN(saleTime)) return false; // skip comps with invalid dates
+    const age = (now - saleTime) / MS_PER_MONTH;
     return age > 12 && age <= 24;
   });
 
@@ -95,7 +99,7 @@ export function analyzeMarketTrends(comps: ComparableSale[]): MarketTrendData {
 
   // absorptionRate: inventoryCount / 3 months, null if fewer than 3 comps
   const absorptionRate =
-    inventoryCount >= 3
+    inventoryCount !== null && inventoryCount >= 3
       ? Math.round((inventoryCount / 3) * 10) / 10
       : null;
 
