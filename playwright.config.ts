@@ -28,6 +28,12 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+    /* Bypass the dev-server rate limiter so the full test suite doesn't
+     * exhaust the 500 req/15 min global budget.
+     * This header is only honoured when NODE_ENV !== 'production'. */
+    extraHTTPHeaders: {
+      'x-e2e-test-bypass': 'playwright-e2e-bypass-2026',
+    },
   },
 
   /* Configure projects for major browsers.
