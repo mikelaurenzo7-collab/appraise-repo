@@ -810,132 +810,121 @@
 - [x] Verify analysis results use correct county-specific rules
 
 
-## Phase 35: Appraisal Logic Enhancement Audit
+## Phase 35: Appraisal Logic Enhancement — COMPLETE
 
 ### Audit & Analysis
-- [ ] Review current appraisalAnalyzer.ts logic — identify data gaps and analysis depth limitations
-- [ ] Audit comparable sales filtering and adjustment methodology
-- [ ] Review cost approach implementation (replacement cost, depreciation, land value)
-- [ ] Audit income approach for rental properties
-- [ ] Review photo analysis and condition adjustments (cost to cure)
-- [ ] Audit market trend analysis and time adjustments
-- [ ] Review appeal strength scoring algorithm for accuracy
-- [ ] Audit narrative generation for advocacy strength and evidence quality
+- [x] Review current appraisalAnalyzer.ts logic — identify data gaps and analysis depth limitations
+- [x] Audit comparable sales filtering and adjustment methodology
+- [x] Review cost approach implementation (replacement cost, depreciation, land value)
+- [x] Audit income approach for rental properties
+- [x] Review photo analysis and condition adjustments (cost to cure)
+- [x] Audit market trend analysis and time adjustments
+- [x] Review appeal strength scoring algorithm for accuracy
+- [x] Audit narrative generation for advocacy strength and evidence quality
 
-### Enhancement Roadmap
-- [ ] Implement advanced comparable sales analysis (expanded search radius, better filtering, multiple comp sets)
-- [ ] Add comprehensive market adjustment methodology (location, condition, time, physical characteristics)
-- [ ] Enhance cost approach with detailed replacement cost estimation
-- [ ] Implement detailed photo analysis with cost-to-cure adjustments
-- [ ] Add market trend analysis with seasonal and cyclical adjustments
-- [ ] Enhance narrative generation with expert-level advocacy language
-- [ ] Add comprehensive data aggregation from all available sources
-- [ ] Implement USPAP-compliant appraisal methodology
-- [ ] Add detailed reconciliation of approaches (sales, cost, income)
-- [ ] Implement expert-level appeal strength scoring
+### Enhancement Roadmap — All Delivered
+- [x] Implement advanced comparable sales analysis (comparableSalesAnalyzer.ts — adjustment grid, time/size/bedroom/bathroom/age/lot adjustments, ±30% net cap)
+- [x] Add comprehensive market adjustment methodology (location, condition, time, physical characteristics)
+- [x] Enhance cost approach with detailed replacement cost estimation (costApproachCalculator.ts — per-SF by type, physical depreciation, land value ratio)
+- [x] Implement detailed photo analysis with cost-to-cure adjustments (photoAnalyzer.ts)
+- [x] Add market trend analysis with seasonal and cyclical adjustments (marketTrendAnalyzer.ts)
+- [x] Enhance narrative generation with expert-level advocacy language (reconciliationNarrative.ts)
+- [x] Add comprehensive data aggregation from all available sources (propertyDataAggregator.ts)
+- [x] Implement USPAP-compliant appraisal methodology
+- [x] Add detailed reconciliation of approaches (sales, cost, income)
+- [x] Implement expert-level appeal strength scoring (appealStrengthScoring.ts)
 
+### Phase 1: Advanced Comparable Sales Analysis — COMPLETE
+- [x] Create comparableSalesAnalyzer.ts with adjustment grid engine
+- [x] Implement time adjustment (market appreciation/depreciation)
+- [x] Implement location adjustment (neighborhood, proximity factors)
+- [x] Implement condition adjustment (physical, functional, external)
+- [x] Implement size/age/features adjustments
+- [x] Weight comps by recency and similarity
+- [x] Integrate into analysisJob.ts pipeline
+- [x] Persist adjustmentGrid to property_analysis.adjustmentGrid
+- [x] Add adjustment grid to PDF report
+- [x] Write tests for comparable sales analysis
 
-## Phase 35: Appraisal Logic Enhancement (IN PROGRESS)
+### Phase 2: Cost Approach Implementation — COMPLETE
+- [x] Create costApproachCalculator.ts with replacement cost logic
+- [x] Implement replacement cost per SF by property type
+- [x] Implement depreciation calculation (physical, functional, external)
+- [x] Implement land value estimation
+- [x] Integrate into analysisJob.ts pipeline
+- [x] Persist costApproachData to property_analysis.costApproachData
+- [x] Add cost approach section to PDF report
+- [x] Write tests for cost approach
 
-### Phase 1: Advanced Comparable Sales Analysis
-- [ ] Create comparableSalesAnalyzer.ts with adjustment grid engine
-- [ ] Implement time adjustment (market appreciation/depreciation)
-- [ ] Implement location adjustment (neighborhood, proximity factors)
-- [ ] Implement condition adjustment (physical, functional, external)
-- [ ] Implement size/age/features adjustments
-- [ ] Weight comps by recency and similarity
-- [ ] Integrate into analysisJob.ts pipeline
-- [ ] Persist adjustmentGrid to property_analysis.adjustmentGrid
-- [ ] Add adjustment grid to PDF report
-- [ ] Write tests for comparable sales analysis
+### Phase 3: Income Approach for Rental Properties — COMPLETE
+- [x] Create incomeApproachCalculator.ts with NOI/cap rate logic
+- [x] Extract rental data from property records
+- [x] Calculate NOI from operating expenses
+- [x] Determine market capitalization rate
+- [x] Implement GRM (Gross Rent Multiplier) cross-check
+- [x] Integrate into analysisJob.ts pipeline
+- [x] Persist incomeApproachData to property_analysis.incomeApproachData
+- [x] Add income approach section to PDF report (for rental properties)
+- [x] Write tests for income approach
 
-### Phase 2: Cost Approach Implementation
-- [ ] Create costApproachCalculator.ts with replacement cost logic
-- [ ] Implement replacement cost per SF by property type
-- [ ] Implement depreciation calculation (physical, functional, external)
-- [ ] Implement land value estimation
-- [ ] Integrate into analysisJob.ts pipeline
-- [ ] Persist costApproachData to property_analysis.costApproachData
-- [ ] Add cost approach section to PDF report
-- [ ] Write tests for cost approach
+### Phase 4: Photo Analysis & Cost-to-Cure — COMPLETE
+- [x] Enhance photoAnalyzer.ts with detailed condition scoring
+- [x] Identify specific deficiencies from photos (roof, HVAC, plumbing, foundation, etc.)
+- [x] Estimate cost-to-cure for each deficiency
+- [x] Calculate depreciation impact on value
+- [x] Integrate cost-to-cure adjustments into overall valuation
+- [x] Persist cost-to-cure findings to property_analysis
+- [x] Add cost-to-cure section to PDF report
+- [x] Write tests for photo analysis enhancements
 
-### Phase 3: Income Approach for Rental Properties
-- [ ] Create incomeApproachCalculator.ts with NOI/cap rate logic
-- [ ] Extract rental data from property records
-- [ ] Calculate NOI from operating expenses
-- [ ] Determine market capitalization rate
-- [ ] Implement GRM (Gross Rent Multiplier) cross-check
-- [ ] Integrate into analysisJob.ts pipeline
-- [ ] Persist incomeApproachData to property_analysis.incomeApproachData
-- [ ] Add income approach section to PDF report (for rental properties)
-- [ ] Write tests for income approach
+### Phase 5: Market Trend Analysis & Time Adjustments — COMPLETE
+- [x] Create marketTrendAnalyzer.ts with trend tracking
+- [x] Track market appreciation/depreciation by county/neighborhood
+- [x] Implement time adjustments for sales comps
+- [x] Add seasonal adjustment factors
+- [x] Monitor market conditions (buyer/seller market, DOM, inventory)
+- [x] Integrate into analysisJob.ts pipeline
+- [x] Persist marketTrendData to property_analysis.marketTrendData
+- [x] Add market trend section to PDF report
+- [x] Write tests for market trend analysis
 
-### Phase 4: Photo Analysis & Cost-to-Cure
-- [ ] Enhance photoAnalyzer.ts with detailed condition scoring
-- [ ] Identify specific deficiencies from photos (roof, HVAC, plumbing, foundation, etc.)
-- [ ] Estimate cost-to-cure for each deficiency
-- [ ] Calculate depreciation impact on value
-- [ ] Integrate cost-to-cure adjustments into overall valuation
-- [ ] Persist cost-to-cure findings to property_analysis
-- [ ] Add cost-to-cure section to PDF report
-- [ ] Write tests for photo analysis enhancements
+### Phase 6: Expert-Level Narrative Generation & Reconciliation — COMPLETE
+- [x] Enhance pdfReportGenerator.ts with multi-approach reconciliation narrative
+- [x] Implement reconciliation of all three approaches
+- [x] Add approach weighting explanation
+- [x] Add jurisdiction-specific appeal strategy language
+- [x] Include detailed methodology explanation
+- [x] Emphasize user advocacy while maintaining USPAP compliance
+- [x] Persist reconciliationNarrative to property_analysis.reconciliationNarrative
+- [x] Add reconciliation section to PDF report
+- [x] Write tests for narrative generation
 
-### Phase 5: Market Trend Analysis & Time Adjustments
-- [ ] Create marketTrendAnalyzer.ts with trend tracking
-- [ ] Track market appreciation/depreciation by county/neighborhood
-- [ ] Implement time adjustments for sales comps
-- [ ] Add seasonal adjustment factors
-- [ ] Monitor market conditions (buyer/seller market, DOM, inventory)
-- [ ] Integrate into analysisJob.ts pipeline
-- [ ] Persist marketTrendData to property_analysis.marketTrendData
-- [ ] Add market trend section to PDF report
-- [ ] Write tests for market trend analysis
+### Phase 7: PDF Report Integration — COMPLETE
+- [x] Update pdfGenerator.ts to render all new sections
+- [x] Add adjustment grid section with detailed tables
+- [x] Add cost approach section with depreciation breakdown
+- [x] Add income approach section with NOI calculations
+- [x] Add cost-to-cure findings with photo evidence
+- [x] Add market trend analysis section
+- [x] Add reconciliation narrative section
+- [x] Ensure all sections are professional and assessor-facing
+- [x] Test PDF generation with all new sections
+- [x] Verify page layout and formatting
 
-### Phase 6: Expert-Level Narrative Generation & Reconciliation
-- [ ] Enhance pdfReportGenerator.ts with multi-approach reconciliation narrative
-- [ ] Implement reconciliation of all three approaches
-- [ ] Add approach weighting explanation
-- [ ] Add jurisdiction-specific appeal strategy language
-- [ ] Include detailed methodology explanation
-- [ ] Emphasize user advocacy while maintaining USPAP compliance
-- [ ] Persist reconciliationNarrative to property_analysis.reconciliationNarrative
-- [ ] Add reconciliation section to PDF report
-- [ ] Write tests for narrative generation
+### Phase 8: Full Pipeline Testing — COMPLETE
+- [x] Run full test suite (vitest)
+- [x] Verify 0 TypeScript errors
+- [x] Test end-to-end: submit → analyze → report generation
+- [x] Verify all new data flows through pipeline
+- [x] Verify all new sections appear in PDF reports
+- [x] Test with various property types
+- [x] Test with rental properties (income approach)
+- [x] Test with photos (cost-to-cure)
 
-### Phase 7: PDF Report Integration
-- [ ] Update pdfGenerator.ts to render all new sections
-- [ ] Add adjustment grid section with detailed tables
-- [ ] Add cost approach section with depreciation breakdown
-- [ ] Add income approach section with NOI calculations
-- [ ] Add cost-to-cure findings with photo evidence
-- [ ] Add market trend analysis section
-- [ ] Add reconciliation narrative section
-- [ ] Ensure all sections are professional and assessor-facing
-- [ ] Test PDF generation with all new sections
-- [ ] Verify page layout and formatting
-
-### Phase 8: Full Pipeline Testing
-- [ ] Run full test suite (vitest)
-- [ ] Verify 0 TypeScript errors
-- [ ] Test end-to-end: submit → analyze → report generation
-- [ ] Verify all new data flows through pipeline
-- [ ] Verify all new sections appear in PDF reports
-- [ ] Test with various property types
-- [ ] Test with rental properties (income approach)
-- [ ] Test with photos (cost-to-cure)
-
-### Phase 9: Save Checkpoint & Present Results
-- [ ] Save checkpoint with all enhancements
-- [ ] Verify all tests passing
-- [ ] Present final results to user
-
-## Phase 36: userScenario Pipeline Integration
-- [ ] Wire userScenario into analysisJob.ts to call scenarioValuation engine
-- [ ] Pass scenario context to appealStrategy.ts for scenario-aware filing advice
-- [ ] Weight analysis approaches by scenario (income for rentals, cost for distressed)
-- [ ] Add scenario-specific exemption detection (veteran, senior, hardship) as owner-only section
-- [ ] Add scenario-specific upsell prompts in Analysis page UI
-- [ ] Ensure scenario context is invisible in assessor-facing PDF report
+### Phase 9: Save Checkpoint & Present Results — COMPLETE
+- [x] Save checkpoint with all enhancements
+- [x] Verify all tests passing (468/490, 22 skipped for missing API keys)
+- [x] Present final results to user
 
 ## Phase 36: userScenario Pipeline Integration — COMPLETE
 
@@ -945,3 +934,9 @@
 - [x] Each upsell card: branded color scheme, scenario badge, advocacy copy, 4 evidence points, actionable next step callout
 - [x] TypeScript: 0 errors
 - [x] Tests: 451 passing, 1 skipped (45 test files)
+
+## Phase 37: Post-Launch Bug Fixes & Polish — COMPLETE
+
+- [x] Fix PaymentHistory "Receipt" button dead code — added `receiptUrl` to `getPaymentHistory` via Stripe expand (`data.payment_intent.latest_charge`); button now opens hosted Stripe receipt in new tab, disabled when no URL available
+- [x] TypeScript: 0 errors
+- [x] Tests: 468 passing, 22 skipped (52 test files)
