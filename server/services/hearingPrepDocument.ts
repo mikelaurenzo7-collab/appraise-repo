@@ -39,8 +39,11 @@
  */
 
 import { generateNarrativeWithClaude, isClaudeAvailable } from "../_core/claude";
+import { scopedLogger } from "../_core/logger";
 import type { UniformityResult } from "./uniformityAnalyzer";
 import type { RecordErrorReport } from "./recordErrorDetector";
+
+const log = scopedLogger("HearingPrepDocument");
 
 export interface HearingPrepInput {
   ownerName?: string;
@@ -161,10 +164,7 @@ export async function generateHearingPrepDocument(
       const parsed = JSON.parse(slice) as Omit<HearingPrepDocument, "source">;
       return { ...parsed, source: "claude" };
     } catch (err) {
-      console.warn(
-        "[HearingPrepDocument] Claude generation failed; using fallback:",
-        (err as Error).message,
-      );
+      log.warn("Claude generation failed; using fallback", { err: (err as Error).message });
       // fall through to deterministic fallback
     }
   }

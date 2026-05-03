@@ -142,54 +142,6 @@ export async function transcribeAudio(
       code: "SERVICE_ERROR",
       details: "No transcription provider is configured",
     };
-
-    // Step 2: Download audio from URL
-    let audioBuffer: Buffer;
-    let mimeType: string;
-    try {
-      const response = await fetch(options.audioUrl);
-      if (!response.ok) {
-        return {
-          error: "Failed to download audio file",
-          code: "INVALID_FORMAT",
-          details: `HTTP ${response.status}: ${response.statusText}`
-        };
-      }
-      
-      audioBuffer = Buffer.from(await response.arrayBuffer());
-      mimeType = response.headers.get('content-type') || 'audio/mpeg';
-      
-      // Check file size (16MB limit)
-      const sizeMB = audioBuffer.length / (1024 * 1024);
-      if (sizeMB > 16) {
-        return {
-          error: "Audio file exceeds maximum size limit",
-          code: "FILE_TOO_LARGE",
-          details: `File size is ${sizeMB.toFixed(2)}MB, maximum allowed is 16MB`
-        };
-      }
-    } catch (error) {
-      const errMsg = error instanceof Error ? (error as Error).message : "Unknown error";
-      return {
-        error: "Failed to fetch audio file",
-        code: "SERVICE_ERROR",
-        details: errMsg
-      };
-    }
-
-    // Step 3: Voice transcription is not configured in this deployment.
-    // The previous Manus Forge integration has been removed. To re-enable,
-    // wire up a Whisper-compatible provider (OpenAI, Deepgram, etc.) and
-    // POST the audioBuffer to its transcriptions endpoint.
-    void audioBuffer;
-    void mimeType;
-    void options;
-    return {
-      error: "Voice transcription is not configured in this deployment.",
-      code: "SERVICE_ERROR",
-      details: "Configure RESEND-style transcription provider and update voiceTranscription.ts.",
-    };
-
   } catch (error) {
     // Handle unexpected errors
     return {
@@ -198,53 +150,6 @@ export async function transcribeAudio(
       details: error instanceof Error ? error.message : "An unexpected error occurred"
     };
   }
-}
-
-/**
- * Helper function to get file extension from MIME type
- */
-function getFileExtension(mimeType: string): string {
-  const mimeToExt: Record<string, string> = {
-    'audio/webm': 'webm',
-    'audio/mp3': 'mp3',
-    'audio/mpeg': 'mp3',
-    'audio/wav': 'wav',
-    'audio/wave': 'wav',
-    'audio/ogg': 'ogg',
-    'audio/m4a': 'm4a',
-    'audio/mp4': 'm4a',
-  };
-  
-  return mimeToExt[mimeType] || 'audio';
-}
-
-/**
- * Helper function to get full language name from ISO code
- */
-function getLanguageName(langCode: string): string {
-  const langMap: Record<string, string> = {
-    'en': 'English',
-    'es': 'Spanish',
-    'fr': 'French',
-    'de': 'German',
-    'it': 'Italian',
-    'pt': 'Portuguese',
-    'ru': 'Russian',
-    'ja': 'Japanese',
-    'ko': 'Korean',
-    'zh': 'Chinese',
-    'ar': 'Arabic',
-    'hi': 'Hindi',
-    'nl': 'Dutch',
-    'pl': 'Polish',
-    'tr': 'Turkish',
-    'sv': 'Swedish',
-    'da': 'Danish',
-    'no': 'Norwegian',
-    'fi': 'Finnish',
-  };
-  
-  return langMap[langCode] || langCode;
 }
 
 /**
