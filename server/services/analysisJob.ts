@@ -403,7 +403,7 @@ export async function analyzePropertySubmission(submissionId: number): Promise<v
           functionalObsolescenceItems: photoSummary.functionalObsolescenceItems,
           summaryParagraph: photoSummary.summaryParagraph,
           costToCureTotal: photoSummary.costToCureTotal,
-          costToCureItems: photoSummary.findings.flatMap((f) => f.costToCure ?? []),
+          costToCureItems: photoSummary.costToCureItems,
         }),
         status: "success",
       });

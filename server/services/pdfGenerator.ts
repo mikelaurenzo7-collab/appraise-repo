@@ -395,7 +395,7 @@ function kvTable(doc: PDFKit.PDFDocument, rows: [string, string][], y: number, c
     doc.rect(LM, y, cw, rowH).lineWidth(0.3).fillAndStroke(bg, BORDER);
     doc.fontSize(8.5).fillColor(BODY_TEXT).font("Helvetica-Bold")
       .text(label, LM + 10, y + 6, { width: labelW - 16, lineBreak: false });
-    const isHighlight = opts?.highlight && (value.includes("STRONG") || label.includes("FINAL") || label.includes("SAVINGS"));
+    const isHighlight = opts?.highlight && (value.includes("STRONG") || label.includes("FINAL") || label.includes("SAVINGS") || label.includes("TOTAL"));
     doc.fontSize(8.5).fillColor(isHighlight ? PURPLE : DARK_TEXT).font(isHighlight ? "Helvetica-Bold" : "Helvetica")
       .text(value, LM + labelW, y + 6, { width: valW - 10, lineBreak: false });
     y += rowH;
