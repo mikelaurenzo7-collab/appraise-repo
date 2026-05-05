@@ -292,7 +292,7 @@ export const appRouter = router({
     /** Sign in with email + password via Supabase Auth (no OAuth providers needed). */
     signin: publicProcedure
       .input(z.object({
-        email: z.string().email(),
+        email: z.string().trim().toLowerCase().email(),
         password: z.string().min(6),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -316,7 +316,11 @@ export const appRouter = router({
           const err = await res.json().catch(() => ({ error_description: "Sign in failed" }));
           throw new TRPCError({
             code: "UNAUTHORIZED",
-            message: (err as { error_description?: string }).error_description ?? "Invalid email or password",
+            message: (err as { error_description?: string; msg?: string; message?: string; error?: string }).error_description
+              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).msg
+              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).message
+              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).error
+              ?? "Invalid email or password",
           });
         }
 
@@ -338,7 +342,7 @@ export const appRouter = router({
     /** Register a new account with email + password. */
     signup: publicProcedure
       .input(z.object({
-        email: z.string().email(),
+        email: z.string().trim().toLowerCase().email(),
         password: z.string().min(8, "Password must be at least 8 characters"),
         name: z.string().max(100).optional(),
       }))
@@ -357,7 +361,7 @@ export const appRouter = router({
             "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            email: input.email,
+            email: input.email.trim().toLowerCase(),
             password: input.password,
             data: input.name ? { full_name: input.name } : undefined,
           }),
@@ -367,16 +371,19 @@ export const appRouter = router({
           const err = await res.json().catch(() => ({ msg: "Registration failed" }));
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: (err as { msg?: string; error_description?: string }).msg
-              ?? (err as { msg?: string; error_description?: string }).error_description
+            message: (err as { msg?: string; error_description?: string; message?: string; error?: string }).msg
+              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).error_description
+              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).message
+              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).error
               ?? "Registration failed",
           });
         }
 
-        const session = await res.json() as { user?: { id: string; email?: string } };
+        const session = await res.json() as { user?: { id: string; email?: string }; session?: unknown | null };
         const sbUser = session.user;
-        if (!sbUser?.id) {
-          // Supabase may require email confirmation — tell the client
+        if (!sbUser?.id || !session.session) {
+          // Supabase returns a user without a session when email confirmation is required.
+          // Do not create our app session until the email address is confirmed and sign-in succeeds.
           return { success: true, requiresConfirmation: true } as const;
         }
 

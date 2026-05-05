@@ -249,6 +249,38 @@ function toOpenAIContent(
   });
 }
 
+export function extractValidJsonPayload(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const candidates = [trimmed];
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch?.[1]) candidates.push(fenceMatch[1].trim());
+
+  const objectStart = trimmed.indexOf("{");
+  const objectEnd = trimmed.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    candidates.push(trimmed.slice(objectStart, objectEnd + 1));
+  }
+
+  const arrayStart = trimmed.indexOf("[");
+  const arrayEnd = trimmed.lastIndexOf("]");
+  if (arrayStart >= 0 && arrayEnd > arrayStart) {
+    candidates.push(trimmed.slice(arrayStart, arrayEnd + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      // Try the next likely JSON slice.
+    }
+  }
+
+  return null;
+}
+
 function extractOpenAIText(data: Record<string, unknown>): string {
   if (typeof data.output_text === "string") return data.output_text;
 
@@ -380,6 +412,17 @@ function flattenForReview(messages: Message[]): string {
     .join("\n\n");
 }
 
+function hasImageContent(messages: Message[]): boolean {
+  return messages.some(message => {
+    const content = message.content;
+    const parts = Array.isArray(content) ? content : [content];
+    return parts.some(
+      part =>
+        typeof part === "object" && part !== null && part.type === "image_url"
+    );
+  });
+}
+
 function wantsJson(params: InvokeParams): boolean {
   const responseFormat = params.responseFormat ?? params.response_format;
   return (
@@ -399,6 +442,15 @@ export async function callDuo(
     (!isAnthropicAvailable() && isOpenAIAvailable())
   ) {
     const text = await callOpenAI(params);
+    return {
+      text,
+      model: resolveOpenAIModel(params.model),
+      provider: "openai",
+    };
+  }
+
+  if (hasImageContent(params.messages) && isOpenAIAvailable()) {
+    const text = await callOpenAI({ ...params, provider: "openai" });
     return {
       text,
       model: resolveOpenAIModel(params.model),
@@ -464,6 +516,23 @@ export async function callDuo(
     if (!final.trim()) {
       return {
         text: claudeDraft,
+        model: anthropicModel,
+        provider: "anthropic",
+      };
+    }
+
+    if (wantsJson(params)) {
+      const finalJson = extractValidJsonPayload(final);
+      if (finalJson) {
+        return {
+          text: finalJson,
+          model: `${anthropicModel}+${ENV.openaiModel}`,
+          provider: "duo",
+        };
+      }
+
+      return {
+        text: extractValidJsonPayload(claudeDraft) ?? claudeDraft,
         model: anthropicModel,
         provider: "anthropic",
       };

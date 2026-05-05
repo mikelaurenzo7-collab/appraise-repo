@@ -143,6 +143,48 @@ describe("llmProviders", () => {
     });
   });
 
+  it("routes generic vision calls directly to OpenAI when image content is present", async () => {
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    process.env.OPENAI_API_KEY = "openai-key";
+    const fetchMock = mockJsonFetch([{ output_text: "vision finding" }]);
+
+    const { callDuo } = await import("./_core/llmProviders");
+    const result = await callDuo({
+      messages: [
+        { role: "system", content: "Analyze property photos." },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Find visible defects." },
+            {
+              type: "image_url",
+              image_url: {
+                url: "https://example.com/foundation.jpg",
+                detail: "high",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      text: "vision finding",
+      model: "gpt-5.2",
+      provider: "openai",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.input[0].content).toEqual([
+      { type: "input_text", text: "Find visible defects." },
+      {
+        type: "input_image",
+        image_url: "https://example.com/foundation.jpg",
+        detail: "high",
+      },
+    ]);
+  });
+
   it("sends photo evidence to OpenAI as image inputs", async () => {
     process.env.OPENAI_API_KEY = "openai-key";
     const fetchMock = mockJsonFetch([{ output_text: "photo finding" }]);
@@ -192,6 +234,47 @@ describe("llmProviders", () => {
         strict: false,
         schema: { type: "object", properties: { ok: { type: "boolean" } } },
       },
+    });
+  });
+  it("strips markdown fences from valid JSON reviewer output", async () => {
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    process.env.OPENAI_API_KEY = "openai-key";
+    mockJsonFetch([
+      { content: [{ type: "text", text: '{"score":7}' }] },
+      { output_text: '```json\n{"score":8}\n```' },
+    ]);
+
+    const { callDuo } = await import("./_core/llmProviders");
+    const result = await callDuo({
+      messages: [{ role: "user", content: "Return JSON." }],
+      response_format: { type: "json_object" },
+    });
+
+    expect(result).toEqual({
+      text: '{"score":8}',
+      model: "claude-sonnet-4-20250514+gpt-5.2",
+      provider: "duo",
+    });
+  });
+
+  it("falls back to Claude JSON when the reviewer breaks a JSON contract", async () => {
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    process.env.OPENAI_API_KEY = "openai-key";
+    mockJsonFetch([
+      { content: [{ type: "text", text: '{"score":7}' }] },
+      { output_text: "score: eight" },
+    ]);
+
+    const { callDuo } = await import("./_core/llmProviders");
+    const result = await callDuo({
+      messages: [{ role: "user", content: "Return JSON." }],
+      response_format: { type: "json_object" },
+    });
+
+    expect(result).toEqual({
+      text: '{"score":7}',
+      model: "claude-sonnet-4-20250514",
+      provider: "anthropic",
     });
   });
 });

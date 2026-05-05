@@ -145,15 +145,26 @@ export function computeCompPriceBand(propertyData: PropertyData): {
   q3Ppsf: number;
   minPpsf: number;
   maxPpsf: number;
+  weightedMedianPpsf: number;
+  weightedQ1Ppsf: number;
+  weightedQ3Ppsf: number;
+  lowerAnchorValue?: number;
+  medianAnchorValue?: number;
+  upperAnchorValue?: number;
+  compQuality: "strong" | "moderate" | "thin";
+  dispersionPct: number;
+  reliability: "high" | "medium" | "low";
 } | null {
-  const comps = (propertyData.comparableSales ?? []).filter(
-    c => c.salePrice > 0 && (c.squareFeet ?? 0) > 0
-  );
+  const comps = (propertyData.comparableSales ?? [])
+    .filter(c => c.salePrice > 0 && (c.squareFeet ?? 0) > 0)
+    .map(c => ({
+      ppsf: c.salePrice / (c.squareFeet as number),
+      similarity: normalizeSimilarity(c.similarity),
+      recency: recencyWeight(c.saleDate),
+    }));
   if (comps.length < 3) return null;
 
-  const ppsf = comps
-    .map(c => c.salePrice / (c.squareFeet as number))
-    .sort((a, b) => a - b);
+  const ppsf = comps.map(c => c.ppsf).sort((a, b) => a - b);
 
   const at = (q: number) => {
     const idx = Math.max(
@@ -163,6 +174,28 @@ export function computeCompPriceBand(propertyData: PropertyData): {
     return ppsf[idx];
   };
 
+  const weighted = weightedPpsfQuantiles(
+    comps.map(c => ({
+      value: c.ppsf,
+      weight: Math.max(0.1, c.similarity * c.recency),
+    }))
+  );
+  const subjectSqft =
+    propertyData.squareFeet && propertyData.squareFeet > 0
+      ? propertyData.squareFeet
+      : undefined;
+
+  const dispersionPct =
+    weighted.median > 0 ? (weighted.q3 - weighted.q1) / weighted.median : 0;
+  const compQuality =
+    ppsf.length >= 6 ? "strong" : ppsf.length >= 4 ? "moderate" : "thin";
+  const reliability =
+    compQuality === "strong" && dispersionPct <= 0.2
+      ? "high"
+      : compQuality !== "thin" && dispersionPct <= 0.35
+        ? "medium"
+        : "low";
+
   return {
     count: ppsf.length,
     medianPpsf: at(0.5),
@@ -170,7 +203,64 @@ export function computeCompPriceBand(propertyData: PropertyData): {
     q3Ppsf: at(0.75),
     minPpsf: ppsf[0],
     maxPpsf: ppsf[ppsf.length - 1],
+    weightedMedianPpsf: weighted.median,
+    weightedQ1Ppsf: weighted.q1,
+    weightedQ3Ppsf: weighted.q3,
+    lowerAnchorValue: subjectSqft
+      ? Math.round(weighted.q1 * subjectSqft)
+      : undefined,
+    medianAnchorValue: subjectSqft
+      ? Math.round(weighted.median * subjectSqft)
+      : undefined,
+    upperAnchorValue: subjectSqft
+      ? Math.round(weighted.q3 * subjectSqft)
+      : undefined,
+    compQuality,
+    dispersionPct,
+    reliability,
   };
+}
+
+function normalizeSimilarity(similarity: number | undefined): number {
+  if (similarity === undefined || !Number.isFinite(similarity)) return 0.75;
+  return similarity > 1
+    ? Math.min(1, Math.max(0.1, similarity / 100))
+    : Math.min(1, Math.max(0.1, similarity));
+}
+
+function recencyWeight(saleDate: string): number {
+  const sold = new Date(saleDate).getTime();
+  if (Number.isNaN(sold)) return 0.75;
+  const ageMonths = Math.max(
+    0,
+    (Date.now() - sold) / (1000 * 60 * 60 * 24 * 30.4375)
+  );
+  if (ageMonths <= 6) return 1;
+  if (ageMonths <= 12) return 0.9;
+  if (ageMonths <= 18) return 0.75;
+  if (ageMonths <= 24) return 0.6;
+  return 0.45;
+}
+
+function weightedPpsfQuantiles(
+  points: Array<{ value: number; weight: number }>
+): {
+  q1: number;
+  median: number;
+  q3: number;
+} {
+  const sorted = [...points].sort((a, b) => a.value - b.value);
+  const totalWeight = sorted.reduce((sum, p) => sum + p.weight, 0);
+  const at = (q: number) => {
+    let cumulative = 0;
+    const target = totalWeight * q;
+    for (const point of sorted) {
+      cumulative += point.weight;
+      if (cumulative >= target) return point.value;
+    }
+    return sorted[sorted.length - 1].value;
+  };
+  return { q1: at(0.25), median: at(0.5), q3: at(0.75) };
 }
 
 /**
@@ -245,10 +335,13 @@ ${
   compBand
     ? `Comparable-Sales Price Band (price per sqft, n=${compBand.count}):
 - Range:    $${Math.round(compBand.minPpsf)} – $${Math.round(compBand.maxPpsf)}/sqft
-- IQR:      $${Math.round(compBand.q1Ppsf)} – $${Math.round(compBand.q3Ppsf)}/sqft  ← supportable range
-- Median:   $${Math.round(compBand.medianPpsf)}/sqft
-- Lower advocacy anchor (Q1): $${Math.round(compBand.q1Ppsf)}/sqft × subject sqft = ${propertyData.squareFeet ? `$${(Math.round(compBand.q1Ppsf) * propertyData.squareFeet).toLocaleString()}` : "n/a (subject sqft unknown)"}
-- Median anchor:              $${Math.round(compBand.medianPpsf)}/sqft × subject sqft = ${propertyData.squareFeet ? `$${(Math.round(compBand.medianPpsf) * propertyData.squareFeet).toLocaleString()}` : "n/a"}
+- Unweighted IQR: $${Math.round(compBand.q1Ppsf)} – $${Math.round(compBand.q3Ppsf)}/sqft
+- Weighted IQR:   $${Math.round(compBand.weightedQ1Ppsf)} – $${Math.round(compBand.weightedQ3Ppsf)}/sqft  ← supportable range weighted for similarity + recency
+- Weighted median: $${Math.round(compBand.weightedMedianPpsf)}/sqft
+- Comp quality: ${compBand.compQuality}; reliability: ${compBand.reliability}; weighted IQR dispersion: ${(compBand.dispersionPct * 100).toFixed(1)}%
+- Lower advocacy anchor (weighted Q1): ${compBand.lowerAnchorValue ? `$${compBand.lowerAnchorValue.toLocaleString()}` : "n/a (subject sqft unknown)"}
+- Median anchor (weighted):           ${compBand.medianAnchorValue ? `$${compBand.medianAnchorValue.toLocaleString()}` : "n/a"}
+- Upper anchor (weighted Q3):          ${compBand.upperAnchorValue ? `$${compBand.upperAnchorValue.toLocaleString()}` : "n/a"}
 `
     : "Comparable-Sales Price Band: insufficient comp data (need ≥3 with square footage) to compute a defensible band."
 }
@@ -372,11 +465,16 @@ Posture & methodology:
 - Your client is the property owner. Within the supportable evidence range,
   argue for fair market value at the lower end of that range — NOT below it.
   This is competent valuation in an appeal context, not advocacy beyond evidence.
-- Use the Comparable-Sales Price Band above as your supportable range. Anchor
-  the conclusion at or near Q1 (lower advocacy anchor) when the subject has
+- Use the weighted Comparable-Sales Price Band above as your primary supportable range. Anchor
+  the conclusion at or near weighted Q1 (lower advocacy anchor) when the subject has
   documentable factors that justify a below-median position; anchor near the
-  median when those factors are absent or unclear; never anchor above Q3 in
-  an appeal context.
+  weighted median when those factors are absent or unclear; never anchor above weighted Q3 in
+  an appeal context. The unweighted IQR is a check on dispersion; the weighted
+  IQR is the valuation guide because it rewards recent, similar comps.
+- Adjust confidence to the comp-band reliability. High reliability supports precise
+  conclusions. Medium reliability supports a clear but qualified conclusion. Low
+  reliability requires conservative appealStrengthScore and explicit next steps
+  to gather better comps, photos, or assessor record evidence before filing.
 - Every observation must be traceable to a comp, a public record, a
   measurement, or an arithmetic step. No invented facts. No round numbers
   without a derivation.
@@ -393,10 +491,10 @@ ${scenarioBlock}
 Provide a JSON response with:
 1. marketValueEstimate: Independent fair-market-value conclusion derived from
    the comparable sales and public records above. Round to the nearest $500.
-   When a Comparable-Sales Price Band is shown, this number MUST fall within
-   that band (Q1 ≤ value ≤ Q3 typically; never below the lower edge of the
-   range and only at/above the median when the subject is materially
-   superior to the comp set).
+   When a weighted Comparable-Sales Price Band is shown, this number MUST fall within
+   that weighted band (weighted Q1 ≤ value ≤ weighted Q3 typically; never below
+   the lower edge of the range and only at/above the weighted median when the
+   subject is materially superior to the comp set).
    IMPORTANT: If photo evidence shows interior defects or functional obsolescence
    the assessor has not seen, these SUPPORT anchoring at Q1. If a tax bill shows
    a year-over-year assessment increase above market appreciation, this supports
@@ -405,7 +503,7 @@ Provide a JSON response with:
    Use the assessed value from the tax bill if provided — it's the authoritative figure.
 3. assessmentGapPercent: gap / assessedValue, expressed as a number.
 4. appealStrengthScore: 0-100. Reflects (a) magnitude of the gap, (b) quantity
-   and quality of comparable sales, (c) consistency of public-record data,
+   and quality/reliability of comparable sales, (c) consistency of public-record data,
    (d) photo evidence of defects unknown to assessor (+5 to +15 if present),
    (e) functional obsolescence not in assessor records (+3 to +8 each item),
    (f) tax bill showing above-market YoY increase (+5 to +10 if present).
