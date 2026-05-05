@@ -236,4 +236,46 @@ describe("llmProviders", () => {
       },
     });
   });
+
+  it("strips markdown fences from valid JSON reviewer output", async () => {
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    process.env.OPENAI_API_KEY = "openai-key";
+    mockJsonFetch([
+      { content: [{ type: "text", text: '{"score":7}' }] },
+      { output_text: '```json\n{"score":8}\n```' },
+    ]);
+
+    const { callDuo } = await import("./_core/llmProviders");
+    const result = await callDuo({
+      messages: [{ role: "user", content: "Return JSON." }],
+      response_format: { type: "json_object" },
+    });
+
+    expect(result).toEqual({
+      text: '{"score":8}',
+      model: "claude-sonnet-4-20250514+gpt-5.2",
+      provider: "duo",
+    });
+  });
+
+  it("falls back to Claude JSON when the reviewer breaks a JSON contract", async () => {
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    process.env.OPENAI_API_KEY = "openai-key";
+    mockJsonFetch([
+      { content: [{ type: "text", text: '{"score":7}' }] },
+      { output_text: "score: eight" },
+    ]);
+
+    const { callDuo } = await import("./_core/llmProviders");
+    const result = await callDuo({
+      messages: [{ role: "user", content: "Return JSON." }],
+      response_format: { type: "json_object" },
+    });
+
+    expect(result).toEqual({
+      text: '{"score":7}',
+      model: "claude-sonnet-4-20250514",
+      provider: "anthropic",
+    });
+  });
 });

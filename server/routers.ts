@@ -6,12 +6,7 @@ import { smsRouter } from "./routers/sms";
 import { appealsRouter } from "./routers/appeals";
 import { reportsRouter } from "./routers/reports";
 import { guidesRouter } from "./routers/guides";
-import {
-  adminProcedure as trpcAdminProcedure,
-  protectedProcedure,
-  publicProcedure,
-  router,
-} from "./_core/trpc";
+import { adminProcedure as trpcAdminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { safeJsonParse } from "./_core/safeJson";
 import { z } from "zod";
 import {
@@ -55,11 +50,7 @@ import { filingTiers } from "../drizzle/schema.pg";
 import { notifyOwner } from "./_core/notification";
 import { queueAnalysisJob } from "./services/analysisJob";
 import { queueReportGeneration } from "./services/reportJobQueue";
-import {
-  getReportJobById,
-  getReportJobBySubmissionId,
-  getDb as getDbForReports,
-} from "./db";
+import { getReportJobById, getReportJobBySubmissionId, getDb as getDbForReports } from "./db";
 import {
   generateAppraisalPDF,
   type AppraisalReportData,
@@ -168,9 +159,7 @@ function refundAnchorDate(
   const filingAt = toDate(filingJob?.createdAt);
   const submissionAt = toDate(submission?.createdAt);
   if (filingAt && submissionAt) {
-    return filingAt.getTime() >= submissionAt.getTime()
-      ? filingAt
-      : submissionAt;
+    return filingAt.getTime() >= submissionAt.getTime() ? filingAt : submissionAt;
   }
   return filingAt ?? submissionAt;
 }
@@ -185,17 +174,13 @@ function refundWindowRemaining(anchor: Date): number {
  * the user never paid/filed, we don't create a refund. The refund is
  * pending until admin.decideRefund approves.
  */
-async function maybeAutoRequestRefund(
-  submissionId: number,
-  adminUserId: number
-): Promise<void> {
+async function maybeAutoRequestRefund(submissionId: number, adminUserId: number): Promise<void> {
   const [filingJob, existing] = await Promise.all([
     getFilingJobBySubmissionId(submissionId),
     getRefundRequestBySubmissionId(submissionId),
   ]);
   if (!filingJob || filingJob.status !== "completed") return;
-  if (existing && existing.status !== "denied" && existing.status !== "failed")
-    return;
+  if (existing && existing.status !== "denied" && existing.status !== "failed") return;
   const submission = await getPropertySubmissionById(submissionId);
   if (!submission) return;
 
@@ -249,11 +234,7 @@ export const appRouter = router({
     /** Get or create the current user's referral code + dashboard stats */
     dashboard: protectedProcedure.query(async ({ ctx }) => {
       const data = await getReferralDashboard(ctx.user.id);
-      if (!data)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Could not load referral data",
-        });
+      if (!data) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not load referral data" });
       return data;
     }),
 
@@ -267,12 +248,7 @@ export const appRouter = router({
 
     /** Track a referral click (public — called when ?ref= param is present) */
     trackClick: publicProcedure
-      .input(
-        z.object({
-          code: z.string().min(1),
-          email: z.string().email().optional(),
-        })
-      )
+      .input(z.object({ code: z.string().min(1), email: z.string().email().optional() }))
       .mutation(async ({ input }) => {
         const codeRow = await getReferralCodeByCode(input.code);
         if (!codeRow) return { success: false, reason: "invalid_code" };
@@ -292,20 +268,10 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const dashboard = await getReferralDashboard(ctx.user.id);
         if (!dashboard || dashboard.pendingBalanceCents < input.amountCents) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Insufficient balance",
-          });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient balance" });
         }
-        const payout = await createReferralPayout(
-          ctx.user.id,
-          input.amountCents
-        );
-        if (!payout)
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to create payout",
-          });
+        const payout = await createReferralPayout(ctx.user.id, input.amountCents);
+        if (!payout) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create payout" });
         await notifyOwner({
           title: "Referral Payout Request",
           content: `User ${ctx.user.name || ctx.user.email} requested a payout of $${(input.amountCents / 100).toFixed(2)}.`,
@@ -325,143 +291,74 @@ export const appRouter = router({
 
     /** Sign in with email + password via Supabase Auth (no OAuth providers needed). */
     signin: publicProcedure
-      .input(
-        z.object({
-          email: z.string().trim().toLowerCase().email(),
-          password: z.string().min(6),
-        })
-      )
+      .input(z.object({
+        email: z.string().trim().toLowerCase().email(),
+        password: z.string().min(6),
+      }))
       .mutation(async ({ input, ctx }) => {
         const SUPABASE_URL = process.env.SUPABASE_URL;
         const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
         if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Auth not configured",
-          });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Auth not configured" });
         }
 
-        const res = await fetch(
-          `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({
-              email: input.email.trim().toLowerCase(),
-              password: input.password,
-            }),
-          }
-        );
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ email: input.email, password: input.password }),
+        });
 
         if (!res.ok) {
-          const err = await res
-            .json()
-            .catch(() => ({ error_description: "Sign in failed" }));
-          const msg =
-            (
-              err as {
-                error_description?: string;
-                msg?: string;
-                message?: string;
-                error?: string;
-              }
-            ).error_description ??
-            (
-              err as {
-                error_description?: string;
-                msg?: string;
-                message?: string;
-                error?: string;
-              }
-            ).msg ??
-            (
-              err as {
-                error_description?: string;
-                msg?: string;
-                message?: string;
-                error?: string;
-              }
-            ).message ??
-            (
-              err as {
-                error_description?: string;
-                msg?: string;
-                message?: string;
-                error?: string;
-              }
-            ).error ??
-            "Invalid email or password";
+          const err = await res.json().catch(() => ({ error_description: "Sign in failed" }));
           throw new TRPCError({
             code: "UNAUTHORIZED",
-            message: msg,
+            message: (err as { error_description?: string; msg?: string; message?: string; error?: string }).error_description
+              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).msg
+              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).message
+              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).error
+              ?? "Invalid email or password",
           });
         }
 
-        const session = (await res.json()) as {
-          user?: {
-            id: string;
-            email?: string;
-            user_metadata?: Record<string, unknown>;
-          };
-        };
+        const session = await res.json() as { user?: { id: string; email?: string; user_metadata?: Record<string, unknown> } };
         const sbUser = session.user;
-        if (!sbUser)
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "Sign in failed",
-          });
+        if (!sbUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in failed" });
 
         const { upsertUser } = await import("./db");
-        const name = (sbUser.user_metadata?.full_name ??
-          sbUser.user_metadata?.name ??
-          null) as string | null;
-        await upsertUser({
-          openId: sbUser.id,
-          name,
-          email: sbUser.email ?? null,
-          loginMethod: "email",
-          lastSignedIn: new Date(),
-        });
+        const name = (sbUser.user_metadata?.full_name ?? sbUser.user_metadata?.name ?? null) as string | null;
+        await upsertUser({ openId: sbUser.id, name, email: sbUser.email ?? null, loginMethod: "email", lastSignedIn: new Date() });
 
         const { signJWT, ONE_YEAR_MS } = await import("./_core/auth");
         const token = await signJWT({ openId: sbUser.id, name: name ?? "" });
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, token, {
-          ...cookieOptions,
-          maxAge: ONE_YEAR_MS,
-        });
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
         return { success: true } as const;
       }),
 
     /** Register a new account with email + password. */
     signup: publicProcedure
-      .input(
-        z.object({
-          email: z.string().trim().toLowerCase().email(),
-          password: z.string().min(8, "Password must be at least 8 characters"),
-          name: z.string().max(100).optional(),
-        })
-      )
+      .input(z.object({
+        email: z.string().trim().toLowerCase().email(),
+        password: z.string().min(8, "Password must be at least 8 characters"),
+        name: z.string().max(100).optional(),
+      }))
       .mutation(async ({ input, ctx }) => {
         const SUPABASE_URL = process.env.SUPABASE_URL;
         const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
         if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Auth not configured",
-          });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Auth not configured" });
         }
 
         const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
             email: input.email.trim().toLowerCase(),
@@ -471,53 +368,18 @@ export const appRouter = router({
         });
 
         if (!res.ok) {
-          const err = await res
-            .json()
-            .catch(() => ({ msg: "Registration failed" }));
-          const msg =
-            (
-              err as {
-                msg?: string;
-                error_description?: string;
-                message?: string;
-                error?: string;
-              }
-            ).msg ??
-            (
-              err as {
-                msg?: string;
-                error_description?: string;
-                message?: string;
-                error?: string;
-              }
-            ).error_description ??
-            (
-              err as {
-                msg?: string;
-                error_description?: string;
-                message?: string;
-                error?: string;
-              }
-            ).message ??
-            (
-              err as {
-                msg?: string;
-                error_description?: string;
-                message?: string;
-                error?: string;
-              }
-            ).error ??
-            "Registration failed";
+          const err = await res.json().catch(() => ({ msg: "Registration failed" }));
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: msg,
+            message: (err as { msg?: string; error_description?: string; message?: string; error?: string }).msg
+              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).error_description
+              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).message
+              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).error
+              ?? "Registration failed",
           });
         }
 
-        const session = (await res.json()) as {
-          user?: { id: string; email?: string };
-          session?: unknown | null;
-        };
+        const session = await res.json() as { user?: { id: string; email?: string }; session?: unknown | null };
         const sbUser = session.user;
         if (!sbUser?.id || !session.session) {
           // Supabase returns a user without a session when email confirmation is required.
@@ -526,24 +388,12 @@ export const appRouter = router({
         }
 
         const { upsertUser } = await import("./db");
-        await upsertUser({
-          openId: sbUser.id,
-          name: input.name ?? null,
-          email: input.email,
-          loginMethod: "email",
-          lastSignedIn: new Date(),
-        });
+        await upsertUser({ openId: sbUser.id, name: input.name ?? null, email: input.email, loginMethod: "email", lastSignedIn: new Date() });
 
         const { signJWT, ONE_YEAR_MS } = await import("./_core/auth");
-        const token = await signJWT({
-          openId: sbUser.id,
-          name: input.name ?? "",
-        });
+        const token = await signJWT({ openId: sbUser.id, name: input.name ?? "" });
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, token, {
-          ...cookieOptions,
-          maxAge: ONE_YEAR_MS,
-        });
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
         return { success: true, requiresConfirmation: false } as const;
       }),
   }),
@@ -551,44 +401,25 @@ export const appRouter = router({
   // ─── PROPERTIES ──────────────────────────────────────────────────────────
   properties: router({
     submitAddress: publicProcedure
-      .input(
-        z.object({
-          address: z.string().min(5, "Please enter a valid address"),
-          email: z.string().email("Please enter a valid email"),
-          phone: z.string().optional(),
-          filingMethod: z
-            .enum([
-              "automated_express",
-              "automated_standard",
-              "pro-se",
-              "none",
-              "poa",
-            ])
-            .default("automated_express"),
-          referralCode: z.string().optional(),
-          // Optional scenario picker — drives scenario-aware valuation,
-          // exemption-stacking advice, and POA/pro-se recommendation.
-          // Defaults to "none" (generic analysis).
-          userScenario: z
-            .enum([
-              "primary_residence",
-              "rental_property",
-              "vacation_home",
-              "inherited_property",
-              "recently_purchased",
-              "planning_to_sell",
-              "distressed_condition",
-              "new_construction",
-              "recently_renovated",
-              "senior_homestead",
-              "veteran_disability",
-              "financial_hardship",
-              "mixed_use",
-              "none",
-            ])
-            .default("none"),
-        })
-      )
+      .input(z.object({
+        address: z.string().min(5, "Please enter a valid address"),
+        email: z.string().email("Please enter a valid email"),
+        phone: z.string().optional(),
+        filingMethod: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]).default("automated_express"),
+        referralCode: z.string().optional(),
+        // Optional scenario picker — drives scenario-aware valuation,
+        // exemption-stacking advice, and POA/pro-se recommendation.
+        // Defaults to "none" (generic analysis).
+        userScenario: z
+          .enum([
+            "primary_residence", "rental_property", "vacation_home",
+            "inherited_property", "recently_purchased", "planning_to_sell",
+            "distressed_condition", "new_construction", "recently_renovated",
+            "senior_homestead", "veteran_disability", "financial_hardship",
+            "mixed_use", "none",
+          ])
+          .default("none"),
+      }))
       .mutation(async ({ input, ctx }) => {
         enforceRateLimit(ctx, {
           scope: "submitAddress",
@@ -596,7 +427,7 @@ export const appRouter = router({
           windowMs: 60_000,
         });
         try {
-          const addressParts = input.address.split(",").map(p => p.trim());
+          const addressParts = input.address.split(",").map((p) => p.trim());
           const fullAddress = addressParts[0] || input.address;
           const city = addressParts[1] || "";
           const stateZip = (addressParts[2] || "").trim();
@@ -609,7 +440,7 @@ export const appRouter = router({
             city,
             state,
             zipCode,
-            email: input.email.trim().toLowerCase(),
+            email: input.email,
             phone: input.phone,
             filingMethod: input.filingMethod,
             userScenario: input.userScenario,
@@ -617,7 +448,7 @@ export const appRouter = router({
           });
 
           const submissionId = submission?.id;
-
+          
           if (submission && submissionId) {
             // Persist activity log
             await persistActivityLog({
@@ -633,9 +464,7 @@ export const appRouter = router({
             await notifyOwner({
               title: `🏠 New Appeal Request — ${fullAddress}`,
               content: `**From:** ${input.email}\n**Phone:** ${input.phone || "Not provided"}\n**Address:** ${input.address}\n**Filing Method:** ${input.filingMethod.toUpperCase()}\n\nAnalysis queued and will complete within 24 hours.`,
-            }).catch((err: unknown) =>
-              log.error("[Notification] Failed to notify owner:", { err: err })
-            );
+            }).catch((err: unknown) => log.error("[Notification] Failed to notify owner:", { err: err }));
 
             // Queue analysis
             queueAnalysisJob(submission.id, 2000);
@@ -652,9 +481,7 @@ export const appRouter = router({
                   status: "submitted",
                   clickedAt: new Date(),
                 });
-                log.info(
-                  `[Referral] Tracked submission referral: ${input.referralCode} -> ${input.email}`
-                );
+                log.info(`[Referral] Tracked submission referral: ${input.referralCode} -> ${input.email}`);
               }
             }
           }
@@ -662,20 +489,12 @@ export const appRouter = router({
           return {
             success: true,
             submissionId: submissionId ? Number(submissionId) : null,
-            message:
-              "Your address has been received. AI analysis is running now.",
+            message: "Your address has been received. AI analysis is running now.",
           };
         } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
-          log.error("[Properties] Error submitting address:", {
-            err: errorMsg,
-            error,
-          });
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `Failed to submit address: ${errorMsg}`,
-          });
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          log.error("[Properties] Error submitting address:", { err: errorMsg, error });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to submit address: ${errorMsg}` });
         }
       }),
 
@@ -683,135 +502,64 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ input, ctx }) => {
         try {
-          const submission = await getPropertySubmissionById(
-            input.submissionId
-          );
-          if (!submission)
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Submission not found",
-            });
+          const submission = await getPropertySubmissionById(input.submissionId);
+          if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
           // Ownership check
-          if (
-            submission.email !== ctx.user.email &&
-            ctx.user.role !== "admin"
-          ) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "Access denied",
-            });
+          if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
           }
 
-          const analysis = await getPropertyAnalysisBySubmissionId(
-            input.submissionId
-          );
-          const outcome = await getAppealOutcomeBySubmissionId(
-            input.submissionId
-          );
-          const activityLogs = await getActivityLogsBySubmission(
-            input.submissionId
-          );
-          const photoEvidence = await getLatestPhotoAnalysis(
-            input.submissionId
-          );
+          const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+          const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
+          const activityLogs = await getActivityLogsBySubmission(input.submissionId);
+          const photoEvidence = await getLatestPhotoAnalysis(input.submissionId);
 
           // Parse tax bill data stored on the submission
           const taxBill = (() => {
             if (!submission.taxBillData) return null;
-            try {
-              return JSON.parse(submission.taxBillData as string) as Record<
-                string,
-                unknown
-              >;
-            } catch {
-              return null;
-            }
+            try { return JSON.parse(submission.taxBillData as string) as Record<string, unknown>; }
+            catch { return null; }
           })();
 
           return {
             submission,
-            analysis: analysis
-              ? {
-                  ...analysis,
-                  comparableSales: safeJsonParse<unknown[]>(
-                    analysis.comparableSales,
-                    [],
-                    "routers.analysis.comparableSales"
-                  ),
-                  appealStrengthFactors: safeJsonParse<string[]>(
-                    analysis.appealStrengthFactors,
-                    [],
-                    "routers.analysis.appealStrengthFactors"
-                  ),
-                  nextSteps: safeJsonParse<unknown[]>(
-                    analysis.nextSteps,
-                    [],
-                    "routers.analysis.nextSteps"
-                  ),
-                  // Surface the three-grounds persuasion package + hearing prep
-                  // doc to the dashboard. These are persisted inside scenarioContext
-                  // JSON to avoid a schema migration; the client renders them as
-                  // standalone sections on /analysis.
-                  scenarioContext: safeJsonParse<{
-                    scenario?: string;
-                    scenarioLabel?: string;
-                    urgencyLevel?: string;
-                    uniformity?: unknown;
-                    recordErrors?: unknown;
-                    persuasionBrief?: unknown;
-                    hearingPrep?: unknown;
-                  } | null>(
-                    analysis.scenarioContext,
-                    null,
-                    "routers.analysis.scenarioContext"
-                  ),
-                }
-              : null,
+            analysis: analysis ? {
+              ...analysis,
+              comparableSales: safeJsonParse<unknown[]>(analysis.comparableSales, [], "routers.analysis.comparableSales"),
+              appealStrengthFactors: safeJsonParse<string[]>(analysis.appealStrengthFactors, [], "routers.analysis.appealStrengthFactors"),
+              nextSteps: safeJsonParse<unknown[]>(analysis.nextSteps, [], "routers.analysis.nextSteps"),
+              // Surface the three-grounds persuasion package + hearing prep
+              // doc to the dashboard. These are persisted inside scenarioContext
+              // JSON to avoid a schema migration; the client renders them as
+              // standalone sections on /analysis.
+              scenarioContext: safeJsonParse<{
+                scenario?: string;
+                scenarioLabel?: string;
+                urgencyLevel?: string;
+                uniformity?: unknown;
+                recordErrors?: unknown;
+                persuasionBrief?: unknown;
+                hearingPrep?: unknown;
+              } | null>(analysis.scenarioContext, null, "routers.analysis.scenarioContext"),
+            } : null,
             outcome: outcome || null,
             activityLogs: activityLogs || [],
             photoEvidence: photoEvidence || null,
-            taxBill: taxBill
-              ? {
-                  apn: typeof taxBill.apn === "string" ? taxBill.apn : null,
-                  currentAssessedValue:
-                    typeof taxBill.currentAssessedValue === "number"
-                      ? taxBill.currentAssessedValue
-                      : null,
-                  priorYearAssessedValue:
-                    typeof taxBill.priorYearAssessedValue === "number"
-                      ? taxBill.priorYearAssessedValue
-                      : null,
-                  annualTaxAmount:
-                    typeof taxBill.annualTaxAmount === "number"
-                      ? taxBill.annualTaxAmount
-                      : null,
-                  effectiveTaxRate:
-                    typeof taxBill.effectiveTaxRate === "number"
-                      ? taxBill.effectiveTaxRate
-                      : null,
-                  appealDeadline:
-                    typeof taxBill.appealDeadline === "string"
-                      ? taxBill.appealDeadline
-                      : null,
-                  assessorOffice:
-                    typeof taxBill.assessorOffice === "string"
-                      ? taxBill.assessorOffice
-                      : null,
-                  taxYear:
-                    typeof taxBill.taxYear === "string" ||
-                    typeof taxBill.taxYear === "number"
-                      ? String(taxBill.taxYear)
-                      : null,
-                }
-              : null,
+            taxBill: taxBill ? {
+              apn: typeof taxBill.apn === "string" ? taxBill.apn : null,
+              currentAssessedValue: typeof taxBill.currentAssessedValue === "number" ? taxBill.currentAssessedValue : null,
+              priorYearAssessedValue: typeof taxBill.priorYearAssessedValue === "number" ? taxBill.priorYearAssessedValue : null,
+              annualTaxAmount: typeof taxBill.annualTaxAmount === "number" ? taxBill.annualTaxAmount : null,
+              effectiveTaxRate: typeof taxBill.effectiveTaxRate === "number" ? taxBill.effectiveTaxRate : null,
+              appealDeadline: typeof taxBill.appealDeadline === "string" ? taxBill.appealDeadline : null,
+              assessorOffice: typeof taxBill.assessorOffice === "string" ? taxBill.assessorOffice : null,
+              taxYear: typeof taxBill.taxYear === "string" || typeof taxBill.taxYear === "number" ? String(taxBill.taxYear) : null,
+            } : null,
           };
         } catch (error) {
           if (error instanceof TRPCError) throw error;
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to retrieve analysis.",
-          });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve analysis." });
         }
       }),
     // Payment status check for a submission
@@ -819,19 +567,11 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
         // Free tier ("none") doesn't require payment
         if (submission.filingMethod === "none") {
-          return {
-            requiresPayment: false,
-            paymentStatus: "free" as const,
-            filingMethod: "none" as const,
-          };
+          return { requiresPayment: false, paymentStatus: "free" as const, filingMethod: "none" as const };
         }
 
         // Check filing tier payment status
@@ -852,7 +592,7 @@ export const appRouter = router({
         const submissions = await getUserSubmissions(userEmail);
         // Attach outcomes to each submission
         const withOutcomes = await Promise.all(
-          (submissions || []).map(async s => {
+          (submissions || []).map(async (s) => {
             const outcome = await getAppealOutcomeBySubmissionId(s.id);
             return { ...s, outcome: outcome || null };
           })
@@ -868,44 +608,22 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         // Ensure user owns this submission
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
         }
-        const analysis = await getPropertyAnalysisBySubmissionId(
-          input.submissionId
-        );
-        const outcome = await getAppealOutcomeBySubmissionId(
-          input.submissionId
-        );
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
         const logs = await getActivityLogsBySubmission(input.submissionId);
         return {
           submission,
-          analysis: analysis
-            ? {
-                ...analysis,
-                comparableSales: safeJsonParse<unknown[]>(
-                  analysis.comparableSales,
-                  [],
-                  "routers.analysis.comparableSales"
-                ),
-                appealStrengthFactors: safeJsonParse<string[]>(
-                  analysis.appealStrengthFactors,
-                  [],
-                  "routers.analysis.appealStrengthFactors"
-                ),
-                nextSteps: safeJsonParse<unknown[]>(
-                  analysis.nextSteps,
-                  [],
-                  "routers.analysis.nextSteps"
-                ),
-              }
-            : null,
+          analysis: analysis ? {
+            ...analysis,
+            comparableSales: safeJsonParse<unknown[]>(analysis.comparableSales, [], "routers.analysis.comparableSales"),
+            appealStrengthFactors: safeJsonParse<string[]>(analysis.appealStrengthFactors, [], "routers.analysis.appealStrengthFactors"),
+            nextSteps: safeJsonParse<unknown[]>(analysis.nextSteps, [], "routers.analysis.nextSteps"),
+          } : null,
           outcome: outcome || null,
           activityLogs: logs,
         };
@@ -924,11 +642,7 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
         }
@@ -1000,7 +714,7 @@ export const appRouter = router({
               ? content
               : Array.isArray(content)
                 ? content
-                    .map(p => ("text" in p && p.text ? p.text : ""))
+                    .map((p) => ("text" in p && p.text ? p.text : ""))
                     .join("")
                 : "";
           reply = reply.trim();
@@ -1023,15 +737,14 @@ export const appRouter = router({
         let leadCaptured = false;
         if (contact.email || contact.phone) {
           leadCaptured = true;
-          const lastUser =
-            clean.filter(m => m.role === "user").pop()?.content ?? "";
+          const lastUser = clean.filter((m) => m.role === "user").pop()?.content ?? "";
           const title = "New chat lead captured";
           const content = [
             `Email: ${contact.email ?? "(none)"}`,
             `Phone: ${contact.phone ?? "(none)"}`,
             `Last message: ${lastUser.slice(0, 280)}`,
           ].join("\n");
-          void notifyOwner({ title, content }).catch(err => {
+          void notifyOwner({ title, content }).catch((err) => {
             log.warn("[chat.ask] notifyOwner failed:", { err: err });
           });
         }
@@ -1053,13 +766,8 @@ export const appRouter = router({
         const result = await transcribeAudio(input);
         if ("error" in result) {
           throw new TRPCError({
-            code:
-              result.code === "SERVICE_ERROR"
-                ? "PRECONDITION_FAILED"
-                : "BAD_REQUEST",
-            message: result.details
-              ? `${result.error}: ${result.details}`
-              : result.error,
+            code: result.code === "SERVICE_ERROR" ? "PRECONDITION_FAILED" : "BAD_REQUEST",
+            message: result.details ? `${result.error}: ${result.details}` : result.error,
             cause: result,
           });
         }
@@ -1080,9 +788,8 @@ export const appRouter = router({
                   b64Json: z.string().min(1).optional(),
                   mimeType: z.string().min(1).max(255).optional(),
                 })
-                .refine(image => Boolean(image.url || image.b64Json), {
-                  message:
-                    "Each original image must include a URL or base64 payload",
+                .refine((image) => Boolean(image.url || image.b64Json), {
+                  message: "Each original image must include a URL or base64 payload",
                 })
             )
             .max(4)
@@ -1093,8 +800,7 @@ export const appRouter = router({
         try {
           return await generateImage(input);
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Image generation failed";
+          const message = error instanceof Error ? error.message : "Image generation failed";
           throw new TRPCError({
             code: message.includes("BUILT_IN_FORGE_API_")
               ? "PRECONDITION_FAILED"
@@ -1111,7 +817,7 @@ export const appRouter = router({
     // List the public pricing tiers so the UI can render them from a single
     // source of truth (shared/pricing.ts).
     listTiers: publicProcedure.query(() => {
-      return PRICING_TIERS.map(t => ({
+      return PRICING_TIERS.map((t) => ({
         id: t.id,
         label: t.label,
         priceCents: t.priceCents,
@@ -1134,9 +840,7 @@ export const appRouter = router({
           submissionId: z.number(),
           // Optional override for callers who want to preview a tier before
           // the submission has an assessed value recorded.
-          overrideTier: z
-            .enum(["free", "pro_se", "automated_standard", "automated_express"])
-            .optional(),
+          overrideTier: z.enum(["free", "pro_se", "automated_standard", "automated_express"]).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1147,16 +851,10 @@ export const appRouter = router({
         });
         const submission = await getPropertySubmissionById(input.submissionId);
         if (!submission) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+          throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         }
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your submission",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
 
         const tier = input.overrideTier
@@ -1192,11 +890,9 @@ export const appRouter = router({
             // Route back to the correct page depending on tier:
             //   automated_express / automated_standard → AppealFilingWorkflow (payment=success handler)
             //   pro_se / free → AnalysisResults (payment=success handler)
-            success_url:
-              tier.filingMethod === "automated_express" ||
-              tier.filingMethod === "automated_standard"
-                ? `${ctx.req.headers.origin}/appeal-workflow/${input.submissionId}?payment=success`
-                : `${ctx.req.headers.origin}/analysis?id=${input.submissionId}&payment=success`,
+            success_url: (tier.filingMethod === "automated_express" || tier.filingMethod === "automated_standard")
+              ? `${ctx.req.headers.origin}/appeal-workflow/${input.submissionId}?payment=success`
+              : `${ctx.req.headers.origin}/analysis?id=${input.submissionId}&payment=success`,
             cancel_url: `${ctx.req.headers.origin}/analysis?id=${input.submissionId}`,
             metadata: {
               submissionId: input.submissionId.toString(),
@@ -1214,10 +910,7 @@ export const appRouter = router({
           actor: "user",
           actorId: ctx.user.id,
           description: `Flat-fee checkout started (${tier.label}, $${tier.priceCents / 100})`,
-          metadata: JSON.stringify({
-            tierId: tier.id,
-            priceCents: tier.priceCents,
-          }),
+          metadata: JSON.stringify({ tierId: tier.id, priceCents: tier.priceCents }),
           status: "success",
         });
 
@@ -1244,24 +937,12 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your submission",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
-        const existing = await getRefundRequestBySubmissionId(
-          input.submissionId
-        );
-        if (
-          existing &&
-          (existing.status === "pending" || existing.status === "approved")
-        ) {
+        const existing = await getRefundRequestBySubmissionId(input.submissionId);
+        if (existing && (existing.status === "pending" || existing.status === "approved")) {
           throw new TRPCError({
             code: "CONFLICT",
             message: `Refund already ${existing.status} for this submission`,
@@ -1272,9 +953,7 @@ export const appRouter = router({
         // the later of filing-dispatch or submission creation, so the clock
         // starts when the service was rendered, not when the user signed up.
         if (ctx.user.role !== "admin") {
-          const filingJob = await getFilingJobBySubmissionId(
-            input.submissionId
-          );
+          const filingJob = await getFilingJobBySubmissionId(input.submissionId);
           const anchor = refundAnchorDate(submission, filingJob);
           if (anchor && refundWindowRemaining(anchor) === 0) {
             throw new TRPCError({
@@ -1292,11 +971,7 @@ export const appRouter = router({
           reason: input.reason,
           status: "pending",
         });
-        if (!req)
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Could not record refund",
-          });
+        if (!req) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not record refund" });
         await persistActivityLog({
           submissionId: input.submissionId,
           type: "refund_requested",
@@ -1313,20 +988,11 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your submission",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
-        const existing = await getRefundRequestBySubmissionId(
-          input.submissionId
-        );
+        const existing = await getRefundRequestBySubmissionId(input.submissionId);
         return existing ?? null;
       }),
 
@@ -1350,8 +1016,8 @@ export const appRouter = router({
       };
 
       return sessions.data
-        .filter(s => s.payment_status === "paid")
-        .map(s => {
+        .filter((s) => s.payment_status === "paid")
+        .map((s) => {
           let receiptUrl: string | null = null;
           const pi = s.payment_intent;
           if (pi && typeof pi === "object") {
@@ -1375,33 +1041,17 @@ export const appRouter = router({
 
     // Upload property photos to S3
     uploadPhoto: protectedProcedure
-      .input(
-        z.object({
-          submissionId: z.number(),
-          fileName: z
-            .string()
-            .max(255)
-            .regex(/^[\w\-. ]+$/, "Invalid file name"),
-          fileData: z.string().max(50_000_000, "File exceeds 50MB limit"),
-          category: z.enum([
-            "exterior",
-            "interior",
-            "damage",
-            "condition",
-            "comparable",
-            "neighborhood",
-            "other",
-          ]),
-          caption: z.string().max(500).optional(),
-        })
-      )
+      .input(z.object({
+        submissionId: z.number(),
+        fileName: z.string().max(255).regex(/^[\w\-. ]+$/, "Invalid file name"),
+        fileData: z.string().max(50_000_000, "File exceeds 50MB limit"),
+        category: z.enum(["exterior", "interior", "damage", "condition", "comparable", "neighborhood", "other"]),
+        caption: z.string().max(500).optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
         if (!submission) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+          throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         }
 
         // Ownership check
@@ -1412,10 +1062,7 @@ export const appRouter = router({
         // Validate base64 length sanity (rough check: 4/3 overhead)
         const rawSize = Buffer.byteLength(input.fileData, "base64");
         if (rawSize > 20 * 1024 * 1024) {
-          throw new TRPCError({
-            code: "PAYLOAD_TOO_LARGE",
-            message: "Decoded file exceeds 20MB limit",
-          });
+          throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Decoded file exceeds 20MB limit" });
         }
 
         // Convert base64 to buffer
@@ -1443,30 +1090,21 @@ export const appRouter = router({
      * the appraisal analysis prompt and strengthens the appeal evidence package.
      */
     uploadTaxBill: protectedProcedure
-      .input(
-        z.object({
-          submissionId: z.number(),
-          fileData: z.string().max(50_000_000, "File exceeds 50MB"),
-          fileName: z.string().max(255),
-        })
-      )
+      .input(z.object({
+        submissionId: z.number(),
+        fileData: z.string().max(50_000_000, "File exceeds 50MB"),
+        fileName: z.string().max(255),
+      }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
         }
 
         const rawSize = Buffer.byteLength(input.fileData, "base64");
         if (rawSize > 20 * 1024 * 1024) {
-          throw new TRPCError({
-            code: "PAYLOAD_TOO_LARGE",
-            message: "File exceeds 20MB",
-          });
+          throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "File exceeds 20MB" });
         }
 
         const buffer = Buffer.from(input.fileData, "base64");
@@ -1511,63 +1149,35 @@ export const appRouter = router({
               model: "claude-opus-4-7",
               max_tokens: 1500,
               system: TAX_BILL_OCR_PROMPT,
-              messages: [
-                {
-                  role: "user",
-                  content: [
-                    {
-                      type: "image",
-                      source: { type: "url", url },
-                    },
-                  ],
-                },
-              ],
+              messages: [{
+                role: "user",
+                content: [{
+                  type: "image",
+                  source: { type: "url", url },
+                }],
+              }],
             } as Parameters<typeof client.messages.create>[0]);
 
-            const msg2 = msg as {
-              content: Array<{ type: string; text?: string }>;
-            };
-            const raw =
-              (
-                msg2.content.find(b => b.type === "text") as
-                  | { type: "text"; text: string }
-                  | undefined
-              )?.text ?? "";
+            const msg2 = msg as { content: Array<{ type: string; text?: string }> };
+            const raw = (msg2.content.find(b => b.type === "text") as { type: "text"; text: string } | undefined)?.text ?? "";
             const jsonMatch = raw.match(/\{[\s\S]*\}/);
             if (jsonMatch) taxBillData = JSON.parse(jsonMatch[0]);
           }
         } catch (ocrErr) {
-          log.warn("[TaxBill] OCR extraction failed (non-critical):", {
-            err: (ocrErr as Error).message,
-          });
+          log.warn("[TaxBill] OCR extraction failed (non-critical):", { err: (ocrErr as Error ).message });
         }
 
         // Persist extracted data to submission
         await updatePropertySubmission(input.submissionId, {
           taxBillUrl: url,
-          apn:
-            typeof taxBillData.apn === "string" ? taxBillData.apn : undefined,
-          annualTaxAmount:
-            typeof taxBillData.annualTaxAmount === "number"
-              ? Math.round(taxBillData.annualTaxAmount)
-              : undefined,
-          effectiveTaxRate:
-            typeof taxBillData.effectiveTaxRate === "number"
-              ? String(taxBillData.effectiveTaxRate)
-              : undefined,
-          priorYearAssessedValue:
-            typeof taxBillData.priorYearAssessedValue === "number"
-              ? Math.round(taxBillData.priorYearAssessedValue)
-              : undefined,
+          apn: typeof taxBillData.apn === "string" ? taxBillData.apn : undefined,
+          annualTaxAmount: typeof taxBillData.annualTaxAmount === "number" ? Math.round(taxBillData.annualTaxAmount) : undefined,
+          effectiveTaxRate: typeof taxBillData.effectiveTaxRate === "number" ? String(taxBillData.effectiveTaxRate) : undefined,
+          priorYearAssessedValue: typeof taxBillData.priorYearAssessedValue === "number" ? Math.round(taxBillData.priorYearAssessedValue) : undefined,
           taxBillData: JSON.stringify(taxBillData),
           // If the bill has a more authoritative assessed value, prefer it
-          ...(typeof taxBillData.currentAssessedValue === "number" &&
-          taxBillData.currentAssessedValue > 0
-            ? {
-                assessedValue: Math.round(
-                  taxBillData.currentAssessedValue as number
-                ),
-              }
+          ...(typeof taxBillData.currentAssessedValue === "number" && taxBillData.currentAssessedValue > 0
+            ? { assessedValue: Math.round(taxBillData.currentAssessedValue as number) }
             : {}),
         });
 
@@ -1592,11 +1202,7 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
         }
@@ -1612,10 +1218,7 @@ export const appRouter = router({
           actor: "user",
           actorId: ctx.user.id,
           description: `Owner attestation recorded — ${ctx.user.email} confirmed ownership/authorization`,
-          metadata: JSON.stringify({
-            userId: ctx.user.id,
-            email: ctx.user.email,
-          }),
+          metadata: JSON.stringify({ userId: ctx.user.id, email: ctx.user.email }),
           status: "success",
         });
 
@@ -1627,18 +1230,10 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
         // Ownership check (GitHub security hardening)
-        if (
-          submission.email !== ctx.user.email &&
-          ctx.user.role !== "admin" &&
-          ctx.user.openId !== ENV.ownerOpenId
-        ) {
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
         }
 
@@ -1652,53 +1247,32 @@ export const appRouter = router({
           if (!tier || tier.paymentStatus !== "paid") {
             throw new TRPCError({
               code: "PAYMENT_REQUIRED" as any,
-              message:
-                "Payment is required before generating a report. Please complete checkout first.",
+              message: "Payment is required before generating a report. Please complete checkout first.",
             });
           }
         }
 
-        const analysis = await getPropertyAnalysisBySubmissionId(
-          input.submissionId
-        );
-        if (!analysis)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Analysis not found",
-          });
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
 
-        const comparableSales = safeJsonParse<
-          NonNullable<AppraisalReportData["comparableSales"]>
-        >(
-          analysis.comparableSales,
-          [],
-          "routers.generateReport.comparableSales"
+        const comparableSales = safeJsonParse<NonNullable<AppraisalReportData["comparableSales"]>>(
+          analysis.comparableSales, [], "routers.generateReport.comparableSales",
         );
         const photos = await getSubmissionPhotos(input.submissionId);
         const photoAnalysis = await getLatestPhotoAnalysis(input.submissionId);
 
         // Parse new analysis columns (JSON stored as text)
         const adjustmentGrid = safeJsonParse<AdjustmentGridEntry[] | undefined>(
-          analysis.adjustmentGrid,
-          undefined,
-          "routers.generateReport.adjustmentGrid"
+          analysis.adjustmentGrid, undefined, "routers.generateReport.adjustmentGrid",
         );
         const costApproachData = safeJsonParse<CostApproachData | undefined>(
-          analysis.costApproachData,
-          undefined,
-          "routers.generateReport.costApproachData"
+          analysis.costApproachData, undefined, "routers.generateReport.costApproachData",
         );
-        const incomeApproachData = safeJsonParse<
-          IncomeApproachSummary | undefined
-        >(
-          analysis.incomeApproachData,
-          undefined,
-          "routers.generateReport.incomeApproachData"
+        const incomeApproachData = safeJsonParse<IncomeApproachSummary | undefined>(
+          analysis.incomeApproachData, undefined, "routers.generateReport.incomeApproachData",
         );
         const marketTrendData = safeJsonParse<MarketTrendData | undefined>(
-          analysis.marketTrendData,
-          undefined,
-          "routers.generateReport.marketTrendData"
+          analysis.marketTrendData, undefined, "routers.generateReport.marketTrendData",
         );
 
         // Three-grounds persuasion package, persisted in scenarioContext JSON
@@ -1709,11 +1283,7 @@ export const appRouter = router({
           recordErrors?: NonNullable<AppraisalReportData["recordErrors"]>;
           persuasionBrief?: NonNullable<AppraisalReportData["persuasionBrief"]>;
           hearingPrep?: NonNullable<AppraisalReportData["hearingPrep"]>;
-        }>(
-          analysis.scenarioContext,
-          {},
-          "routers.generateReport.scenarioContext"
-        );
+        }>(analysis.scenarioContext, {}, "routers.generateReport.scenarioContext");
         const uniformityResult = scenarioCtx.uniformity;
         const recordErrors = scenarioCtx.recordErrors;
         const persuasionBrief = scenarioCtx.persuasionBrief;
@@ -1739,26 +1309,20 @@ export const appRouter = router({
           ownerEmail: submission.email ?? undefined,
           assessedValue: submission.assessedValue ?? undefined,
           marketValueEstimate: submission.marketValue ?? undefined,
-          assessmentGap:
-            submission.assessedValue && submission.marketValue
-              ? submission.assessedValue - submission.marketValue
-              : undefined,
+          assessmentGap: (submission.assessedValue && submission.marketValue) ? submission.assessedValue - submission.marketValue : undefined,
           potentialSavings: submission.potentialSavings ?? undefined,
           appealStrengthScore: submission.appealStrengthScore ?? undefined,
           executiveSummary: analysis.executiveSummary ?? undefined,
           valuationJustification: analysis.valuationJustification ?? undefined,
           recommendedApproach: analysis.recommendedApproach ?? undefined,
           filingMethod: submission.filingMethod ?? undefined,
-          appealDeadline: submission.appealDeadline
-            ? submission.appealDeadline.toISOString().split("T")[0]
-            : undefined,
+          appealDeadline: submission.appealDeadline ? submission.appealDeadline.toISOString().split("T")[0] : undefined,
           comparableSales,
           adjustmentGrid,
           costApproach: costApproachData,
           incomeApproach: incomeApproachData,
           marketTrend: marketTrendData,
-          reconciliationNarrative:
-            analysis.reconciliationNarrative ?? undefined,
+          reconciliationNarrative: analysis.reconciliationNarrative ?? undefined,
           tier,
           squareFeet: submission.squareFeet ?? undefined,
           yearBuilt: submission.yearBuilt ?? undefined,
@@ -1769,16 +1333,13 @@ export const appRouter = router({
           streetViewUrl: submission.streetViewUrl ?? undefined,
           satelliteImageUrl: submission.satelliteUrl ?? undefined,
           roadmapUrl: submission.roadmapUrl ?? undefined,
-          photos: photos.map(p => ({
-            url: p.url,
-            category: p.category,
-            caption: p.caption,
-          })),
+          photos: photos.map(p => ({ url: p.url, category: p.category, caption: p.caption })),
           photoFindings: photoAnalysis
             ? {
                 overallConditionScore: photoAnalysis.overallConditionScore,
                 overallEvidenceStrength: photoAnalysis.overallEvidenceStrength,
-                summaryParagraph: `Visual inspection of ${photoAnalysis.photoCount} owner-submitted photograph${photoAnalysis.photoCount === 1 ? "" : "s"} indicates a composite condition index of ${photoAnalysis.overallConditionScore}/100. These observations supplement the comparable-sales analysis and are descriptive in nature.`,
+                summaryParagraph:
+                  `Visual inspection of ${photoAnalysis.photoCount} owner-submitted photograph${photoAnalysis.photoCount === 1 ? "" : "s"} indicates a composite condition index of ${photoAnalysis.overallConditionScore}/100. These observations supplement the comparable-sales analysis and are descriptive in nature.`,
                 topObservations: photoAnalysis.topObservations,
                 topValueIssues: photoAnalysis.topValueIssues,
                 costToCureTotal: photoAnalysis.costToCureTotal,
@@ -1812,26 +1373,14 @@ export const appRouter = router({
 
     // Tier selection & pricing
     selectTier: protectedProcedure
-      .input(
-        z.object({
-          submissionId: z.number(),
-          tier: z.enum([
-            "automated_express",
-            "automated_standard",
-            "pro-se",
-            "none",
-            "poa",
-          ]),
-          countyId: z.number().optional(),
-        })
-      )
+      .input(z.object({
+        submissionId: z.number(),
+        tier: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]),
+        countyId: z.number().optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
         }
@@ -1840,30 +1389,18 @@ export const appRouter = router({
         if (!db) throw new Error("Database unavailable");
 
         // Use current flat-fee pricing as the canonical source of truth.
-        const pricingTier = selectPricingTier(
-          submission.assessedValue ? submission.assessedValue * 100 : null
-        );
+        const pricingTier = selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
 
-        const existingTier = await db
-          .select()
-          .from(filingTiers)
+        const existingTier = await db.select().from(filingTiers)
           .where(eq(filingTiers.submissionId, input.submissionId))
           .limit(1);
 
         // Map legacy 'poa' to 'automated_express'
-        const normalizedTier =
-          input.tier === "poa"
-            ? "automated_express"
-            : input.tier === "none"
-              ? "pro-se"
-              : (input.tier as
-                  | "pro-se"
-                  | "automated_standard"
-                  | "automated_express");
+        const normalizedTier = input.tier === 'poa' ? 'automated_express' :
+          input.tier === 'none' ? 'pro-se' : input.tier as 'pro-se' | 'automated_standard' | 'automated_express';
 
         if (existingTier.length > 0) {
-          await db
-            .update(filingTiers)
+          await db.update(filingTiers)
             .set({ tier: normalizedTier, updatedAt: new Date() })
             .where(eq(filingTiers.submissionId, input.submissionId));
         } else {
@@ -1894,9 +1431,7 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) return null;
 
-        const tier = await db
-          .select()
-          .from(filingTiers)
+        const tier = await db.select().from(filingTiers)
           .where(eq(filingTiers.submissionId, input.submissionId))
           .limit(1)
           .then(r => r[0] || null);
@@ -1905,9 +1440,7 @@ export const appRouter = router({
 
         // Always derive the price from the canonical pricing table, not the
         // legacy `proSePrice` column (which may hold stale values).
-        const pricingTier = selectPricingTier(
-          submission.assessedValue ? submission.assessedValue * 100 : null
-        );
+        const pricingTier = selectPricingTier(submission.assessedValue ? submission.assessedValue * 100 : null);
         return {
           tier: tier.tier,
           proSePrice: pricingTier.priceCents / 100,
@@ -1921,25 +1454,12 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
-        const analysis = await getPropertyAnalysisBySubmissionId(
-          input.submissionId
-        );
-        if (!analysis)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Analysis not found",
-          });
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
 
-        const { jobId, status } = await queueReportGeneration(
-          input.submissionId,
-          ctx.user.id
-        );
+        const { jobId, status } = await queueReportGeneration(input.submissionId, ctx.user.id);
 
         await persistActivityLog({
           submissionId: input.submissionId,
@@ -1959,13 +1479,9 @@ export const appRouter = router({
       .input(z.object({ jobId: z.number() }))
       .query(async ({ input, ctx }) => {
         const job = await getReportJobById(input.jobId);
-        if (!job)
-          throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
         if (job.userId !== ctx.user.id && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your report job",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your report job" });
         }
 
         return {
@@ -1988,30 +1504,21 @@ export const appRouter = router({
     // Accepts either a jobId or submissionId; the user must own the job.
     getReportDownloadUrl: protectedProcedure
       .input(
-        z
-          .object({
-            jobId: z.number().optional(),
-            submissionId: z.number().optional(),
-          })
-          .refine(v => v.jobId !== undefined || v.submissionId !== undefined, {
-            message: "Provide jobId or submissionId",
-          })
+        z.object({
+          jobId: z.number().optional(),
+          submissionId: z.number().optional(),
+        }).refine(v => v.jobId !== undefined || v.submissionId !== undefined, {
+          message: "Provide jobId or submissionId",
+        })
       )
       .query(async ({ ctx, input }) => {
         const job = input.jobId
           ? await getReportJobById(input.jobId)
           : await getReportJobBySubmissionId(input.submissionId!);
 
-        if (!job)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Report job not found",
-          });
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Report job not found" });
         if (job.userId !== ctx.user.id && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your report",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your report" });
         }
         if (job.status !== "completed" || !job.reportKey) {
           throw new TRPCError({
@@ -2021,9 +1528,7 @@ export const appRouter = router({
         }
 
         // ─── PAYMENT GATE ──────────────────────────────────────────
-        const submissionForGate = await getPropertySubmissionById(
-          job.submissionId
-        );
+        const submissionForGate = await getPropertySubmissionById(job.submissionId);
         const isOwner = ctx.user.openId === ENV.ownerOpenId;
         const isAdmin = ctx.user.role === "admin";
         const isFree = submissionForGate?.filingMethod === "none";
@@ -2059,30 +1564,18 @@ export const appRouter = router({
     submitBatch: protectedProcedure
       .input(
         z.object({
-          properties: z
-            .array(
-              z.object({
-                address: z.string().trim().min(5, "Address too short").max(500),
-                city: z.string().trim().min(1).max(100),
-                state: z.string().trim().min(2).max(2).toUpperCase(),
-                zipCode: z
-                  .string()
-                  .trim()
-                  .regex(/^\d{5}(-\d{4})?$/, "Invalid ZIP code"),
-                county: z.string().trim().max(100).optional(),
-                propertyType: z.string().trim().max(50).optional(),
-                assessedValue: z.number().min(0).max(1_000_000_000).optional(),
-              })
-            )
-            .min(1, "At least one property required")
-            .max(100, "Batch limit is 100 properties"),
-          filingMethod: z.enum([
-            "automated_express",
-            "automated_standard",
-            "pro-se",
-            "none",
-            "poa",
-          ]),
+          properties: z.array(
+            z.object({
+              address: z.string().trim().min(5, "Address too short").max(500),
+              city: z.string().trim().min(1).max(100),
+              state: z.string().trim().min(2).max(2).toUpperCase(),
+              zipCode: z.string().trim().regex(/^\d{5}(-\d{4})?$/, "Invalid ZIP code"),
+              county: z.string().trim().max(100).optional(),
+              propertyType: z.string().trim().max(50).optional(),
+              assessedValue: z.number().min(0).max(1_000_000_000).optional(),
+            })
+          ).min(1, "At least one property required").max(100, "Batch limit is 100 properties"),
+          filingMethod: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]),
           contactEmail: z.string().email().max(255),
           contactPhone: z.string().trim().max(20).optional(),
         })
@@ -2101,24 +1594,10 @@ export const appRouter = router({
           try {
             // Create submission for each property
             const validPropertyType = (
-              [
-                "residential",
-                "multi-family",
-                "commercial",
-                "agricultural",
-                "industrial",
-                "land",
-              ].includes(prop.propertyType ?? "")
+              ["residential", "multi-family", "commercial", "agricultural", "industrial", "land"].includes(prop.propertyType ?? "")
                 ? prop.propertyType
                 : "unknown"
-            ) as
-              | "residential"
-              | "multi-family"
-              | "commercial"
-              | "agricultural"
-              | "industrial"
-              | "land"
-              | "unknown";
+            ) as "residential" | "multi-family" | "commercial" | "agricultural" | "industrial" | "land" | "unknown";
 
             const submission = await createPropertySubmission({
               address: prop.address,
@@ -2157,19 +1636,15 @@ export const appRouter = router({
           type: "batch_submitted",
           actor: "system",
           description: `Batch submission: ${input.properties.length} properties`,
-          metadata: JSON.stringify({
-            batchId,
-            count: input.properties.length,
-            results,
-          }),
+          metadata: JSON.stringify({ batchId, count: input.properties.length, results }),
           status: "success",
         });
 
         return {
           batchId,
           totalProperties: input.properties.length,
-          queuedCount: results.filter(r => r.status === "queued").length,
-          failedCount: results.filter(r => r.status === "failed").length,
+          queuedCount: results.filter((r) => r.status === "queued").length,
+          failedCount: results.filter((r) => r.status === "failed").length,
           results,
         };
       }),
@@ -2196,9 +1671,7 @@ export const appRouter = router({
           };
         }
 
-        const submissions = await Promise.all(
-          ids.map(getPropertySubmissionById)
-        );
+        const submissions = await Promise.all(ids.map(getPropertySubmissionById));
         const resolved = submissions.filter(
           (s): s is NonNullable<typeof s> => s !== null && s !== undefined
         );
@@ -2212,12 +1685,8 @@ export const appRouter = router({
         ]);
         const failedStatuses = new Set(["lost", "withdrawn", "archived"]);
 
-        const completedCount = resolved.filter(s =>
-          completedStatuses.has(s.status)
-        ).length;
-        const failedCount = resolved.filter(s =>
-          failedStatuses.has(s.status)
-        ).length;
+        const completedCount = resolved.filter((s) => completedStatuses.has(s.status)).length;
+        const failedCount = resolved.filter((s) => failedStatuses.has(s.status)).length;
         const pendingCount = resolved.length - completedCount - failedCount;
 
         const status: "completed" | "processing" | "failed" =
@@ -2234,7 +1703,7 @@ export const appRouter = router({
           completedCount,
           failedCount,
           pendingCount,
-          submissions: resolved.map(s => ({
+          submissions: resolved.map((s) => ({
             submissionId: s.id,
             address: s.address,
             status: s.status,
@@ -2262,36 +1731,19 @@ export const appRouter = router({
           hearingScheduleDays: county.hearingScheduleDays,
         };
         const mailFields = [
-          "filingWindowStart",
-          "filingWindowEnd",
-          "preferredChannel",
-          "fallbackChannel",
-          "mailingAddressName",
-          "mailingAddressLine1",
-          "mailingAddressLine2",
-          "mailingAddressCity",
-          "mailingAddressState",
-          "mailingAddressZip",
-          "intakeEmail",
-          "poaEligible",
-          "onlinePortalOnly",
-          "pinOnlyLogin",
+          "filingWindowStart", "filingWindowEnd", "preferredChannel", "fallbackChannel",
+          "mailingAddressName", "mailingAddressLine1", "mailingAddressLine2",
+          "mailingAddressCity", "mailingAddressState", "mailingAddressZip",
+          "intakeEmail", "poaEligible", "onlinePortalOnly", "pinOnlyLogin",
         ] as const;
         for (const f of mailFields) {
           const v = (county as Record<string, unknown>)[f];
           if (v !== undefined) update[f] = v;
         }
-        await db
-          .insert(countiesTable)
-          .values(county as any)
-          .onConflictDoUpdate({ target: countiesTable.id, set: update });
+        await db.insert(countiesTable).values(county as any).onConflictDoUpdate({ target: countiesTable.id, set: update });
         seeded++;
       }
-      return {
-        success: true,
-        message: `Seeded ${seeded} counties`,
-        count: seeded,
-      };
+      return { success: true, message: `Seeded ${seeded} counties`, count: seeded };
     }),
 
     // Seed filing recipes (admin only)
@@ -2299,94 +1751,58 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
       const { RECIPE_SEEDS } = await import("./seeds/filingRecipes.seed");
-      const { RECIPE_SEEDS_EXPANSION } = await import(
-        "./seeds/filingRecipesExpansion.seed"
-      );
-      const { counties: countiesTable, filingRecipes: filingRecipesTable } =
-        await import("../drizzle/schema.pg");
+      const { RECIPE_SEEDS_EXPANSION } = await import("./seeds/filingRecipesExpansion.seed");
+      const { counties: countiesTable, filingRecipes: filingRecipesTable } = await import("../drizzle/schema.pg");
       const { eq } = await import("drizzle-orm");
       const allRecipes = [...RECIPE_SEEDS, ...RECIPE_SEEDS_EXPANSION];
-      let seeded = 0;
-      let skipped = 0;
-      const errors: string[] = [];
+      let seeded = 0; let skipped = 0; const errors: string[] = [];
       for (const seed of allRecipes) {
         try {
-          const county = await db
-            .select({ id: countiesTable.id })
-            .from(countiesTable)
-            .where(eq(countiesTable.countyCode, seed.countyCode))
-            .limit(1)
-            .then((r: any[]) => r[0]);
-          if (!county) {
-            skipped++;
-            errors.push(`County not found: ${seed.countyCode}`);
-            continue;
-          }
-          const existing = await db
-            .select({ id: filingRecipesTable.id })
-            .from(filingRecipesTable)
-            .where(eq(filingRecipesTable.countyId, county.id))
-            .limit(1)
-            .then((r: any[]) => r[0]);
+          const county = await db.select({ id: countiesTable.id }).from(countiesTable)
+            .where(eq(countiesTable.countyCode, seed.countyCode)).limit(1).then((r: any[]) => r[0]);
+          if (!county) { skipped++; errors.push(`County not found: ${seed.countyCode}`); continue; }
+          const existing = await db.select({ id: filingRecipesTable.id }).from(filingRecipesTable)
+            .where(eq(filingRecipesTable.countyId, county.id)).limit(1).then((r: any[]) => r[0]);
           if (existing) {
-            await db
-              .update(filingRecipesTable)
-              .set({
-                steps: JSON.stringify(seed.recipe.steps),
-                portalUrl: seed.portalUrl,
-                notes: seed.notes ?? null,
-                validFrom: seed.validFrom ? new Date(seed.validFrom) : null,
-                validUntil: seed.validUntil ? new Date(seed.validUntil) : null,
-              })
-              .where(eq(filingRecipesTable.id, existing.id));
-          } else {
-            await db.insert(filingRecipesTable).values({
-              countyId: county.id,
-              version: seed.recipe.version ?? 1,
-              portalUrl: seed.portalUrl,
-              steps: JSON.stringify(seed.recipe.steps),
+            await db.update(filingRecipesTable).set({
+              steps: JSON.stringify(seed.recipe.steps), portalUrl: seed.portalUrl,
+              notes: seed.notes ?? null,
               validFrom: seed.validFrom ? new Date(seed.validFrom) : null,
               validUntil: seed.validUntil ? new Date(seed.validUntil) : null,
-              verificationStatus: "draft",
-              notes: seed.notes ?? null,
-              active: true,
+            }).where(eq(filingRecipesTable.id, existing.id));
+          } else {
+            await db.insert(filingRecipesTable).values({
+              countyId: county.id, version: seed.recipe.version ?? 1,
+              portalUrl: seed.portalUrl, steps: JSON.stringify(seed.recipe.steps),
+              validFrom: seed.validFrom ? new Date(seed.validFrom) : null,
+              validUntil: seed.validUntil ? new Date(seed.validUntil) : null,
+              verificationStatus: "draft", notes: seed.notes ?? null, active: true,
             });
           }
           seeded++;
-        } catch (err) {
-          errors.push(`Failed ${seed.countyCode}: ${String(err)}`);
-        }
+        } catch (err) { errors.push(`Failed ${seed.countyCode}: ${String(err)}`); }
       }
-      return {
-        success: true,
-        message: `Seeded ${seeded} recipes (${skipped} skipped)`,
-        count: seeded,
-        skipped,
-        errors: errors.slice(0, 20),
-      };
+      return { success: true, message: `Seeded ${seeded} recipes (${skipped} skipped)`, count: seeded, skipped, errors: errors.slice(0, 20) };
     }),
 
     // Dashboard overview
     getDashboard: adminProcedure.query(async () => {
-      const [submissionStats, outcomeStats, recentActivity] = await Promise.all(
-        [getSubmissionStats(), getOutcomeStats(), getRecentActivityLogs(20)]
-      );
+      const [submissionStats, outcomeStats, recentActivity] = await Promise.all([
+        getSubmissionStats(),
+        getOutcomeStats(),
+        getRecentActivityLogs(20),
+      ]);
       return { submissionStats, outcomeStats, recentActivity };
     }),
 
     // Submissions management
     listSubmissions: adminProcedure
-      .input(
-        z.object({
-          limit: z.number().max(500).default(25),
-          offset: z.number().default(0),
-        })
-      )
+      .input(z.object({
+        limit: z.number().max(500).default(25),
+        offset: z.number().default(0),
+      }))
       .query(async ({ input }) => {
-        const { submissions, total } = await listAllSubmissions(
-          input.limit,
-          input.offset
-        );
+        const { submissions, total } = await listAllSubmissions(input.limit, input.offset);
         return { submissions, total };
       }),
 
@@ -2394,78 +1810,38 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
-        const analysis = await getPropertyAnalysisBySubmissionId(
-          input.submissionId
-        );
-        const outcome = await getAppealOutcomeBySubmissionId(
-          input.submissionId
-        );
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+        const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
+        const outcome = await getAppealOutcomeBySubmissionId(input.submissionId);
         const logs = await getActivityLogsBySubmission(input.submissionId);
         return {
           submission,
-          analysis: analysis
-            ? {
-                ...analysis,
-                comparableSales: safeJsonParse<unknown[]>(
-                  analysis.comparableSales,
-                  [],
-                  "routers.analysis.comparableSales"
-                ),
-                appealStrengthFactors: safeJsonParse<string[]>(
-                  analysis.appealStrengthFactors,
-                  [],
-                  "routers.analysis.appealStrengthFactors"
-                ),
-                nextSteps: safeJsonParse<unknown[]>(
-                  analysis.nextSteps,
-                  [],
-                  "routers.analysis.nextSteps"
-                ),
-              }
-            : null,
+          analysis: analysis ? {
+            ...analysis,
+            comparableSales: safeJsonParse<unknown[]>(analysis.comparableSales, [], "routers.analysis.comparableSales"),
+            appealStrengthFactors: safeJsonParse<string[]>(analysis.appealStrengthFactors, [], "routers.analysis.appealStrengthFactors"),
+            nextSteps: safeJsonParse<unknown[]>(analysis.nextSteps, [], "routers.analysis.nextSteps"),
+          } : null,
           outcome: outcome || null,
           activityLogs: logs,
         };
       }),
 
     updateSubmissionStatus: adminProcedure
-      .input(
-        z.object({
-          submissionId: z.number(),
-          status: z.enum([
-            "pending",
-            "analyzing",
-            "analyzed",
-            "contacted",
-            "appeal-filed",
-            "hearing-scheduled",
-            "won",
-            "lost",
-            "withdrawn",
-            "archived",
-          ]),
-          adminNote: z.string().optional(),
-        })
-      )
+      .input(z.object({
+        submissionId: z.number(),
+        status: z.enum(["pending", "analyzing", "analyzed", "contacted", "appeal-filed", "hearing-scheduled", "won", "lost", "withdrawn", "archived"]),
+        adminNote: z.string().optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
-        const updated = await updatePropertySubmission(input.submissionId, {
-          status: input.status,
-        });
+        const updated = await updatePropertySubmission(input.submissionId, { status: input.status });
         await persistActivityLog({
           submissionId: input.submissionId,
           type: "admin_action",
           actor: "admin",
           actorId: ctx.user.id,
           description: `Status updated to "${input.status}"${input.adminNote ? ` — ${input.adminNote}` : ""}`,
-          metadata: JSON.stringify({
-            newStatus: input.status,
-            note: input.adminNote,
-          }),
+          metadata: JSON.stringify({ newStatus: input.status, note: input.adminNote }),
           status: "success",
         });
         return updated;
@@ -2473,54 +1849,33 @@ export const appRouter = router({
 
     // Appeal outcomes
     recordOutcome: adminProcedure
-      .input(
-        z.object({
-          submissionId: z.number(),
-          outcome: z.enum([
-            "won",
-            "lost",
-            "settled",
-            "withdrawn",
-            "pending-hearing",
-          ]),
-          originalAssessedValue: z.number().optional(),
-          finalAssessedValue: z.number().optional(),
-          annualTaxSavings: z.number().optional(),
-          filingMethod: z
-            .enum([
-              "automated_express",
-              "automated_standard",
-              "pro-se",
-              "none",
-              "poa",
-            ])
-            .optional(),
-          filedAt: z.string().optional(),
-          resolvedAt: z.string().optional(),
-          groundsForAppeal: z.string().optional(),
-          adminNotes: z.string().optional(),
-          hearingNotes: z.string().optional(),
-        })
-      )
+      .input(z.object({
+        submissionId: z.number(),
+        outcome: z.enum(["won", "lost", "settled", "withdrawn", "pending-hearing"]),
+        originalAssessedValue: z.number().optional(),
+        finalAssessedValue: z.number().optional(),
+        annualTaxSavings: z.number().optional(),
+        filingMethod: z.enum(["automated_express", "automated_standard", "pro-se", "none", "poa"]).optional(),
+        filedAt: z.string().optional(),
+        resolvedAt: z.string().optional(),
+        groundsForAppeal: z.string().optional(),
+        adminNotes: z.string().optional(),
+        hearingNotes: z.string().optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
-        const existing = await getAppealOutcomeBySubmissionId(
-          input.submissionId
-        );
+        const existing = await getAppealOutcomeBySubmissionId(input.submissionId);
 
         let reductionAmount: number | undefined;
 
         if (input.originalAssessedValue && input.finalAssessedValue) {
-          reductionAmount =
-            input.originalAssessedValue - input.finalAssessedValue;
+          reductionAmount = input.originalAssessedValue - input.finalAssessedValue;
         }
 
         let resolutionDays: number | undefined;
         if (input.filedAt && input.resolvedAt) {
           const filed = new Date(input.filedAt);
           const resolved = new Date(input.resolvedAt);
-          resolutionDays = Math.round(
-            (resolved.getTime() - filed.getTime()) / (1000 * 60 * 60 * 24)
-          );
+          resolutionDays = Math.round((resolved.getTime() - filed.getTime()) / (1000 * 60 * 60 * 24));
         }
 
         const outcomeData = {
@@ -2530,15 +1885,7 @@ export const appRouter = router({
           finalAssessedValue: input.finalAssessedValue,
           reductionAmount,
           annualTaxSavings: input.annualTaxSavings,
-          filingMethod: (input.filingMethod === "none"
-            ? null
-            : input.filingMethod) as
-            | "poa"
-            | "pro-se"
-            | "automated_standard"
-            | "automated_express"
-            | null
-            | undefined,
+          filingMethod: (input.filingMethod === 'none' ? null : input.filingMethod) as 'poa' | 'pro-se' | 'automated_standard' | 'automated_express' | null | undefined,
           filedAt: input.filedAt ? new Date(input.filedAt) : undefined,
           resolvedAt: input.resolvedAt ? new Date(input.resolvedAt) : undefined,
           resolutionDays,
@@ -2555,28 +1902,14 @@ export const appRouter = router({
         }
 
         // Update submission status to match outcome
-        const statusMap: Record<
-          string,
-          "won" | "lost" | "withdrawn" | "hearing-scheduled"
-        > = {
-          won: "won",
-          lost: "lost",
-          settled: "won",
-          withdrawn: "withdrawn",
-          "pending-hearing": "hearing-scheduled",
+        const statusMap: Record<string, "won" | "lost" | "withdrawn" | "hearing-scheduled"> = {
+          won: "won", lost: "lost", settled: "won", withdrawn: "withdrawn", "pending-hearing": "hearing-scheduled",
         };
-        await updatePropertySubmission(input.submissionId, {
-          status: statusMap[input.outcome] || "appeal-filed",
-        });
+        await updatePropertySubmission(input.submissionId, { status: statusMap[input.outcome] || "appeal-filed" });
 
         await persistActivityLog({
           submissionId: input.submissionId,
-          type:
-            input.outcome === "won"
-              ? "appeal_won"
-              : input.outcome === "lost"
-                ? "appeal_lost"
-                : "admin_action",
+          type: input.outcome === "won" ? "appeal_won" : input.outcome === "lost" ? "appeal_lost" : "admin_action",
           actor: "admin",
           actorId: ctx.user.id,
           description: `Appeal outcome recorded: ${input.outcome.toUpperCase()}${input.annualTaxSavings ? ` — $${input.annualTaxSavings.toLocaleString()}/yr savings` : ""}`,
@@ -2590,23 +1923,16 @@ export const appRouter = router({
         // admin.decideRefund. Keeps a human in the loop but removes the
         // manual data-entry step.
         if (input.outcome === "lost" || input.outcome === "withdrawn") {
-          await maybeAutoRequestRefund(input.submissionId, ctx.user.id).catch(
-            err => {
-              log.error("[AutoRefund] Failed to request:", { err: err });
-            }
-          );
+          await maybeAutoRequestRefund(input.submissionId, ctx.user.id).catch((err) => {
+            log.error("[AutoRefund] Failed to request:", { err: err });
+          });
         }
 
         return result;
       }),
 
     listOutcomes: adminProcedure
-      .input(
-        z.object({
-          limit: z.number().max(500).default(25),
-          offset: z.number().default(0),
-        })
-      )
+      .input(z.object({ limit: z.number().max(500).default(25), offset: z.number().default(0) }))
       .query(async ({ input }) => {
         return listAppealOutcomes(input.limit, input.offset);
       }),
@@ -2632,9 +1958,7 @@ export const appRouter = router({
     // filing-jobs side by side. Saves admins from running raw SQL when
     // chasing a stuck pipeline.
     listFailedJobs: adminProcedure
-      .input(
-        z.object({ limit: z.number().min(1).max(200).default(50) }).optional()
-      )
+      .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
       .query(async ({ input }) => {
         const limit = input?.limit ?? 50;
         const [reports, filings] = await Promise.all([
@@ -2649,15 +1973,9 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
-        await updatePropertySubmission(input.submissionId, {
-          status: "pending",
-        });
+        await updatePropertySubmission(input.submissionId, { status: "pending" });
         queueAnalysisJob(input.submissionId, 500);
 
         await persistActivityLog({
@@ -2694,10 +2012,7 @@ export const appRouter = router({
           decidedBy: ctx.user.id,
         });
         if (!updated) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Refund request not found",
-          });
+          throw new TRPCError({ code: "NOT_FOUND", message: "Refund request not found" });
         }
         if (input.decision === "approved") {
           // Execute refund against Stripe if we have a payment reference.
@@ -2733,35 +2048,24 @@ export const appRouter = router({
             } else {
               await updateRefundRequest(updated.id, {
                 status: "failed",
-                adminNotes: [
-                  input.adminNotes,
-                  "No Stripe reference; manual refund required",
-                ]
-                  .filter(Boolean)
-                  .join("\n"),
+                adminNotes: [input.adminNotes, "No Stripe reference; manual refund required"].filter(Boolean).join("\n"),
               });
             }
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             await updateRefundRequest(updated.id, {
               status: "failed",
-              adminNotes: [input.adminNotes, `Stripe refund failed: ${message}`]
-                .filter(Boolean)
-                .join("\n"),
+              adminNotes: [input.adminNotes, `Stripe refund failed: ${message}`].filter(Boolean).join("\n"),
             });
           }
         }
         await persistActivityLog({
           submissionId: updated.submissionId,
-          type:
-            input.decision === "approved" ? "refund_approved" : "refund_denied",
+          type: input.decision === "approved" ? "refund_approved" : "refund_denied",
           actor: "admin",
           actorId: ctx.user.id,
           description: `Refund #${updated.id} ${input.decision}`,
-          metadata: JSON.stringify({
-            refundId: updated.id,
-            amountCents: updated.amountCents,
-          }),
+          metadata: JSON.stringify({ refundId: updated.id, amountCents: updated.amountCents }),
           status: "success",
         });
         return updated;
@@ -2769,19 +2073,13 @@ export const appRouter = router({
 
     // ─── FILING STATS + WAITLIST ─────────────────────────────────────────
     getFilingStats: adminProcedure
-      .input(
-        z
-          .object({ windowDays: z.number().min(1).max(365).default(30) })
-          .optional()
-      )
+      .input(z.object({ windowDays: z.number().min(1).max(365).default(30) }).optional())
       .query(async ({ input }) => {
         return getFilingStats(input?.windowDays ?? 30);
       }),
 
     listWaitlist: adminProcedure
-      .input(
-        z.object({ limit: z.number().min(1).max(500).default(200) }).optional()
-      )
+      .input(z.object({ limit: z.number().min(1).max(500).default(200) }).optional())
       .query(async ({ input }) => {
         const [entries, agg] = await Promise.all([
           listWaitlistEntries(input?.limit ?? 200),
@@ -2795,16 +2093,14 @@ export const appRouter = router({
       .input(
         z
           .object({
-            status: z
-              .enum([
-                "pending",
-                "processing",
-                "awaiting_captcha",
-                "completed",
-                "failed",
-                "cancelled",
-              ])
-              .optional(),
+            status: z.enum([
+              "pending",
+              "processing",
+              "awaiting_captcha",
+              "completed",
+              "failed",
+              "cancelled",
+            ]).optional(),
             limit: z.number().min(1).max(500).default(50),
           })
           .optional()
@@ -2821,11 +2117,7 @@ export const appRouter = router({
       .input(z.object({ jobId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const job = await getFilingJobById(input.jobId);
-        if (!job)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Filing job not found",
-          });
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Filing job not found" });
         if (job.status !== "failed" && job.status !== "cancelled") {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -2858,16 +2150,10 @@ export const appRouter = router({
       }),
 
     cancelFiling: adminProcedure
-      .input(
-        z.object({ jobId: z.number(), reason: z.string().max(1000).optional() })
-      )
+      .input(z.object({ jobId: z.number(), reason: z.string().max(1000).optional() }))
       .mutation(async ({ ctx, input }) => {
         const job = await getFilingJobById(input.jobId);
-        if (!job)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Filing job not found",
-          });
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Filing job not found" });
         if (job.status === "completed") {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -2885,10 +2171,7 @@ export const appRouter = router({
           actor: "admin",
           actorId: ctx.user.id,
           description: `Filing #${job.id} cancelled${input.reason ? `: ${input.reason}` : ""}`,
-          metadata: JSON.stringify({
-            jobId: job.id,
-            reason: input.reason ?? null,
-          }),
+          metadata: JSON.stringify({ jobId: job.id, reason: input.reason ?? null }),
           status: "warning",
         });
         return { success: true, jobId: job.id };
@@ -2900,76 +2183,55 @@ export const appRouter = router({
     }),
 
     listReferralCodes: adminProcedure
-      .input(
-        z.object({ limit: z.number().min(1).max(500).default(100) }).optional()
-      )
+      .input(z.object({ limit: z.number().min(1).max(500).default(100) }).optional())
       .query(async ({ input }) => {
         return listAllReferralCodes(input?.limit ?? 100);
       }),
 
     listReferralTracking: adminProcedure
-      .input(
-        z.object({ limit: z.number().min(1).max(500).default(200) }).optional()
-      )
+      .input(z.object({ limit: z.number().min(1).max(500).default(200) }).optional())
       .query(async ({ input }) => {
         return listAllReferralTracking(input?.limit ?? 200);
       }),
 
     listReferralPayouts: adminProcedure
-      .input(
-        z.object({ limit: z.number().min(1).max(500).default(100) }).optional()
-      )
+      .input(z.object({ limit: z.number().min(1).max(500).default(100) }).optional())
       .query(async ({ input }) => {
         return listAllReferralPayouts(input?.limit ?? 100);
       }),
 
     updatePayoutStatus: adminProcedure
-      .input(
-        z.object({
-          payoutId: z.number(),
-          status: z.enum(["pending", "processing", "completed", "failed"]),
-          notes: z.string().max(2000).optional(),
-        })
-      )
+      .input(z.object({
+        payoutId: z.number(),
+        status: z.enum(["pending", "processing", "completed", "failed"]),
+        notes: z.string().max(2000).optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
         const updates: any = { status: input.status };
         if (input.notes) updates.notes = input.notes;
         if (input.status === "processing") updates.processedAt = new Date();
         if (input.status === "completed") updates.completedAt = new Date();
         const success = await updateReferralPayout(input.payoutId, updates);
-        if (!success)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Payout not found",
-          });
+        if (!success) throw new TRPCError({ code: "NOT_FOUND", message: "Payout not found" });
         await persistActivityLog({
           type: "referral_payout_update",
           actor: "admin",
           actorId: ctx.user.id,
           description: `Referral payout #${input.payoutId} updated to ${input.status}`,
-          metadata: JSON.stringify({
-            payoutId: input.payoutId,
-            status: input.status,
-          }),
+          metadata: JSON.stringify({ payoutId: input.payoutId, status: input.status }),
           status: "success",
         });
         return { success: true };
       }),
 
     updateReferralTier: adminProcedure
-      .input(
-        z.object({
-          codeId: z.number(),
-          tier: z.enum(["bronze", "silver", "gold", "platinum"]),
-        })
-      )
+      .input(z.object({
+        codeId: z.number(),
+        tier: z.enum(["bronze", "silver", "gold", "platinum"]),
+      }))
       .mutation(async ({ ctx, input }) => {
         const success = await updateReferralCodeTier(input.codeId, input.tier);
-        if (!success)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Referral code not found",
-          });
+        if (!success) throw new TRPCError({ code: "NOT_FOUND", message: "Referral code not found" });
         await persistActivityLog({
           type: "referral_tier_update",
           actor: "admin",
@@ -2987,12 +2249,7 @@ export const appRouter = router({
     }),
 
     assignFiling: adminProcedure
-      .input(
-        z.object({
-          queueId: z.number(),
-          assignedTo: z.string().min(1).max(255),
-        })
-      )
+      .input(z.object({ queueId: z.number(), assignedTo: z.string().min(1).max(255) }))
       .mutation(async ({ ctx, input }) => {
         const updated = await assignQueueItem(input.queueId, input.assignedTo);
         if (!updated) {
@@ -3006,10 +2263,7 @@ export const appRouter = router({
           actor: "admin",
           actorId: ctx.user.id,
           description: `Filing queue item #${input.queueId} assigned to ${input.assignedTo}`,
-          metadata: JSON.stringify({
-            queueId: input.queueId,
-            assignedTo: input.assignedTo,
-          }),
+          metadata: JSON.stringify({ queueId: input.queueId, assignedTo: input.assignedTo }),
           status: "success",
         });
         return updated;
@@ -3066,39 +2320,26 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your submission",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
         const hash = hashAuthorizationText(input.authorizationText);
-        const canonicalHash = hashAuthorizationText(
-          SCRIVENER_AUTHORIZATION_TEXT
-        );
+        const canonicalHash = hashAuthorizationText(SCRIVENER_AUTHORIZATION_TEXT);
         if (hash !== canonicalHash) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message:
-              "Authorization text does not match the canonical version. Refresh and try again.",
+            message: "Authorization text does not match the canonical version. Refresh and try again.",
           });
         }
 
         const forwarded = ctx.req.headers["x-forwarded-for"];
-        const ip =
-          typeof forwarded === "string"
-            ? forwarded.split(",")[0].trim()
-            : Array.isArray(forwarded)
-              ? forwarded[0]
-              : ctx.req.socket?.remoteAddress || undefined;
-        const userAgent = (
-          ctx.req.headers["user-agent"] as string | undefined
-        )?.slice(0, 512);
+        const ip = typeof forwarded === "string"
+          ? forwarded.split(",")[0].trim()
+          : Array.isArray(forwarded)
+            ? forwarded[0]
+            : ctx.req.socket?.remoteAddress || undefined;
+        const userAgent = (ctx.req.headers["user-agent"] as string | undefined)?.slice(0, 512);
 
         const auth = await createScrivenerAuthorization({
           submissionId: input.submissionId,
@@ -3110,11 +2351,7 @@ export const appRouter = router({
           authorizationTextHash: hash,
           scrolledToEnd: input.scrolledToEnd,
         });
-        if (!auth)
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Could not record authorization",
-          });
+        if (!auth) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not record authorization" });
 
         await persistActivityLog({
           submissionId: input.submissionId,
@@ -3133,16 +2370,9 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number(), countyId: z.number() }))
       .query(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your submission",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
         const eligibility = await getCountyEligibility(input.countyId);
         const recipe = await getActiveRecipeForCounty(input.countyId);
@@ -3164,10 +2394,7 @@ export const appRouter = router({
           authorizationId: z.number(),
           // Per-run inputs — PIN, account number, etc. Wiped after job
           // completes. Allows string and number.
-          inputs: z.record(
-            z.string(),
-            z.union([z.string(), z.number(), z.null()])
-          ),
+          inputs: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -3177,16 +2404,9 @@ export const appRouter = router({
           windowMs: 60_000,
         });
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your submission",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
 
         // ─── PAYMENT GATE ──────────────────────────────────────────
@@ -3197,8 +2417,7 @@ export const appRouter = router({
           if (!tier || tier.paymentStatus !== "paid") {
             throw new TRPCError({
               code: "PAYMENT_REQUIRED" as any,
-              message:
-                "Payment is required before filing. Please complete checkout first.",
+              message: "Payment is required before filing. Please complete checkout first.",
             });
           }
         }
@@ -3230,11 +2449,7 @@ export const appRouter = router({
         // than double-submitting. Users will refresh/re-click — we
         // don't want to file twice.
         const existing = await getFilingJobBySubmissionId(input.submissionId);
-        if (
-          existing &&
-          existing.status !== "failed" &&
-          existing.status !== "cancelled"
-        ) {
+        if (existing && existing.status !== "failed" && existing.status !== "cancelled") {
           return { jobId: existing.id, submissionId: existing.submissionId };
         }
 
@@ -3258,8 +2473,7 @@ export const appRouter = router({
       .input(z.object({ jobId: z.number() }))
       .query(async ({ ctx, input }) => {
         const job = await getFilingJobById(input.jobId);
-        if (!job)
-          throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
         if (job.userId !== ctx.user.id && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not your job" });
         }
@@ -3289,16 +2503,9 @@ export const appRouter = router({
       .input(z.object({ submissionId: z.number() }))
       .query(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
-        if (!submission)
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Submission not found",
-          });
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
         if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Not your submission",
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
         }
         const job = await getFilingJobBySubmissionId(input.submissionId);
         return job ?? null;
@@ -3307,3 +2514,4 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+

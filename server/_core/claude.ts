@@ -19,6 +19,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ENV } from "./env";
 import {
   callOpenAI,
+  extractValidJsonPayload,
   isOpenAIAvailable,
   type Message,
   type ResponseFormat,
@@ -118,7 +119,19 @@ async function finalizeWithOpenAI(params: {
         { role: "user", content: userContent },
       ],
     });
-    return reviewed.trim() ? reviewed : params.claudeDraft;
+    if (!reviewed.trim()) return params.claudeDraft;
+    if (
+      jsonOnly ||
+      params.responseFormat?.type === "json_schema" ||
+      params.responseFormat?.type === "json_object"
+    ) {
+      return (
+        extractValidJsonPayload(reviewed) ??
+        extractValidJsonPayload(params.claudeDraft) ??
+        params.claudeDraft
+      );
+    }
+    return reviewed;
   } catch {
     // OpenAI review is an enhancement layer; Claude's draft remains the reliable fallback.
     return params.claudeDraft;

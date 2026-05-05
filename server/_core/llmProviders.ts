@@ -249,6 +249,38 @@ function toOpenAIContent(
   });
 }
 
+export function extractValidJsonPayload(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const candidates = [trimmed];
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch?.[1]) candidates.push(fenceMatch[1].trim());
+
+  const objectStart = trimmed.indexOf("{");
+  const objectEnd = trimmed.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    candidates.push(trimmed.slice(objectStart, objectEnd + 1));
+  }
+
+  const arrayStart = trimmed.indexOf("[");
+  const arrayEnd = trimmed.lastIndexOf("]");
+  if (arrayStart >= 0 && arrayEnd > arrayStart) {
+    candidates.push(trimmed.slice(arrayStart, arrayEnd + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      // Try the next likely JSON slice.
+    }
+  }
+
+  return null;
+}
+
 function extractOpenAIText(data: Record<string, unknown>): string {
   if (typeof data.output_text === "string") return data.output_text;
 
@@ -484,6 +516,23 @@ export async function callDuo(
     if (!final.trim()) {
       return {
         text: claudeDraft,
+        model: anthropicModel,
+        provider: "anthropic",
+      };
+    }
+
+    if (wantsJson(params)) {
+      const finalJson = extractValidJsonPayload(final);
+      if (finalJson) {
+        return {
+          text: finalJson,
+          model: `${anthropicModel}+${ENV.openaiModel}`,
+          provider: "duo",
+        };
+      }
+
+      return {
+        text: extractValidJsonPayload(claudeDraft) ?? claudeDraft,
         model: anthropicModel,
         provider: "anthropic",
       };
