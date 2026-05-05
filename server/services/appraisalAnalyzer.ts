@@ -152,6 +152,8 @@ export function computeCompPriceBand(propertyData: PropertyData): {
   medianAnchorValue?: number;
   upperAnchorValue?: number;
   compQuality: "strong" | "moderate" | "thin";
+  dispersionPct: number;
+  reliability: "high" | "medium" | "low";
 } | null {
   const comps = (propertyData.comparableSales ?? [])
     .filter(c => c.salePrice > 0 && (c.squareFeet ?? 0) > 0)
@@ -183,6 +185,17 @@ export function computeCompPriceBand(propertyData: PropertyData): {
       ? propertyData.squareFeet
       : undefined;
 
+  const dispersionPct =
+    weighted.median > 0 ? (weighted.q3 - weighted.q1) / weighted.median : 0;
+  const compQuality =
+    ppsf.length >= 6 ? "strong" : ppsf.length >= 4 ? "moderate" : "thin";
+  const reliability =
+    compQuality === "strong" && dispersionPct <= 0.2
+      ? "high"
+      : compQuality !== "thin" && dispersionPct <= 0.35
+        ? "medium"
+        : "low";
+
   return {
     count: ppsf.length,
     medianPpsf: at(0.5),
@@ -202,8 +215,9 @@ export function computeCompPriceBand(propertyData: PropertyData): {
     upperAnchorValue: subjectSqft
       ? Math.round(weighted.q3 * subjectSqft)
       : undefined,
-    compQuality:
-      ppsf.length >= 6 ? "strong" : ppsf.length >= 4 ? "moderate" : "thin",
+    compQuality,
+    dispersionPct,
+    reliability,
   };
 }
 
@@ -324,7 +338,7 @@ ${
 - Unweighted IQR: $${Math.round(compBand.q1Ppsf)} – $${Math.round(compBand.q3Ppsf)}/sqft
 - Weighted IQR:   $${Math.round(compBand.weightedQ1Ppsf)} – $${Math.round(compBand.weightedQ3Ppsf)}/sqft  ← supportable range weighted for similarity + recency
 - Weighted median: $${Math.round(compBand.weightedMedianPpsf)}/sqft
-- Comp quality: ${compBand.compQuality}
+- Comp quality: ${compBand.compQuality}; reliability: ${compBand.reliability}; weighted IQR dispersion: ${(compBand.dispersionPct * 100).toFixed(1)}%
 - Lower advocacy anchor (weighted Q1): ${compBand.lowerAnchorValue ? `$${compBand.lowerAnchorValue.toLocaleString()}` : "n/a (subject sqft unknown)"}
 - Median anchor (weighted):           ${compBand.medianAnchorValue ? `$${compBand.medianAnchorValue.toLocaleString()}` : "n/a"}
 - Upper anchor (weighted Q3):          ${compBand.upperAnchorValue ? `$${compBand.upperAnchorValue.toLocaleString()}` : "n/a"}
@@ -457,6 +471,10 @@ Posture & methodology:
   weighted median when those factors are absent or unclear; never anchor above weighted Q3 in
   an appeal context. The unweighted IQR is a check on dispersion; the weighted
   IQR is the valuation guide because it rewards recent, similar comps.
+- Adjust confidence to the comp-band reliability. High reliability supports precise
+  conclusions. Medium reliability supports a clear but qualified conclusion. Low
+  reliability requires conservative appealStrengthScore and explicit next steps
+  to gather better comps, photos, or assessor record evidence before filing.
 - Every observation must be traceable to a comp, a public record, a
   measurement, or an arithmetic step. No invented facts. No round numbers
   without a derivation.
@@ -485,7 +503,7 @@ Provide a JSON response with:
    Use the assessed value from the tax bill if provided — it's the authoritative figure.
 3. assessmentGapPercent: gap / assessedValue, expressed as a number.
 4. appealStrengthScore: 0-100. Reflects (a) magnitude of the gap, (b) quantity
-   and quality of comparable sales, (c) consistency of public-record data,
+   and quality/reliability of comparable sales, (c) consistency of public-record data,
    (d) photo evidence of defects unknown to assessor (+5 to +15 if present),
    (e) functional obsolescence not in assessor records (+3 to +8 each item),
    (f) tax bill showing above-market YoY increase (+5 to +10 if present).

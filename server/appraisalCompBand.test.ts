@@ -36,6 +36,15 @@ describe("computeCompPriceBand", () => {
     ).toBeNull();
   });
 
+  it("marks thin or wide bands as low reliability so the LLM qualifies the case", () => {
+    const comps = [150, 240, 420].map(ppsf => comp(ppsf * 2_000));
+    const band = computeCompPriceBand({ ...pdata(comps), squareFeet: 2_000 });
+    expect(band).not.toBeNull();
+    expect(band!.compQuality).toBe("thin");
+    expect(band!.reliability).toBe("low");
+    expect(band!.dispersionPct).toBeGreaterThan(0.35);
+  });
+
   it("ignores comps with zero price or zero square footage", () => {
     const band = computeCompPriceBand(
       pdata([
@@ -63,6 +72,8 @@ describe("computeCompPriceBand", () => {
     expect(band!.q3Ppsf).toBeGreaterThan(band!.medianPpsf);
     expect(band!.minPpsf).toBeCloseTo(200, 0);
     expect(band!.maxPpsf).toBeCloseTo(240, 0);
+    expect(band!.reliability).toBe("medium");
+    expect(band!.dispersionPct).toBeGreaterThan(0);
   });
 
   it("Q1 < median < Q3 invariant holds across random distributions", () => {
@@ -112,5 +123,6 @@ describe("computeCompPriceBand weighted anchors", () => {
     expect(band!.weightedMedianPpsf).toBeLessThan(band!.medianPpsf);
     expect(band!.lowerAnchorValue).toBe(300_000);
     expect(band!.compQuality).toBe("moderate");
+    expect(band!.reliability).toBe("medium");
   });
 });
