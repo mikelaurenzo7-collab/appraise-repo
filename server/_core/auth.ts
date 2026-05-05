@@ -25,8 +25,8 @@ function getSecret() {
   if (secret.length < 32) {
     throw new Error(
       `JWT_SECRET is too short or unset (length ${secret.length}). ` +
-      "Set JWT_SECRET to a random ≥32-character secret. " +
-      "Generate one with: openssl rand -base64 32",
+        "Set JWT_SECRET to a random ≥32-character secret. " +
+        "Generate one with: openssl rand -base64 32"
     );
   }
   return new TextEncoder().encode(secret);
@@ -41,13 +41,11 @@ export async function signJWT(
   return new SignJWT(payload as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setExpirationTime(exp)
-    .setIssuedAt(issuedAt)
+    .setIssuedAt(Math.floor(issuedAt / 1000))
     .sign(getSecret());
 }
 
-export async function verifyJWT(
-  token: string
-): Promise<SessionPayload | null> {
+export async function verifyJWT(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret(), {
       algorithms: ["HS256"],
