@@ -18,6 +18,7 @@ import { signJWT, verifyJWT, COOKIE_NAME, ONE_YEAR_MS } from "./auth";
 import { getSessionCookieOptions } from "./cookies";
 import * as db from "../db";
 import { scopedLogger } from "./logger";
+import { readSupabaseJson } from "./supabaseResponse";
 
 const log = scopedLogger("SupabaseAuth");
 
@@ -109,7 +110,10 @@ export function registerAuthRoutes(app: Express) {
         return;
       }
 
-      const sbSession = await sbRes.json();
+      const sbSession = await readSupabaseJson<{ user?: any }>(
+        sbRes,
+        "auth exchange failed"
+      );
       const supabaseUser = sbSession.user;
       if (!supabaseUser) {
         res.status(400).json({ error: "no user in supabase session" });
