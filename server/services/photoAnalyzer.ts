@@ -16,6 +16,7 @@
 
 import { invokeLLM } from "../_core/llm";
 import { analyzePhotoWithClaude, isClaudeAvailable } from "../_core/claude";
+import { llmCacheSource } from "../_core/llmProviders";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
 import type { SubmissionPhoto } from "../db";
 import { scopedLogger } from "../_core/logger";
@@ -36,7 +37,9 @@ function assertSafePhotoUrl(url: string): void {
     throw new Error(`Invalid photo URL: ${url}`);
   }
   if (parsed.protocol !== "https:") {
-    throw new Error(`Unsafe photo URL scheme "${parsed.protocol}" — only https:// is allowed`);
+    throw new Error(
+      `Unsafe photo URL scheme "${parsed.protocol}" — only https:// is allowed`
+    );
   }
 }
 
@@ -119,7 +122,6 @@ const PHOTO_SYSTEM_PROMPT =
   "advocate for the property owner, within the strict bounds of observable fact. " +
   "Assessors NEVER have interior access — interior photos you receive are " +
   "uniquely powerful evidence the assessor cannot rebut.\n\n" +
-
   "CONDITION RATING SCALE (USPAP C1–C6):\n" +
   "C1 = New/never occupied — no wear\n" +
   "C2 = No deferred maintenance — updated finishes if older\n" +
@@ -127,7 +129,6 @@ const PHOTO_SYSTEM_PROMPT =
   "C4 = Obvious deferred maintenance — mechanicals need repair soon\n" +
   "C5 = Poor condition — major repairs needed, diminished utility\n" +
   "C6 = Substantial damage — structurally compromised, needs renovation\n\n" +
-
   "FUNCTIONAL OBSOLESCENCE CATEGORIES (strong appeal levers):\n" +
   "• Outdated kitchen (pre-2000 cabinets, laminate surfaces, original appliances)\n" +
   "• Outdated bath (original fixtures, pink/blue tile, tub/shower combo only)\n" +
@@ -139,7 +140,6 @@ const PHOTO_SYSTEM_PROMPT =
   "• Oil heat or wall-unit HVAC in forced-air market\n" +
   "• Asbestos tile, popcorn ceiling, or vermiculite visible\n" +
   "• Dated electrical panel (Zinsco, FPE, fuse box)\n\n" +
-
   "DEFERRED MAINTENANCE CATALOGUE (most common appeal evidence):\n" +
   "• Roof: granule loss, missing/cracked shingles, flashing failure, moss/lichen\n" +
   "• Exterior: peeling paint, wood rot, damaged siding, failing caulk\n" +
@@ -148,7 +148,6 @@ const PHOTO_SYSTEM_PROMPT =
   "soft/damaged subflooring, cracked plaster, mold indicators\n" +
   "• Windows: fogged/failed sealed units, original single-pane, wood-frame rot\n" +
   "• HVAC: visible rust, non-functioning units, age indicators\n\n" +
-
   "EVIDENCE LANGUAGE RULES:\n" +
   "• Describe ONLY what is VISIBLE. Never speculate beyond the image.\n" +
   "• Use short, neutral, verifiable phrases — no adjectives like 'significant' " +
@@ -158,7 +157,6 @@ const PHOTO_SYSTEM_PROMPT =
   "crack in south foundation wall'.\n" +
   "• Never give legal advice, never state appeal conclusions, never recommend " +
   "specific dollar adjustments.\n\n" +
-
   "Output valid JSON only with these exact fields:\n" +
   "conditionScore (0-100 integer, higher = BETTER condition for the owner),\n" +
   "conditionLabel (one of: excellent | good | average | fair | poor),\n" +
@@ -167,7 +165,7 @@ const PHOTO_SYSTEM_PROMPT =
   "valueImpactingIssues (array of defect phrases that SUPPORT a LOWER value, max 7),\n" +
   "functionalObsolescence (array of obsolescence items found, or empty array),\n" +
   "assessorBlindSpots (array of issues the assessor cannot know without interior access, max 4),\n" +
-  "costToCure: [{\"low\": <number>, \"high\": <number>, \"description\": \"<repair description>\"}]\n" +
+  'costToCure: [{"low": <number>, "high": <number>, "description": "<repair description>"}]\n' +
   "  // Include ONLY when a valueImpactingIssue has a clear repair cost (roof replacement, HVAC, foundation)\n" +
   "  // Omit for cosmetic issues or when cost is speculative\n" +
   "  // Typical ranges: minor repair $500-$2k, moderate $2k-$10k, major $10k-$50k\n" +
@@ -175,7 +173,56 @@ const PHOTO_SYSTEM_PROMPT =
   "  90-100 = major defect clearly visible, 70-89 = clear condition issue, " +
   "  50-69 = moderate deferred maintenance, 30-49 = minor cosmetic, <30 = limited evidence).";
 
-async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding | null> {
+const PHOTO_FINDING_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    conditionScore: { type: "number" },
+    conditionLabel: {
+      type: "string",
+      enum: ["excellent", "good", "average", "fair", "poor"],
+    },
+    uspapRating: { type: "string", enum: ["C1", "C2", "C3", "C4", "C5", "C6"] },
+    observations: { type: "array", items: { type: "string" } },
+    valueImpactingIssues: { type: "array", items: { type: "string" } },
+    functionalObsolescence: { type: "array", items: { type: "string" } },
+    assessorBlindSpots: { type: "array", items: { type: "string" } },
+    costToCure: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          low: { type: "number" },
+          high: { type: "number" },
+          description: { type: "string" },
+        },
+        required: ["low", "high", "description"],
+        additionalProperties: false,
+      },
+    },
+    evidenceStrength: { type: "number" },
+  },
+  required: [
+    "conditionScore",
+    "conditionLabel",
+    "observations",
+    "valueImpactingIssues",
+    "evidenceStrength",
+  ],
+  additionalProperties: false,
+};
+
+const PHOTO_FINDING_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "photo_finding",
+    strict: false,
+    schema: PHOTO_FINDING_JSON_SCHEMA,
+  },
+};
+
+async function analyzeSinglePhoto(
+  photo: SubmissionPhoto
+): Promise<PhotoFinding | null> {
   try {
     // SSRF guard — block non-HTTPS URLs before sending to any vision model
     assertSafePhotoUrl(photo.url);
@@ -184,32 +231,37 @@ async function analyzeSinglePhoto(photo: SubmissionPhoto): Promise<PhotoFinding 
     // so the same URL always represents the same image. Cache the LLM
     // observations for 7 days — re-runs (admin retrigger, retry sweeps)
     // skip the vision call entirely.
-    const photoCacheKey = `llm:photo:${hashLLMInput([photo.url, photo.category, photo.caption ?? ""])}`;
+    const source = llmCacheSource("claude-opus-4-7-vision");
+    const photoCacheKey = `llm:photo:${source}:${hashLLMInput([photo.url, photo.category, photo.caption ?? ""])}`;
     const cachedFinding = await withLLMCache<PhotoFinding | null>(
       photoCacheKey,
-      isClaudeAvailable() ? "claude-opus-4-7-vision" : "claude-unavailable",
+      source,
       7 * 24 * 3600,
-      async () => analyzeSinglePhotoUncached(photo),
+      async () => analyzeSinglePhotoUncached(photo)
     );
     return cachedFinding;
   } catch (err) {
-    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, { err: err });
+    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, {
+      err: err,
+    });
     return null;
   }
 }
 
-async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<PhotoFinding | null> {
+async function analyzeSinglePhotoUncached(
+  photo: SubmissionPhoto
+): Promise<PhotoFinding | null> {
   try {
     const categoryLabel =
       photo.category === "roof"
         ? "the roof"
         : photo.category === "foundation"
-        ? "the foundation"
-        : photo.category === "exterior"
-        ? "the exterior of the property"
-        : photo.category === "interior"
-        ? "the interior of the property"
-        : "the property";
+          ? "the foundation"
+          : photo.category === "exterior"
+            ? "the exterior of the property"
+            : photo.category === "interior"
+              ? "the interior of the property"
+              : "the property";
 
     const userInstruction =
       `Photo category: ${photo.category} (showing ${categoryLabel}).\n` +
@@ -235,9 +287,13 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
         userInstruction,
         imageUrl: photo.url,
         maxTokens: 800,
+        responseFormat: PHOTO_FINDING_RESPONSE_FORMAT,
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("photo vision timeout")), PHOTO_VISION_TIMEOUT_MS),
+        setTimeout(
+          () => reject(new Error("photo vision timeout")),
+          PHOTO_VISION_TIMEOUT_MS
+        )
       );
       rawJson = await Promise.race([claudePromise, timeoutPromise]);
     } else {
@@ -251,32 +307,20 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
             role: "user",
             content: [
               { type: "text", text: userInstruction },
-              { type: "image_url", image_url: { url: photo.url, detail: "high" } },
+              {
+                type: "image_url",
+                image_url: { url: photo.url, detail: "high" },
+              },
             ],
           },
         ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "photo_finding",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                conditionScore: { type: "number" },
-                conditionLabel: { type: "string", enum: ["excellent", "good", "average", "fair", "poor"] },
-                observations: { type: "array", items: { type: "string" } },
-                valueImpactingIssues: { type: "array", items: { type: "string" } },
-                evidenceStrength: { type: "number" },
-              },
-              required: ["conditionScore", "conditionLabel", "observations", "valueImpactingIssues", "evidenceStrength"],
-              additionalProperties: false,
-            },
-          },
-        },
+        response_format: PHOTO_FINDING_RESPONSE_FORMAT,
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("photo vision timeout")), PHOTO_VISION_TIMEOUT_MS),
+        setTimeout(
+          () => reject(new Error("photo vision timeout")),
+          PHOTO_VISION_TIMEOUT_MS
+        )
       );
       const response = await Promise.race([llmPromise, timeoutPromise]);
       const content = response.choices[0]?.message?.content;
@@ -286,13 +330,19 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
 
     const jsonStart = rawJson.indexOf("{");
     const jsonEnd = rawJson.lastIndexOf("}");
-    const cleanJson = jsonStart >= 0 && jsonEnd > jsonStart ? rawJson.slice(jsonStart, jsonEnd + 1) : rawJson;
+    const cleanJson =
+      jsonStart >= 0 && jsonEnd > jsonStart
+        ? rawJson.slice(jsonStart, jsonEnd + 1)
+        : rawJson;
 
-    const parsed = JSON.parse(cleanJson) as Omit<PhotoFinding, "url" | "category" | "caption">;
+    const parsed = JSON.parse(cleanJson) as Omit<
+      PhotoFinding,
+      "url" | "category" | "caption"
+    >;
     const conditionScore = clampScore(parsed.conditionScore);
     const evidenceStrength = clampScore(parsed.evidenceStrength);
 
-    const validUspap = ["C1","C2","C3","C4","C5","C6"];
+    const validUspap = ["C1", "C2", "C3", "C4", "C5", "C6"];
     const uspapRating = validUspap.includes(parsed.uspapRating as string)
       ? (parsed.uspapRating as PhotoFinding["uspapRating"])
       : undefined;
@@ -302,12 +352,17 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
       ? rawCostToCure
           .filter(
             (c: unknown) =>
-              c && typeof c === "object" &&
+              c &&
+              typeof c === "object" &&
               typeof (c as any).low === "number" &&
               typeof (c as any).high === "number" &&
-              typeof (c as any).description === "string",
+              typeof (c as any).description === "string"
           )
-          .map((c: any) => ({ low: c.low, high: c.high, description: c.description }))
+          .map((c: any) => ({
+            low: c.low,
+            high: c.high,
+            description: c.description,
+          }))
       : undefined;
 
     return {
@@ -317,15 +372,29 @@ async function analyzeSinglePhotoUncached(photo: SubmissionPhoto): Promise<Photo
       conditionScore,
       conditionLabel: parsed.conditionLabel,
       uspapRating,
-      observations: (parsed.observations || []).slice(0, 7).map(s => s.trim()).filter(Boolean),
-      valueImpactingIssues: (parsed.valueImpactingIssues || []).slice(0, 7).map(s => s.trim()).filter(Boolean),
-      functionalObsolescence: (parsed.functionalObsolescence || []).slice(0, 6).map(s => s.trim()).filter(Boolean),
-      assessorBlindSpots: (parsed.assessorBlindSpots || []).slice(0, 4).map(s => s.trim()).filter(Boolean),
+      observations: (parsed.observations || [])
+        .slice(0, 7)
+        .map(s => s.trim())
+        .filter(Boolean),
+      valueImpactingIssues: (parsed.valueImpactingIssues || [])
+        .slice(0, 7)
+        .map(s => s.trim())
+        .filter(Boolean),
+      functionalObsolescence: (parsed.functionalObsolescence || [])
+        .slice(0, 6)
+        .map(s => s.trim())
+        .filter(Boolean),
+      assessorBlindSpots: (parsed.assessorBlindSpots || [])
+        .slice(0, 4)
+        .map(s => s.trim())
+        .filter(Boolean),
       ...(costToCure && costToCure.length > 0 ? { costToCure } : {}),
       evidenceStrength,
     };
   } catch (err) {
-    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, { err: err });
+    log.warn(`[PhotoAnalyzer] Failed to analyze photo ${photo.url}:`, {
+      err: err,
+    });
     return null;
   }
 }
@@ -354,7 +423,7 @@ function dedupeShort(items: string[], max: number): string[] {
  * remains uninterrupted if vision fails.
  */
 export async function analyzePropertyPhotos(
-  photos: SubmissionPhoto[],
+  photos: SubmissionPhoto[]
 ): Promise<PhotoAnalysisSummary> {
   const empty: PhotoAnalysisSummary = {
     findings: [],
@@ -380,27 +449,30 @@ export async function analyzePropertyPhotos(
   // the table. Bumped from 3 → 5 cuts wall-clock by ~40% on 8-photo runs.
   const findings: PhotoFinding[] = [];
   const queue = [...capped];
-  const workers = Array.from({ length: Math.min(5, queue.length) }, async () => {
-    while (queue.length) {
-      const next = queue.shift();
-      if (!next) break;
-      const f = await analyzeSinglePhoto(next);
-      if (f) findings.push(f);
+  const workers = Array.from(
+    { length: Math.min(5, queue.length) },
+    async () => {
+      while (queue.length) {
+        const next = queue.shift();
+        if (!next) break;
+        const f = await analyzeSinglePhoto(next);
+        if (f) findings.push(f);
+      }
     }
-  });
+  );
   await Promise.all(workers);
 
   if (findings.length === 0) return empty;
 
   const overallConditionScore = Math.round(
-    findings.reduce((acc, f) => acc + f.conditionScore, 0) / findings.length,
+    findings.reduce((acc, f) => acc + f.conditionScore, 0) / findings.length
   );
   const overallEvidenceStrength = Math.min(
     100,
     Math.round(
       Math.max(...findings.map(f => f.evidenceStrength)) +
-        Math.min(15, (findings.length - 1) * 4), // small bonus for corroborating photos
-    ),
+        Math.min(15, (findings.length - 1) * 4) // small bonus for corroborating photos
+    )
   );
 
   // Appeal-strength delta:
@@ -418,33 +490,38 @@ export async function analyzePropertyPhotos(
 
   const topObservations = dedupeShort(
     findings.flatMap(f => f.observations),
-    8,
+    8
   );
   const topValueIssues = dedupeShort(
     findings.flatMap(f => f.valueImpactingIssues),
-    8,
+    8
   );
   const functionalObsolescenceItems = dedupeShort(
     findings.flatMap(f => f.functionalObsolescence),
-    6,
+    6
   );
   const assessorBlindSpotItems = dedupeShort(
     findings.flatMap(f => f.assessorBlindSpots),
-    6,
+    6
   );
-  const uspapRatings = Array.from(new Set(findings.map(f => f.uspapRating).filter(Boolean))) as string[];
+  const uspapRatings = Array.from(
+    new Set(findings.map(f => f.uspapRating).filter(Boolean))
+  ) as string[];
 
-  const costToCureItems = findings.flatMap((f) => f.costToCure ?? []);
+  const costToCureItems = findings.flatMap(f => f.costToCure ?? []);
   const costToCureTotal = costToCureItems.reduce(
     (sum, c) => sum + Math.round((c.low + c.high) / 2),
-    0,
+    0
   );
 
   const conditionWord =
-    overallConditionScore >= 80 ? "above-average"
-    : overallConditionScore >= 60 ? "average"
-    : overallConditionScore >= 40 ? "below-average"
-    : "materially impaired";
+    overallConditionScore >= 80
+      ? "above-average"
+      : overallConditionScore >= 60
+        ? "average"
+        : overallConditionScore >= 40
+          ? "below-average"
+          : "materially impaired";
 
   const issuesClause = topValueIssues.length
     ? ` Documented condition items observed in the photographs include: ${topValueIssues.slice(0, 4).join("; ")}.`
@@ -463,7 +540,9 @@ export async function analyzePropertyPhotos(
     `Visual inspection of ${findings.length} owner-submitted photograph${findings.length === 1 ? "" : "s"} ` +
     `indicates the subject property presents in ${conditionWord} condition relative to typical ` +
     `comparable inventory (composite condition index: ${overallConditionScore}/100` +
-    (uspapRatings.length ? `; USPAP condition rating${uspapRatings.length > 1 ? "s" : ""}: ${uspapRatings.join(", ")}` : "") +
+    (uspapRatings.length
+      ? `; USPAP condition rating${uspapRatings.length > 1 ? "s" : ""}: ${uspapRatings.join(", ")}`
+      : "") +
     `).` +
     issuesClause +
     blindSpotClause +
@@ -484,8 +563,12 @@ export async function analyzePropertyPhotos(
     llmContextParts.push("");
   }
   if (assessorBlindSpotItems.length) {
-    llmContextParts.push("### Assessor Blind Spots (Interior — Assessor Has No Access)");
-    llmContextParts.push("*These defects are invisible to the assessor without an interior inspection.*");
+    llmContextParts.push(
+      "### Assessor Blind Spots (Interior — Assessor Has No Access)"
+    );
+    llmContextParts.push(
+      "*These defects are invisible to the assessor without an interior inspection.*"
+    );
     assessorBlindSpotItems.forEach(i => llmContextParts.push(`- ${i}`));
     llmContextParts.push("");
   }

@@ -1,17 +1,14 @@
 /**
- * LLM Bridge — delegates to Anthropic Claude.
+ * LLM Bridge — delegates to the dual Anthropic + OpenAI appraisal pipeline.
  *
- * Kept as a thin shim so existing callers (routers.ts, services/*.ts)
- * don't need to change their import paths. The actual API call is made
- * by callAnthropic from "./llmProviders".
+ * Existing callers keep using invokeLLM while the provider layer chooses the
+ * best available route: Claude + OpenAI reviewer when both keys are present,
+ * or the configured single provider when only one key exists.
  *
- * The InvokeResult shape mirrors the legacy Manus Forge response so any
- * code destructuring `.choices[0].message.content` keeps working.
- *
- * Gemini support has been removed; the `provider` field on InvokeParams
- * is retained for type compatibility but is ignored.
+ * The InvokeResult shape mirrors the legacy Manus Forge response so any code
+ * destructuring `.choices[0].message.content` keeps working.
  */
-import { callAnthropic } from "./llmProviders";
+import { callDuo } from "./llmProviders";
 import type {
   LLMMessage,
   Message,
@@ -28,6 +25,7 @@ import type {
   ResponseFormat,
   InvokeParams,
   InvokeResult,
+  LLMProvider,
 } from "./llmProviders";
 
 export type {
@@ -46,42 +44,20 @@ export type {
   ResponseFormat,
   InvokeParams,
   InvokeResult,
+  LLMProvider,
 };
 
-function flattenContent(content: MessageContent | MessageContent[]): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((p) => (typeof p === "string" ? p : p.type === "text" ? p.text : ""))
-      .join("");
-  }
-  if (typeof content === "object" && content && (content as TextContent).type === "text") {
-    return (content as TextContent).text;
-  }
-  return "";
-}
-
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  const { messages, maxTokens, max_tokens, model } = params;
-  const tokenLimit = maxTokens ?? max_tokens ?? 32768;
-
-  const flatMessages: LLMMessage[] = messages.map((m: Message) => ({
-    role: (m.role === "system" || m.role === "user" || m.role === "assistant"
-      ? m.role
-      : "user") as "system" | "user" | "assistant",
-    content: flattenContent(m.content),
-  }));
-
-  const text = await callAnthropic(flatMessages, model, tokenLimit);
+  const result = await callDuo(params);
 
   return {
-    id: `bridge-${Date.now()}`,
+    id: `${result.provider}-${Date.now()}`,
     created: Math.floor(Date.now() / 1000),
-    model: model ?? "claude-sonnet-4-20250514",
+    model: result.model,
     choices: [
       {
         index: 0,
-        message: { role: "assistant", content: text },
+        message: { role: "assistant", content: result.text },
         finish_reason: "stop",
       },
     ],
