@@ -2,8 +2,10 @@ export const ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
   isProduction: process.env.NODE_ENV === "production",
-  // AI Provider — Anthropic Claude (sole LLM provider)
+  // AI Providers — Anthropic Claude + OpenAI work as a dual-review appraisal pipeline when both are configured.
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  openaiApiKey: process.env.OPENAI_API_KEY ?? "",
+  openaiModel: process.env.OPENAI_MODEL ?? "gpt-5.2",
   // Supabase Auth
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? "",
@@ -22,5 +24,8 @@ export const ENV = {
   // no user will ever be promoted to admin on first login.
   ownerOpenId: process.env.OWNER_OPEN_ID ?? process.env.OWNER_ID ?? undefined,
   // App base URL — used for email links and OAuth callbacks.
-  appBaseUrl: process.env.APP_BASE_URL ?? process.env.PUBLIC_APP_URL ?? "https://appraise-repo.vercel.app",
+  appBaseUrl:
+    process.env.APP_BASE_URL ??
+    process.env.PUBLIC_APP_URL ??
+    "https://appraise-repo.vercel.app",
 };
