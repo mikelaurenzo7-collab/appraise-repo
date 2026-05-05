@@ -17,6 +17,12 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { ENV } from "./env";
+import {
+  callOpenAI,
+  isOpenAIAvailable,
+  type Message,
+  type ResponseFormat,
+} from "./llmProviders";
 
 // ---------------------------------------------------------------------------
 // Client lifecycle
@@ -35,11 +41,98 @@ export function isClaudeAvailable(): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// OpenAI advocate review helpers
+// ---------------------------------------------------------------------------
+
+function anthropicContentToText(
+  content: string | Anthropic.MessageParam["content"]
+): string {
+  if (typeof content === "string") return content;
+  return content
+    .map(part => {
+      if (part.type === "text") return part.text;
+      if (part.type === "image") return "[image evidence supplied to Claude]";
+      if (part.type === "document")
+        return "[document evidence supplied to Claude]";
+      return `[${part.type} evidence supplied to Claude]`;
+    })
+    .join("\n");
+}
+
+function promptRequestsJson(
+  systemPrompt: string,
+  userContent: string
+): boolean {
+  return /\bjson\b/i.test(`${systemPrompt}\n${userContent}`);
+}
+
+async function finalizeWithOpenAI(params: {
+  systemPrompt: string;
+  userContent: string;
+  claudeDraft: string;
+  maxTokens: number;
+  kind: "analysis" | "photo" | "narrative";
+  imageUrl?: string;
+  responseFormat?: ResponseFormat;
+}): Promise<string> {
+  if (!isOpenAIAvailable()) return params.claudeDraft;
+
+  const jsonOnly = promptRequestsJson(params.systemPrompt, params.userContent);
+  const situation =
+    params.kind === "photo"
+      ? "property-condition photo evidence"
+      : params.kind === "narrative"
+        ? "assessor-facing appraisal narrative"
+        : "USPAP-aligned appraisal analysis";
+
+  const userContent: Message["content"] = params.imageUrl
+    ? [
+        {
+          type: "text",
+          text: `Original user instructions:\n${params.userContent}\n\nClaude draft:\n${params.claudeDraft}`,
+        },
+        {
+          type: "image_url",
+          image_url: { url: params.imageUrl, detail: "high" },
+        },
+      ]
+    : `Original user instructions:\n${params.userContent}\n\nClaude draft:\n${params.claudeDraft}`;
+
+  try {
+    const reviewed = await callOpenAI({
+      provider: "openai",
+      maxTokens: params.maxTokens,
+      response_format: params.responseFormat,
+      messages: [
+        {
+          role: "system",
+          content:
+            `You are OpenAI, paired with Claude as AppraiseAI's dual-model appraisal team for ${situation}. ` +
+            "Act as a rigorous user-advocating appraiser: audit Claude's draft against the supplied evidence, " +
+            "strengthen owner-favorable but supportable points, remove speculation, preserve legal/UPL guardrails, " +
+            "and output the best final answer. " +
+            (jsonOnly
+              ? "Return ONLY valid JSON with the same intended schema; no markdown or extra prose."
+              : "Return only the polished final answer; do not mention the dual-review process."),
+        },
+        { role: "user", content: userContent },
+      ],
+    });
+    return reviewed.trim() ? reviewed : params.claudeDraft;
+  } catch {
+    // OpenAI review is an enhancement layer; Claude's draft remains the reliable fallback.
+    return params.claudeDraft;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Prompt caching helpers
 // ---------------------------------------------------------------------------
 
 /** Wrap a stable system prompt so it gets cached on repeated calls. */
-export function cachedSystemBlock(text: string): Anthropic.TextBlockParam & { cache_control: { type: "ephemeral" } } {
+export function cachedSystemBlock(
+  text: string
+): Anthropic.TextBlockParam & { cache_control: { type: "ephemeral" } } {
   return {
     type: "text",
     text,
@@ -63,6 +156,8 @@ export type ClaudeAnalysisParams = {
    * work like comparable-sales reasoning. "high" is the default API value.
    */
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  /** Optional schema/JSON mode to preserve structured outputs in OpenAI review. */
+  responseFormat?: ResponseFormat;
 };
 
 /**
@@ -73,11 +168,19 @@ export type ClaudeAnalysisParams = {
  * Throws `Error("ANTHROPIC_API_KEY not configured")` if the key is absent
  * — callers should check `isClaudeAvailable()` or catch and fall back.
  */
-export async function analyzeWithClaude(params: ClaudeAnalysisParams): Promise<string> {
+export async function analyzeWithClaude(
+  params: ClaudeAnalysisParams
+): Promise<string> {
   const client = getClaudeClient();
   if (!client) throw new Error("ANTHROPIC_API_KEY not configured");
 
-  const { systemPrompt, userContent, maxTokens = 8192, effort = "xhigh" } = params;
+  const {
+    systemPrompt,
+    userContent,
+    maxTokens = 8192,
+    effort = "xhigh",
+    responseFormat,
+  } = params;
 
   const stream = client.messages.stream({
     model: "claude-opus-4-7",
@@ -93,11 +196,18 @@ export async function analyzeWithClaude(params: ClaudeAnalysisParams): Promise<s
 
   const finalMsg = await stream.finalMessage();
 
-  const textBlock = finalMsg.content.find((b) => b.type === "text");
+  const textBlock = finalMsg.content.find(b => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("Claude returned no text content");
   }
-  return textBlock.text;
+  return finalizeWithOpenAI({
+    systemPrompt,
+    userContent: anthropicContentToText(userContent),
+    claudeDraft: textBlock.text,
+    maxTokens,
+    kind: "analysis",
+    responseFormat,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +220,8 @@ export type ClaudePhotoParams = {
   /** Must be an https:// URL (SSRF guard enforced in photoAnalyzer). */
   imageUrl: string;
   maxTokens?: number;
+  /** Optional schema/JSON mode to preserve structured outputs in OpenAI review. */
+  responseFormat?: ResponseFormat;
 };
 
 /**
@@ -117,11 +229,19 @@ export type ClaudePhotoParams = {
  * System prompt is prompt-cached across the batch of photos.
  * Returns the raw text (JSON string when caller asks for JSON via the system prompt).
  */
-export async function analyzePhotoWithClaude(params: ClaudePhotoParams): Promise<string> {
+export async function analyzePhotoWithClaude(
+  params: ClaudePhotoParams
+): Promise<string> {
   const client = getClaudeClient();
   if (!client) throw new Error("ANTHROPIC_API_KEY not configured");
 
-  const { systemPrompt, userInstruction, imageUrl, maxTokens = 1024 } = params;
+  const {
+    systemPrompt,
+    userInstruction,
+    imageUrl,
+    maxTokens = 1024,
+    responseFormat,
+  } = params;
 
   const msg = await client.messages.create({
     model: "claude-opus-4-7",
@@ -142,11 +262,21 @@ export async function analyzePhotoWithClaude(params: ClaudePhotoParams): Promise
     ],
   } as Parameters<typeof client.messages.create>[0]);
 
-  const textBlock = (msg as Anthropic.Message).content.find((b) => b.type === "text");
+  const textBlock = (msg as Anthropic.Message).content.find(
+    b => b.type === "text"
+  );
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("Claude vision returned no text content");
   }
-  return textBlock.text;
+  return finalizeWithOpenAI({
+    systemPrompt,
+    userContent: userInstruction,
+    claudeDraft: textBlock.text,
+    maxTokens,
+    kind: "photo",
+    imageUrl,
+    responseFormat,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +295,9 @@ export type ClaudeNarrativeParams = {
  * Uses prompt caching on the USPAP template system prompt.
  * Returns the full narrative text once streaming completes.
  */
-export async function generateNarrativeWithClaude(params: ClaudeNarrativeParams): Promise<string> {
+export async function generateNarrativeWithClaude(
+  params: ClaudeNarrativeParams
+): Promise<string> {
   const client = getClaudeClient();
   if (!client) throw new Error("ANTHROPIC_API_KEY not configured");
 
@@ -181,11 +313,17 @@ export async function generateNarrativeWithClaude(params: ClaudeNarrativeParams)
 
   const finalMsg = await stream.finalMessage();
 
-  const textBlock = finalMsg.content.find((b) => b.type === "text");
+  const textBlock = finalMsg.content.find(b => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("Claude returned no text content for narrative");
   }
-  return textBlock.text;
+  return finalizeWithOpenAI({
+    systemPrompt,
+    userContent,
+    claudeDraft: textBlock.text,
+    maxTokens,
+    kind: "narrative",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +350,9 @@ export type ClaudeBatchResult = {
  *
  * Returns the batch ID. Poll with `pollClaudeBatch(batchId)`.
  */
-export async function submitClaudeBatch(requests: ClaudeBatchRequest[]): Promise<string> {
+export async function submitClaudeBatch(
+  requests: ClaudeBatchRequest[]
+): Promise<string> {
   const client = getClaudeClient();
   if (!client) throw new Error("ANTHROPIC_API_KEY not configured");
 
@@ -223,7 +363,7 @@ export async function submitClaudeBatch(requests: ClaudeBatchRequest[]): Promise
   const batches = (client.messages as any).batches;
 
   const batch = await batches.create({
-    requests: requests.map((req) => ({
+    requests: requests.map(req => ({
       custom_id: req.customId,
       params: {
         model: "claude-opus-4-7",
@@ -285,8 +425,10 @@ export async function pollClaudeBatch(
       return results;
     }
 
-    await new Promise((r) => setTimeout(r, pollIntervalMs));
+    await new Promise(r => setTimeout(r, pollIntervalMs));
   }
 
-  throw new Error(`Claude batch ${batchId} did not complete within ${timeoutMs}ms`);
+  throw new Error(
+    `Claude batch ${batchId} did not complete within ${timeoutMs}ms`
+  );
 }
