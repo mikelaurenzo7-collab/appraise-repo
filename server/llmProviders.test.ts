@@ -236,7 +236,6 @@ describe("llmProviders", () => {
       },
     });
   });
-
   it("strips markdown fences from valid JSON reviewer output", async () => {
     process.env.ANTHROPIC_API_KEY = "anthropic-key";
     process.env.OPENAI_API_KEY = "openai-key";
