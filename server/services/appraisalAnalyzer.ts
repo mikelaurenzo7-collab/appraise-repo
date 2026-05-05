@@ -1,7 +1,12 @@
 import { invokeLLM } from "../_core/llm";
 import { analyzeWithClaude, isClaudeAvailable } from "../_core/claude";
+import { llmCacheSource } from "../_core/llmProviders";
 import { hashLLMInput, withLLMCache } from "../_core/lcache";
-import { getScenarioContext, generateScenarioPromptContext, type UserScenario } from "./scenarioValuation";
+import {
+  getScenarioContext,
+  generateScenarioPromptContext,
+  type UserScenario,
+} from "./scenarioValuation";
 import type { PropertyData } from "./propertyDataAggregator";
 import { scopedLogger } from "../_core/logger";
 
@@ -103,16 +108,26 @@ const APPRAISAL_JSON_SCHEMA = {
     assessmentGapPercent: { type: "number" },
     appealStrengthScore: { type: "number" },
     appealStrengthFactors: { type: "array", items: { type: "string" } },
-    recommendedApproach: { type: "string", enum: ["poa", "pro-se", "not-recommended"] },
+    recommendedApproach: {
+      type: "string",
+      enum: ["poa", "pro-se", "not-recommended"],
+    },
     executiveSummary: { type: "string" },
     valuationJustification: { type: "string" },
     potentialSavings: { type: "number" },
     nextSteps: { type: "array", items: { type: "string" } },
   },
   required: [
-    "marketValueEstimate", "assessmentGap", "assessmentGapPercent",
-    "appealStrengthScore", "appealStrengthFactors", "recommendedApproach",
-    "executiveSummary", "valuationJustification", "potentialSavings", "nextSteps",
+    "marketValueEstimate",
+    "assessmentGap",
+    "assessmentGapPercent",
+    "appealStrengthScore",
+    "appealStrengthFactors",
+    "recommendedApproach",
+    "executiveSummary",
+    "valuationJustification",
+    "potentialSavings",
+    "nextSteps",
   ],
   additionalProperties: false,
 };
@@ -132,16 +147,19 @@ export function computeCompPriceBand(propertyData: PropertyData): {
   maxPpsf: number;
 } | null {
   const comps = (propertyData.comparableSales ?? []).filter(
-    (c) => c.salePrice > 0 && (c.squareFeet ?? 0) > 0,
+    c => c.salePrice > 0 && (c.squareFeet ?? 0) > 0
   );
   if (comps.length < 3) return null;
 
   const ppsf = comps
-    .map((c) => c.salePrice / (c.squareFeet as number))
+    .map(c => c.salePrice / (c.squareFeet as number))
     .sort((a, b) => a - b);
 
   const at = (q: number) => {
-    const idx = Math.max(0, Math.min(ppsf.length - 1, Math.floor(ppsf.length * q)));
+    const idx = Math.max(
+      0,
+      Math.min(ppsf.length - 1, Math.floor(ppsf.length * q))
+    );
     return ppsf[idx];
   };
 
@@ -185,7 +203,7 @@ export async function analyzeProperty(
     functionalObsolescenceItems: string[];
     topValueIssues: string[];
   } | null,
-  taxBillData?: Record<string, unknown> | null,
+  taxBillData?: Record<string, unknown> | null
 ): Promise<AppraisalAnalysis> {
   try {
     const compBand = computeCompPriceBand(propertyData);
@@ -214,26 +232,35 @@ Comparable Sales: ${propertyData.comparableSales?.length || 0} found (top 7 show
 ${
   propertyData.comparableSales
     ?.slice(0, 7)
-    .map((comp) => {
-      const ppsf = comp.squareFeet ? Math.round(comp.salePrice / comp.squareFeet) : null;
+    .map(comp => {
+      const ppsf = comp.squareFeet
+        ? Math.round(comp.salePrice / comp.squareFeet)
+        : null;
       return `- ${comp.address}: $${comp.salePrice.toLocaleString()} (${comp.squareFeet ?? "?"} sqft${ppsf ? `, $${ppsf}/sqft` : ""})`;
     })
     .join("\n") || "None"
 }
 
-${compBand ? `Comparable-Sales Price Band (price per sqft, n=${compBand.count}):
+${
+  compBand
+    ? `Comparable-Sales Price Band (price per sqft, n=${compBand.count}):
 - Range:    $${Math.round(compBand.minPpsf)} – $${Math.round(compBand.maxPpsf)}/sqft
 - IQR:      $${Math.round(compBand.q1Ppsf)} – $${Math.round(compBand.q3Ppsf)}/sqft  ← supportable range
 - Median:   $${Math.round(compBand.medianPpsf)}/sqft
 - Lower advocacy anchor (Q1): $${Math.round(compBand.q1Ppsf)}/sqft × subject sqft = ${propertyData.squareFeet ? `$${(Math.round(compBand.q1Ppsf) * propertyData.squareFeet).toLocaleString()}` : "n/a (subject sqft unknown)"}
 - Median anchor:              $${Math.round(compBand.medianPpsf)}/sqft × subject sqft = ${propertyData.squareFeet ? `$${(Math.round(compBand.medianPpsf) * propertyData.squareFeet).toLocaleString()}` : "n/a"}
-` : "Comparable-Sales Price Band: insufficient comp data (need ≥3 with square footage) to compute a defensible band."}
+`
+    : "Comparable-Sales Price Band: insufficient comp data (need ≥3 with square footage) to compute a defensible band."
+}
 
 Rental Comps: ${propertyData.rentalComps?.length || 0} found
 ${
   propertyData.rentalComps
     ?.slice(0, 3)
-    .map((comp) => `- ${comp.address}: $${comp.monthlyRent}/month (${comp.bedrooms}bd/${comp.bathrooms}ba)`)
+    .map(
+      comp =>
+        `- ${comp.address}: $${comp.monthlyRent}/month (${comp.bedrooms}bd/${comp.bathrooms}ba)`
+    )
     .join("\n") || "None"
 }
     `;
@@ -254,26 +281,53 @@ ${
     let taxBillBlock = "";
     if (taxBillData && typeof taxBillData === "object") {
       const tb = taxBillData as Record<string, unknown>;
-      const lines: string[] = ["## Tax Bill Evidence (Owner-Submitted Official Document)"];
+      const lines: string[] = [
+        "## Tax Bill Evidence (Owner-Submitted Official Document)",
+      ];
       if (tb.apn) lines.push(`- APN / Parcel ID: ${tb.apn}`);
       if (tb.taxYear) lines.push(`- Tax Year: ${tb.taxYear}`);
-      if (tb.currentAssessedValue) lines.push(`- Assessed Value (from bill): $${Number(tb.currentAssessedValue).toLocaleString()}`);
-      if (tb.landValue) lines.push(`- Land Value: $${Number(tb.landValue).toLocaleString()}`);
-      if (tb.improvementValue) lines.push(`- Improvement Value: $${Number(tb.improvementValue).toLocaleString()}`);
+      if (tb.currentAssessedValue)
+        lines.push(
+          `- Assessed Value (from bill): $${Number(tb.currentAssessedValue).toLocaleString()}`
+        );
+      if (tb.landValue)
+        lines.push(`- Land Value: $${Number(tb.landValue).toLocaleString()}`);
+      if (tb.improvementValue)
+        lines.push(
+          `- Improvement Value: $${Number(tb.improvementValue).toLocaleString()}`
+        );
       if (tb.priorYearAssessedValue) {
         const prior = Number(tb.priorYearAssessedValue);
         const current = Number(tb.currentAssessedValue ?? 0);
-        const yoyChange = current && prior ? ((current - prior) / prior * 100).toFixed(1) : null;
-        lines.push(`- Prior Year Assessed Value: $${prior.toLocaleString()}${yoyChange ? ` (${yoyChange}% YoY change)` : ""}`);
+        const yoyChange =
+          current && prior
+            ? (((current - prior) / prior) * 100).toFixed(1)
+            : null;
+        lines.push(
+          `- Prior Year Assessed Value: $${prior.toLocaleString()}${yoyChange ? ` (${yoyChange}% YoY change)` : ""}`
+        );
       }
-      if (tb.annualTaxAmount) lines.push(`- Annual Tax Bill: $${Number(tb.annualTaxAmount).toLocaleString()}`);
-      if (tb.effectiveTaxRate) lines.push(`- Effective Tax Rate: ${(Number(tb.effectiveTaxRate) * 100).toFixed(3)}%`);
+      if (tb.annualTaxAmount)
+        lines.push(
+          `- Annual Tax Bill: $${Number(tb.annualTaxAmount).toLocaleString()}`
+        );
+      if (tb.effectiveTaxRate)
+        lines.push(
+          `- Effective Tax Rate: ${(Number(tb.effectiveTaxRate) * 100).toFixed(3)}%`
+        );
       if (Array.isArray(tb.exemptions) && tb.exemptions.length) {
-        lines.push(`- Exemptions Applied: ${(tb.exemptions as string[]).join(", ")}`);
-        if (tb.exemptionAmount) lines.push(`- Exemption Value: $${Number(tb.exemptionAmount).toLocaleString()}`);
+        lines.push(
+          `- Exemptions Applied: ${(tb.exemptions as string[]).join(", ")}`
+        );
+        if (tb.exemptionAmount)
+          lines.push(
+            `- Exemption Value: $${Number(tb.exemptionAmount).toLocaleString()}`
+          );
       }
-      if (tb.appealDeadline) lines.push(`- Appeal Deadline (from bill): ${tb.appealDeadline}`);
-      if (tb.assessorOffice) lines.push(`- Assessor Office: ${tb.assessorOffice}`);
+      if (tb.appealDeadline)
+        lines.push(`- Appeal Deadline (from bill): ${tb.appealDeadline}`);
+      if (tb.assessorOffice)
+        lines.push(`- Assessor Office: ${tb.assessorOffice}`);
       if (lines.length > 1) {
         taxBillBlock = "\n" + lines.join("\n") + "\n";
         taxBillBlock +=
@@ -386,68 +440,90 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
 
     // Cache key derived from the property + scenario + evidence inputs.
     // Include a hash of photo/taxBill presence so new evidence busts the cache.
-    const source = isClaudeAvailable() ? "claude-opus-4-7" : "claude-unavailable";
+    const source = llmCacheSource("claude-opus-4-7");
     const evidenceHash = hashLLMInput([
       photoContext ? photoContext.overallConditionScore : null,
       photoContext ? photoContext.uspapRatings : null,
       taxBillData ? (taxBillData as Record<string, unknown>).apn : null,
-      taxBillData ? (taxBillData as Record<string, unknown>).currentAssessedValue : null,
+      taxBillData
+        ? (taxBillData as Record<string, unknown>).currentAssessedValue
+        : null,
     ]);
     const cacheKey = `llm:appraisal:${source}:${hashLLMInput([propertyData, propertyType, scenario])}:${evidenceHash}`;
 
-    const analysis = await withLLMCache<AppraisalAnalysis>(cacheKey, source, 24 * 3600, async () => {
-      let rawJson: string;
+    const analysis = await withLLMCache<AppraisalAnalysis>(
+      cacheKey,
+      source,
+      24 * 3600,
+      async () => {
+        let rawJson: string;
 
-      if (isClaudeAvailable()) {
-        // Claude Opus 4.7 with adaptive thinking + xhigh effort + prompt caching.
-        // The stable system prompt is cached across calls, cutting repeat-call
-        // token costs by ~90%. Adaptive thinking lets Claude reason through
-        // comparable-sales weighting before committing to the JSON output.
-        rawJson = await analyzeWithClaude({
-          systemPrompt: APPRAISAL_SYSTEM_PROMPT,
-          userContent: prompt,
-          maxTokens: 8192,
-          effort: "xhigh",
-        });
-      } else {
-        // Anthropic key absent — invokeLLM also routes to Claude via the
-        // shared callAnthropic shim. Will throw if no API key is present.
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: APPRAISAL_SYSTEM_PROMPT },
-            { role: "user", content: prompt },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: { name: "appraisal_analysis", strict: true, schema: APPRAISAL_JSON_SCHEMA },
-          },
-        });
-        const content = response.choices[0]?.message.content;
-        if (!content || typeof content !== "string") {
-          throw new Error("Invalid LLM response format");
+        if (isClaudeAvailable()) {
+          // Claude Opus 4.7 with adaptive thinking + xhigh effort + prompt caching.
+          // The stable system prompt is cached across calls, cutting repeat-call
+          // token costs by ~90%. Adaptive thinking lets Claude reason through
+          // comparable-sales weighting before committing to the JSON output.
+          rawJson = await analyzeWithClaude({
+            systemPrompt: APPRAISAL_SYSTEM_PROMPT,
+            userContent: prompt,
+            maxTokens: 8192,
+            effort: "xhigh",
+            responseFormat: {
+              type: "json_schema",
+              json_schema: {
+                name: "appraisal_analysis",
+                strict: true,
+                schema: APPRAISAL_JSON_SCHEMA,
+              },
+            },
+          });
+        } else {
+          // Anthropic key absent — invokeLLM also routes to Claude via the
+          // shared callAnthropic shim. Will throw if no API key is present.
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: APPRAISAL_SYSTEM_PROMPT },
+              { role: "user", content: prompt },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "appraisal_analysis",
+                strict: true,
+                schema: APPRAISAL_JSON_SCHEMA,
+              },
+            },
+          });
+          const content = response.choices[0]?.message.content;
+          if (!content || typeof content !== "string") {
+            throw new Error("Invalid LLM response format");
+          }
+          rawJson = content;
         }
-        rawJson = content;
+
+        // Strip any markdown fences Claude might emit before the JSON object
+        const jsonStart = rawJson.indexOf("{");
+        const jsonEnd = rawJson.lastIndexOf("}");
+        const cleanJson =
+          jsonStart >= 0 && jsonEnd > jsonStart
+            ? rawJson.slice(jsonStart, jsonEnd + 1)
+            : rawJson;
+
+        const parsed = JSON.parse(cleanJson) as AppraisalAnalysis;
+
+        // Validate response — throw before caching so we never store a partial.
+        if (
+          !parsed.marketValueEstimate ||
+          !parsed.appealStrengthScore ||
+          !parsed.recommendedApproach ||
+          !parsed.executiveSummary
+        ) {
+          throw new Error("Incomplete analysis response");
+        }
+
+        return parsed;
       }
-
-      // Strip any markdown fences Claude might emit before the JSON object
-      const jsonStart = rawJson.indexOf("{");
-      const jsonEnd = rawJson.lastIndexOf("}");
-      const cleanJson = jsonStart >= 0 && jsonEnd > jsonStart ? rawJson.slice(jsonStart, jsonEnd + 1) : rawJson;
-
-      const parsed = JSON.parse(cleanJson) as AppraisalAnalysis;
-
-      // Validate response — throw before caching so we never store a partial.
-      if (
-        !parsed.marketValueEstimate ||
-        !parsed.appealStrengthScore ||
-        !parsed.recommendedApproach ||
-        !parsed.executiveSummary
-      ) {
-        throw new Error("Incomplete analysis response");
-      }
-
-      return parsed;
-    });
+    );
 
     return analysis;
   } catch (error) {
@@ -460,10 +536,13 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
     // The outer analysisJob catch handles this by marking the submission
     // as `error` so the owner / admin can investigate and re-queue. No
     // synthetic numbers ever land in the property_analysis row.
-    log.error("[AppraisalAnalyzer] LLM analysis failed", { address: propertyData.address, err: error });
+    log.error("[AppraisalAnalyzer] LLM analysis failed", {
+      address: propertyData.address,
+      err: error,
+    });
     throw new Error(
       `Appraisal analysis failed: ${error instanceof Error ? error.message : String(error)}. ` +
-      `No fallback analysis is generated; the submission has been marked for retry.`,
+        `No fallback analysis is generated; the submission has been marked for retry.`
     );
   }
 }
@@ -478,9 +557,14 @@ ${JSON.stringify(APPRAISAL_JSON_SCHEMA, null, 2)}`;
  *                       — passing an invented rate produces an invented
  *                       savings figure that misleads the appeal record.
  */
-export function calculatePotentialSavings(assessmentGap: number, taxRate: number): number {
+export function calculatePotentialSavings(
+  assessmentGap: number,
+  taxRate: number
+): number {
   if (!Number.isFinite(taxRate) || taxRate <= 0 || taxRate >= 1) {
-    throw new Error(`calculatePotentialSavings: taxRate must be a decimal in (0, 1); got ${taxRate}`);
+    throw new Error(
+      `calculatePotentialSavings: taxRate must be a decimal in (0, 1); got ${taxRate}`
+    );
   }
   return Math.round(assessmentGap * taxRate);
 }
