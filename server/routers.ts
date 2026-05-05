@@ -8,6 +8,7 @@ import { reportsRouter } from "./routers/reports";
 import { guidesRouter } from "./routers/guides";
 import { adminProcedure as trpcAdminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { safeJsonParse } from "./_core/safeJson";
+import { readSupabaseErrorMessage, readSupabaseJson } from "./_core/supabaseResponse";
 import { z } from "zod";
 import {
   createPropertySubmission,
@@ -313,18 +314,17 @@ export const appRouter = router({
         });
 
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ error_description: "Sign in failed" }));
+          const message = await readSupabaseErrorMessage(res, "Invalid email or password");
           throw new TRPCError({
             code: "UNAUTHORIZED",
-            message: (err as { error_description?: string; msg?: string; message?: string; error?: string }).error_description
-              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).msg
-              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).message
-              ?? (err as { error_description?: string; msg?: string; message?: string; error?: string }).error
-              ?? "Invalid email or password",
+            message,
           });
         }
 
-        const session = await res.json() as { user?: { id: string; email?: string; user_metadata?: Record<string, unknown> } };
+        const session = await readSupabaseJson<{ user?: { id: string; email?: string; user_metadata?: Record<string, unknown> } }>(
+          res,
+          "Sign in failed. Please try again."
+        );
         const sbUser = session.user;
         if (!sbUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in failed" });
 
@@ -368,18 +368,17 @@ export const appRouter = router({
         });
 
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ msg: "Registration failed" }));
+          const message = await readSupabaseErrorMessage(res, "Registration failed");
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: (err as { msg?: string; error_description?: string; message?: string; error?: string }).msg
-              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).error_description
-              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).message
-              ?? (err as { msg?: string; error_description?: string; message?: string; error?: string }).error
-              ?? "Registration failed",
+            message,
           });
         }
 
-        const session = await res.json() as { user?: { id: string; email?: string }; session?: unknown | null };
+        const session = await readSupabaseJson<{ user?: { id: string; email?: string }; session?: unknown | null }>(
+          res,
+          "Registration failed. Please try again."
+        );
         const sbUser = session.user;
         if (!sbUser?.id || !session.session) {
           // Supabase returns a user without a session when email confirmation is required.
@@ -2514,4 +2513,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-

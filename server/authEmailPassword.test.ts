@@ -31,8 +31,10 @@ function makeCtx(cookies: CookieCall[] = []): TrpcContext {
 }
 
 function mockSupabase(payload: unknown, ok = true) {
+  const body = JSON.stringify(payload);
   const fetchMock = vi.fn(async () => ({
     ok,
+    text: async () => body,
     json: async () => payload,
   })) as unknown as typeof fetch;
   vi.stubGlobal("fetch", fetchMock);
@@ -145,5 +147,43 @@ describe("email/password auth", () => {
         password: "secret123",
       })
     ).rejects.toMatchObject({ message: "Email not confirmed" });
+  });
+
+  it("does not expose JSON parser errors when Supabase signup returns plain text", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        text: async () => "A server error occurred",
+      })) as unknown as typeof fetch
+    );
+
+    await expect(
+      (await caller()).auth.signup({
+        email: "owner@example.com",
+        password: "secret123",
+        name: "Owner Name",
+      })
+    ).rejects.toMatchObject({ message: "Registration failed" });
+  });
+
+  it("does not expose JSON parser errors when Supabase signup success is malformed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        text: async () => "A server error occurred",
+      })) as unknown as typeof fetch
+    );
+
+    await expect(
+      (await caller()).auth.signup({
+        email: "owner@example.com",
+        password: "secret123",
+        name: "Owner Name",
+      })
+    ).rejects.toMatchObject({
+      message: "Registration failed. Please try again.",
+    });
   });
 });
