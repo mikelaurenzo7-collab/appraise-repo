@@ -59,21 +59,7 @@ function validateEnv() {
     const errors = result.error.flatten().fieldErrors;
     const missing = Object.keys(errors);
 
-    // Requirements for production
-    const requiredInProd = [
-      "DATABASE_URL",
-      "JWT_SECRET",
-      "SUPABASE_URL",
-      "SUPABASE_ANON_KEY",
-      "ANTHROPIC_API_KEY"
-    ];
-
-    const missingRequired = missing.filter(k => requiredInProd.includes(k));
-
-    if (isProd && missingRequired.length > 0) {
-      console.error("❌ Missing required production environment variables:", missingRequired.join(", "));
-      throw new Error(`Missing required production environment variables: ${missingRequired.join(", ")}`);
-    } else if (!isTest) {
+    if (!isTest) {
       console.warn("⚠️ Some environment variables are missing or invalid:", missing.join(", "));
     }
 
@@ -90,7 +76,31 @@ function validateEnv() {
     });
   }
 
-  return result.data;
+  const data = result.data;
+
+  // Validate required production environment variables AFTER parsing
+  // This check must happen outside the `if (!result.success)` block because
+  // fields with `.default("")` will always pass Zod validation with empty strings
+  if (isProd) {
+    const requiredInProd: { key: keyof typeof data; name: string }[] = [
+      { key: "DATABASE_URL", name: "DATABASE_URL" },
+      { key: "JWT_SECRET", name: "JWT_SECRET" },
+      { key: "SUPABASE_URL", name: "SUPABASE_URL" },
+      { key: "SUPABASE_ANON_KEY", name: "SUPABASE_ANON_KEY" },
+      { key: "ANTHROPIC_API_KEY", name: "ANTHROPIC_API_KEY" },
+    ];
+
+    const missingRequired = requiredInProd
+      .filter(({ key }) => !data[key])
+      .map(({ name }) => name);
+
+    if (missingRequired.length > 0) {
+      console.error("❌ Missing required production environment variables:", missingRequired.join(", "));
+      throw new Error(`Missing required production environment variables: ${missingRequired.join(", ")}`);
+    }
+  }
+
+  return data;
 }
 
 const validatedEnv = validateEnv();
