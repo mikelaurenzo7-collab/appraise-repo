@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
-import { Express } from 'express';
+import type { Express, Request, Response, NextFunction } from 'express';
+import { ENV } from './env';
 
 /**
  * Initialize Sentry error monitoring
@@ -8,9 +9,9 @@ import { Express } from 'express';
 export function initializeSentry(app: Express) {
   // Initialize Sentry
   Sentry.init({
-    dsn: process.env.SENTRY_DSN || '', // Set via environment variable
-    environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    dsn: ENV.sentryDsn || '',
+    environment: ENV.nodeEnv,
+    tracesSampleRate: ENV.isProduction ? 0.1 : 1.0,
   });
 
   return app;
@@ -21,13 +22,13 @@ export function initializeSentry(app: Express) {
  */
 export function attachSentryErrorHandlers(app: Express) {
   // Custom error handler for unhandled errors
-  app.use((err: any, req: any, res: any, next: any) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     // Capture error in Sentry
     Sentry.captureException(err, {
       tags: {
         path: req.path,
         method: req.method,
-        userId: req.user?.id,
+        userId: (req as any).user?.id,
       },
       extra: {
         body: req.body,
@@ -37,8 +38,8 @@ export function attachSentryErrorHandlers(app: Express) {
 
     // Send error response
     res.status(err.status || 500).json({
-      error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
-      requestId: res.sentry,
+      error: ENV.isProduction ? 'Internal Server Error' : err.message,
+      requestId: (res as any).sentry,
     });
   });
 }

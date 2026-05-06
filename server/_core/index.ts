@@ -18,10 +18,14 @@ import {
   getLastFilingJobCompletedAt,
   getPropertySubmissionById,
 } from "../db";
+import compression from "compression";
+import helmet from "helmet";
 import { cleanupOldQueues } from "./sseBroadcaster";
 import { globalLimiter, authLimiter, apiLimiter } from "./rateLimiter";
 import { checkRateLimit } from "./rateLimit";
 import { scopedLogger } from "./logger";
+import { initializeSentry, attachSentryErrorHandlers } from "./errorMonitoring";
+import { ENV } from "./env";
 
 const log = scopedLogger("Server");
 
@@ -38,25 +42,22 @@ if (process.env.VERCEL !== "1") {
  * Fail-fast validation of critical env vars. In production we refuse to
  * boot when any required secret is missing — better a crash-loop caught by
  * the platform than a subtly broken service that silently 500s every
- * request. In dev we warn but allow startup so local iteration isn't
- * blocked by, e.g., not having a Stripe key.
+ * request.
  */
 function validateEnvOrExit() {
-  const required = ["DATABASE_URL", "JWT_SECRET", "SUPABASE_URL", "SUPABASE_ANON_KEY", "ANTHROPIC_API_KEY"];
-  const productionOnly = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"];
-  const missing = required.filter((k) => !process.env[k]);
-  const missingProd =
-    process.env.NODE_ENV === "production"
-      ? productionOnly.filter((k) => !process.env[k])
-      : [];
-  const all = [...missing, ...missingProd];
-  if (all.length === 0) return;
-  const msg = `[Startup] Missing required environment variables: ${all.join(", ")}`;
-  if (process.env.NODE_ENV === "production") {
-    console.error(msg);
-    process.exit(1);
+  // Validation is now handled in server/_core/env.ts using Zod.
+  // We just access ENV here to trigger the validation logic.
+  const isProd = ENV.isProduction;
+
+  if (isProd) {
+    const productionOnly = ["stripeSecretKey", "stripeWebhookSecret", "awsAccessKeyId", "awsSecretAccessKey"];
+    const missingProd = productionOnly.filter((k) => !(ENV as any)[k]);
+
+    if (missingProd.length > 0) {
+      console.error(`[Startup] Missing production-required environment variables: ${missingProd.join(", ")}`);
+      process.exit(1);
+    }
   }
-  console.warn(`${msg} (non-production: continuing, but requests will fail)`);
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -87,6 +88,17 @@ export async function createApp(): Promise<Express> {
   const app = express();
   app.set('trust proxy', 1);
 
+  // Initialize Sentry error monitoring early in the lifecycle.
+  initializeSentry(app);
+
+  // Security: Set headers to protect against common vulnerabilities.
+  app.use(helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  }));
+
+  // Performance: Compress all responses for better throughput.
+  app.use(compression());
+
   // Stripe + Lob webhooks must be registered before the JSON body parser so
   // signature verification receives the original raw payload bytes.
   registerStripeWebhook(app);
@@ -104,8 +116,7 @@ export async function createApp(): Promise<Express> {
   try {
     registerAuthRoutes(app);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[Auth] Auth routes not registered: ${msg}`);
+    log.warn("Auth routes not registered", { err });
     // Register stub routes so callers get a clear 503 instead of a 404
     app.get("/api/auth/login", (_req, res) => res.status(503).json({ error: "Auth not configured" }));
     app.get("/api/auth/callback", (_req, res) => res.status(503).json({ error: "Auth not configured" }));
@@ -286,43 +297,45 @@ export async function createApp(): Promise<Express> {
       const predictions = await getPlacePredictions(input, { sessionToken });
       res.json({ predictions });
     } catch (error) {
-      console.error("[Places Autocomplete Error]", error);
+      log.error("Places Autocomplete Error", { error });
       res.json({ predictions: [] });
     }
   });
 
   // Street View capture endpoint — async, non-blocking
-  app.post("/api/capture-street-view", async (req: any, res: any) => {
+  app.post("/api/capture-street-view", async (req, res) => {
     try {
       const address = typeof req.body?.address === "string" ? req.body.address : "";
       if (!address) {
-        return res.status(400).json({ error: "Address required" });
+        res.status(400).json({ error: "Address required" });
+        return;
       }
       // Fire and forget — don't block the response
       const { captureStreetView } = await import("./streetViewCapture");
-      captureStreetView({ address }).catch((err: any) => {
-        console.error("[StreetViewCapture] Background capture failed:", err);
+      captureStreetView({ address }).catch((err: unknown) => {
+        log.error("Background StreetView capture failed", { err });
       });
       res.json({ status: "queued" });
     } catch (error) {
-      console.error("[Street View Capture Error]", error);
+      log.error("Street View Capture Error", { error });
       res.json({ status: "queued" });
     }
   });
 
   // Geocode address → structured components (city, county, state, zip)
   // Used by the frontend to auto-fill form fields after autocomplete selection
-  app.post("/api/geocode-address", async (req: any, res: any) => {
+  app.post("/api/geocode-address", async (req, res) => {
     try {
       const address = typeof req.body?.address === "string" ? req.body.address : "";
       if (!address) {
-        return res.status(400).json({ error: "Address required" });
+        res.status(400).json({ error: "Address required" });
+        return;
       }
       const { geocodeAddress } = await import("./streetViewCapture");
       const result = await geocodeAddress(address);
       res.json({ result });
     } catch (error) {
-      console.error("[Geocode Address Error]", error);
+      log.error("Geocode Address Error", { error });
       res.json({ result: null });
     }
   });
@@ -335,6 +348,9 @@ export async function createApp(): Promise<Express> {
       createContext,
     })
   );
+
+  // Error monitoring: Sentry handlers must be registered AFTER all routes.
+  attachSentryErrorHandlers(app);
 
   return app;
 }
@@ -357,7 +373,7 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
+  const preferredPort = ENV.port;
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
@@ -378,7 +394,7 @@ async function startServer() {
     );
     buildReconciliationInterval({ intervalMs: 30 * 60 * 1000, batchSize: 25 })();
   } catch (err) {
-    console.warn("[LobReconcile] Failed to initialize", err);
+    log.warn("LobReconcile failed to initialize", { err });
   }
 
   // Recovery sweep: any submission stuck in "analyzing" for >10 min is the
@@ -388,7 +404,7 @@ async function startServer() {
   try {
     const stuck = await findStuckAnalysisSubmissions(10 * 60 * 1000);
     if (stuck.length > 0) {
-      console.log(`[Startup] Recovering ${stuck.length} stuck analysis submission(s)`);
+      log.info(`Recovering ${stuck.length} stuck analysis submission(s)`, { count: stuck.length });
       const { queueAnalysisJob } = await import("../services/analysisJob");
       for (const s of stuck) {
         await updatePropertySubmission(s.id, { status: "pending" });
@@ -396,7 +412,7 @@ async function startServer() {
       }
     }
   } catch (err) {
-    console.warn("[Startup] Stuck-job recovery sweep failed:", err);
+    log.warn("Stuck-job recovery sweep failed", { err });
   }
 
   // Start filing job processor (Playwright / mail dispatcher)
