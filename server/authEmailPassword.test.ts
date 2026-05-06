@@ -149,7 +149,44 @@ describe("email/password auth", () => {
     ).rejects.toMatchObject({ message: "Email not confirmed" });
   });
 
-  it("does not expose JSON parser errors when Supabase signup returns plain text", async () => {
+  it("returns a friendly auth service error when Supabase cannot be reached", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      }) as unknown as typeof fetch
+    );
+
+    await expect(
+      (await caller()).auth.signin({
+        email: "owner@example.com",
+        password: "secret123",
+      })
+    ).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+      message:
+        "Authentication service is temporarily unavailable. Please try again.",
+    });
+  });
+
+  it("validates Supabase auth configuration before calling signup", async () => {
+    process.env.SUPABASE_URL = "not-a-url";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    await expect(
+      (await caller()).auth.signup({
+        email: "owner@example.com",
+        password: "secret123",
+        name: "Owner Name",
+      })
+    ).rejects.toMatchObject({
+      message: "Auth is misconfigured. Please contact support.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces plain-text Supabase signup failures without exposing JSON parser errors", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -164,7 +201,7 @@ describe("email/password auth", () => {
         password: "secret123",
         name: "Owner Name",
       })
-    ).rejects.toMatchObject({ message: "Registration failed" });
+    ).rejects.toMatchObject({ message: "A server error occurred" });
   });
 
   it("does not expose JSON parser errors when Supabase signup success is malformed", async () => {

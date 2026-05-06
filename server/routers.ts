@@ -8,6 +8,7 @@ import { reportsRouter } from "./routers/reports";
 import { guidesRouter } from "./routers/guides";
 import { adminProcedure as trpcAdminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { safeJsonParse } from "./_core/safeJson";
+import { fetchSupabaseAuth } from "./_core/supabaseEmailAuth";
 import { readSupabaseErrorMessage, readSupabaseJson } from "./_core/supabaseResponse";
 import { z } from "zod";
 import {
@@ -297,21 +298,10 @@ export const appRouter = router({
         password: z.string().min(6),
       }))
       .mutation(async ({ input, ctx }) => {
-        const SUPABASE_URL = process.env.SUPABASE_URL;
-        const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Auth not configured" });
-        }
-
-        const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": SUPABASE_ANON_KEY,
-            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({ email: input.email, password: input.password }),
-        });
+        const res = await fetchSupabaseAuth(
+          "/auth/v1/token?grant_type=password",
+          { email: input.email, password: input.password }
+        );
 
         if (!res.ok) {
           const message = await readSupabaseErrorMessage(res, "Invalid email or password");
@@ -347,24 +337,10 @@ export const appRouter = router({
         name: z.string().max(100).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const SUPABASE_URL = process.env.SUPABASE_URL;
-        const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Auth not configured" });
-        }
-
-        const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": SUPABASE_ANON_KEY,
-            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            email: input.email.trim().toLowerCase(),
-            password: input.password,
-            data: input.name ? { full_name: input.name } : undefined,
-          }),
+        const res = await fetchSupabaseAuth("/auth/v1/signup", {
+          email: input.email,
+          password: input.password,
+          data: input.name ? { full_name: input.name } : undefined,
         });
 
         if (!res.ok) {
