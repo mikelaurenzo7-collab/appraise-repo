@@ -7,6 +7,12 @@ type SupabaseMessageBody = {
   error?: unknown;
 };
 
+function cleanPlainTextMessage(text: string): string | null {
+  const message = text.replace(/\s+/g, " ").trim();
+  if (!message || message.startsWith("<")) return null;
+  return message.slice(0, 240);
+}
+
 function getMessage(body: unknown, fallback: string): string {
   if (!body || typeof body !== "object") return fallback;
   const record = body as SupabaseMessageBody;
@@ -29,7 +35,7 @@ export async function readSupabaseErrorMessage(
   try {
     return getMessage(JSON.parse(text), fallback);
   } catch {
-    return fallback;
+    return cleanPlainTextMessage(text) ?? fallback;
   }
 }
 
