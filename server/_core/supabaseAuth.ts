@@ -22,6 +22,7 @@ import { scopedLogger } from "./logger";
 import { readSupabaseErrorMessage, readSupabaseJson } from "./supabaseResponse";
 
 const log = scopedLogger("SupabaseAuth");
+const CALLBACK_EXCHANGE_ERROR = "Supabase auth exchange failed";
 
 function getSupabaseConfig(): { url: string; anonKey: string } {
   const url = process.env.SUPABASE_URL;
@@ -116,7 +117,7 @@ export function registerAuthRoutes(app: Express) {
       if (!sbRes.ok) {
         const errorMessage = await readSupabaseErrorMessage(
           sbRes,
-          "auth exchange failed"
+          CALLBACK_EXCHANGE_ERROR
         );
         log.error("[Auth] Supabase token exchange failed:", {
           err: errorMessage,
@@ -130,7 +131,7 @@ export function registerAuthRoutes(app: Express) {
 
       const sbSession = await readSupabaseJson<{ user?: any }>(
         sbRes,
-        "auth exchange failed"
+        CALLBACK_EXCHANGE_ERROR
       );
       const supabaseUser = sbSession.user;
       if (!supabaseUser) {

@@ -138,7 +138,7 @@ describe("HTTP /api/auth/callback", () => {
     const { response } = await invokeCallback({ code: "pkce-code" });
 
     expect(response.statusCode).toBe(400);
-    expect(response.body).toEqual({ error: "auth exchange failed" });
+    expect(response.body).toEqual({ error: "Supabase auth exchange failed" });
   });
 
   it("returns a fallback error when Supabase callback success is malformed", async () => {
@@ -150,6 +150,6 @@ describe("HTTP /api/auth/callback", () => {
     const { response } = await invokeCallback({ code: "pkce-code" });
 
     expect(response.statusCode).toBe(502);
-    expect(response.body).toEqual({ error: "auth exchange failed" });
+    expect(response.body).toEqual({ error: "Supabase auth exchange failed" });
   });
 });
