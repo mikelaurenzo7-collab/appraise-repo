@@ -13,12 +13,13 @@
  *     → stores/updates user in DB
  *     → redirects to returnTo
  */
+import { TRPCError } from "@trpc/server";
 import type { Express, Request, Response } from "express";
 import { signJWT, verifyJWT, COOKIE_NAME, ONE_YEAR_MS } from "./auth";
 import { getSessionCookieOptions } from "./cookies";
 import * as db from "../db";
 import { scopedLogger } from "./logger";
-import { readSupabaseJson } from "./supabaseResponse";
+import { readSupabaseErrorMessage, readSupabaseJson } from "./supabaseResponse";
 
 const log = scopedLogger("SupabaseAuth");
 
@@ -39,6 +40,13 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function getSafeReturnTo(value: string | undefined): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/";
+  }
+  return value;
+}
+
 /**
  * Initiate Supabase Auth login flow.
  * Redirects to Supabase Auth page (email magic link, Google, GitHub, etc.)
@@ -53,14 +61,7 @@ export function registerAuthRoutes(app: Express) {
   // GET /api/auth/login?returnTo=/dashboard
   // Redirects to Supabase Auth (you configure which providers in Supabase dashboard)
   app.get("/api/auth/login", (req: Request, res: Response) => {
-    const returnTo =
-      (typeof req.query.returnTo === "string" && req.query.returnTo) ||
-      "/";
-    // Validate it's a safe path
-    if (!returnTo.startsWith("/") || returnTo.startsWith("//")) {
-      res.redirect(302, "/");
-      return;
-    }
+    const returnTo = getSafeReturnTo(getQueryParam(req, "returnTo"));
 
     const redirectTo = `${process.env.APP_BASE_URL}/api/auth/callback`;
     const params = new URLSearchParams({
@@ -79,8 +80,7 @@ export function registerAuthRoutes(app: Express) {
   // Supabase (or your custom auth page) redirects here after login attempt
   app.get("/api/auth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
-    const state = getQueryParam(req, "state");
-    const next = getQueryParam(req, "next") ?? "/";
+    const next = getSafeReturnTo(getQueryParam(req, "next"));
 
     // PKCE code exchange — exchange auth code for Supabase session
     if (!code) {
@@ -104,9 +104,17 @@ export function registerAuthRoutes(app: Express) {
       });
 
       if (!sbRes.ok) {
-        const err = await sbRes.text();
-        log.error("[Auth] Supabase token exchange failed:", { err: err });
-        res.status(500).json({ error: "auth exchange failed" });
+        const errorMessage = await readSupabaseErrorMessage(
+          sbRes,
+          "auth exchange failed"
+        );
+        log.error("[Auth] Supabase token exchange failed:", {
+          err: errorMessage,
+          status: sbRes.status,
+        });
+        res.status(sbRes.status >= 400 && sbRes.status < 500 ? 400 : 502).json({
+          error: errorMessage,
+        });
         return;
       }
 
@@ -147,6 +155,11 @@ export function registerAuthRoutes(app: Express) {
 
       res.redirect(302, next);
     } catch (error) {
+      if (error instanceof TRPCError && error.code === "BAD_GATEWAY") {
+        log.error("[Auth] Invalid Supabase token response:", { err: error.message });
+        res.status(502).json({ error: error.message });
+        return;
+      }
       log.error("[Auth] Callback failed:", { err: error });
       res.status(500).json({ error: "auth callback failed" });
     }
