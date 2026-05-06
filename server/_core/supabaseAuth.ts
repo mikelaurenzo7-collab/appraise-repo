@@ -49,10 +49,10 @@ function getSafeReturnTo(value: string | undefined): string {
 }
 
 function normalizeAuthErrorStatus(statusCode: number): number {
-  return statusCode >= 400 && statusCode < 500 ? 400 : 502;
+  return statusCode >= 400 && statusCode < 500 ? statusCode : 502;
 }
 
-function isMalformedSupabaseResponseError(
+function isTrpcBadGatewayError(
   error: unknown
 ): error is TRPCError & { code: "BAD_GATEWAY" } {
   return error instanceof TRPCError && error.code === "BAD_GATEWAY";
@@ -166,7 +166,7 @@ export function registerAuthRoutes(app: Express) {
 
       res.redirect(302, next);
     } catch (error) {
-      if (isMalformedSupabaseResponseError(error)) {
+      if (isTrpcBadGatewayError(error)) {
         log.error("[Auth] Invalid Supabase token response:", { err: error.message });
         res.status(502).json({ error: error.message });
         return;
