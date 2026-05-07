@@ -54,7 +54,7 @@ function validateEnvOrExit() {
     const missingProd = productionOnly.filter((k) => !(ENV as any)[k]);
 
     if (missingProd.length > 0) {
-      console.error(`[Startup] Missing production-required environment variables: ${missingProd.join(", ")}`);
+      log.error(`Missing production-required environment variables: ${missingProd.join(", ")}`);
       process.exit(1);
     }
   }
@@ -377,11 +377,11 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    log.info(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    log.info(`Server running on http://localhost:${port}/`);
   });
 
   // Track intervals so we can clear them on shutdown.
@@ -491,19 +491,19 @@ async function startServer() {
   const shutdown = (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log(`[Shutdown] ${signal} received; draining...`);
+    log.info(`${signal} received; draining...`, { signal });
     intervals.forEach((i) => clearInterval(i));
     const hardKill = setTimeout(() => {
-      console.error("[Shutdown] Drain timeout — forcing exit.");
+      log.error("Drain timeout — forcing exit.");
       process.exit(1);
     }, 25_000);
     hardKill.unref();
     server.close((err) => {
       if (err) {
-        console.error("[Shutdown] server.close error:", err);
+        log.error("server.close error:", { err });
         process.exit(1);
       }
-      console.log("[Shutdown] Clean exit.");
+      log.info("Clean exit.");
       process.exit(0);
     });
   };
@@ -511,10 +511,10 @@ async function startServer() {
   process.on("SIGINT", () => shutdown("SIGINT"));
   // Surface unhandled errors so they show up in prod logs instead of vanishing.
   process.on("unhandledRejection", (reason) => {
-    console.error("[unhandledRejection]", reason);
+    log.error("unhandledRejection", { reason });
   });
   process.on("uncaughtException", (err) => {
-    console.error("[uncaughtException]", err);
+    log.error("uncaughtException", { err });
   });
 }
 
@@ -522,7 +522,7 @@ async function startServer() {
 // When imported by a Vercel serverless function, the importer calls createApp()
 // directly and we must NOT call listen() or schedule cron intervals.
 if (process.env.VERCEL !== "1") {
-  startServer().catch(console.error);
+  startServer().catch((err) => log.error("startServer failed", { err }));
 }
 
 // Export for use by analysisJob to broadcast updates
