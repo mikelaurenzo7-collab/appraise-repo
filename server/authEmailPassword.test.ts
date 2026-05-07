@@ -100,9 +100,12 @@ describe("email/password auth", () => {
   });
 
   it("does not create an app session when signup requires email confirmation", async () => {
+    // When email confirmation is enabled, Supabase /auth/v1/signup returns a
+    // bare User object (no access_token, no session wrapper).
     mockSupabase({
-      user: { id: "pending-user", email: "pending@example.com" },
-      session: null,
+      id: "pending-user",
+      email: "pending@example.com",
+      confirmation_sent_at: "2024-01-01T00:00:00Z",
     });
     const cookies: CookieCall[] = [];
 
@@ -118,10 +121,16 @@ describe("email/password auth", () => {
     expect(cookies).toHaveLength(0);
   });
 
-  it("creates an app session after signup when Supabase returns a session", async () => {
+  it("creates an app session after signup when Supabase auto-confirms (no email confirmation)", async () => {
+    // When email confirmation is disabled, Supabase /auth/v1/signup returns a
+    // full Session: { access_token, refresh_token, user: {...}, ... } — there
+    // is no top-level `session` wrapper.
     mockSupabase({
+      access_token: "supabase-access-token",
+      token_type: "bearer",
+      expires_in: 3600,
+      refresh_token: "supabase-refresh-token",
       user: { id: "confirmed-user", email: "confirmed@example.com" },
-      session: { access_token: "supabase-session" },
     });
     const cookies: CookieCall[] = [];
 
@@ -136,6 +145,25 @@ describe("email/password auth", () => {
     expect(res).toEqual({ success: true, requiresConfirmation: false });
     expect(cookies).toHaveLength(1);
     expect(cookies[0].name).toBe(COOKIE_NAME);
+  });
+
+  it("resendConfirmation always succeeds without leaking whether the email is registered", async () => {
+    // Even when Supabase reports an error (e.g. user not found), we return
+    // success: true so callers cannot enumerate registered accounts.
+    const fetchMock = mockSupabase({ msg: "user not found" }, false);
+
+    const res = await (await caller()).auth.resendConfirmation({
+      email: "anyone@example.com",
+    });
+
+    expect(res).toEqual({ success: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://supabase.test/auth/v1/resend",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ type: "signup", email: "anyone@example.com" }),
+      })
+    );
   });
 
   it("surfaces Supabase auth error messages", async () => {

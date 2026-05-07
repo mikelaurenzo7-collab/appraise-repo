@@ -351,25 +351,53 @@ export const appRouter = router({
           });
         }
 
-        const session = await readSupabaseJson<{ user?: { id: string; email?: string }; session?: unknown | null }>(
-          res,
-          "Registration failed. Please try again."
-        );
-        const sbUser = session.user;
-        if (!sbUser?.id || !session.session) {
-          // Supabase returns a user without a session when email confirmation is required.
-          // Do not create our app session until the email address is confirmed and sign-in succeeds.
+        // Supabase signup responds with one of two flat shapes:
+        //   • Session  → { access_token, refresh_token, user: {id,…}, … }   (auto-confirm)
+        //   • User     → { id, email, confirmation_sent_at, … }              (email confirmation on)
+        // There is no top-level `session` wrapper in either case. Decide which
+        // we got by checking for an access_token, and pull the user id out of
+        // the right place.
+        const data = await readSupabaseJson<{
+          access_token?: string;
+          user?: { id?: string; email?: string };
+          id?: string;
+          email?: string;
+        }>(res, "Registration failed. Please try again.");
+
+        const hasSession = typeof data.access_token === "string" && data.access_token.length > 0;
+        const userId = hasSession ? data.user?.id : data.id;
+
+        if (!hasSession || !userId) {
+          // Email confirmation required — user must confirm via email then sign in.
           return { success: true, requiresConfirmation: true } as const;
         }
 
         const { upsertUser } = await import("./db");
-        await upsertUser({ openId: sbUser.id, name: input.name ?? null, email: input.email, loginMethod: "email", lastSignedIn: new Date() });
+        await upsertUser({ openId: userId, name: input.name ?? null, email: input.email, loginMethod: "email", lastSignedIn: new Date() });
 
         const { signJWT, ONE_YEAR_MS } = await import("./_core/auth");
-        const token = await signJWT({ openId: sbUser.id, name: input.name ?? "" });
+        const token = await signJWT({ openId: userId, name: input.name ?? "" });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
         return { success: true, requiresConfirmation: false } as const;
+      }),
+
+    /**
+     * Resend the email-confirmation message for a pending signup.
+     * Used by the Login page when a user gets "Email not confirmed" on signin.
+     * We always return success: true regardless of Supabase's response so we
+     * don't leak whether the email is registered (account-enumeration defense).
+     */
+    resendConfirmation: publicProcedure
+      .input(z.object({
+        email: z.string().trim().toLowerCase().email(),
+      }))
+      .mutation(async ({ input }) => {
+        await fetchSupabaseAuth("/auth/v1/resend", {
+          type: "signup",
+          email: input.email,
+        }).catch(() => null);
+        return { success: true } as const;
       }),
   }),
 

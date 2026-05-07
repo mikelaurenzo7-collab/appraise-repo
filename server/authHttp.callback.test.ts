@@ -128,7 +128,11 @@ describe("HTTP /api/auth/callback", () => {
     expect(response.redirectArgs).toEqual([302, "/"]);
   });
 
-  it("returns a fallback error when Supabase callback failure is plain text", async () => {
+  it("surfaces plain-text Supabase callback errors to the caller", async () => {
+    // readSupabaseErrorMessage intentionally preserves non-HTML plain-text
+    // bodies so users see Supabase's real failure reason instead of an
+    // anonymous fallback. Only HTML / empty bodies fall back to the generic
+    // "Supabase auth exchange failed" string.
     stubFetch({
       ok: false,
       status: 400,
@@ -138,7 +142,7 @@ describe("HTTP /api/auth/callback", () => {
     const { response } = await invokeCallback({ code: "pkce-code" });
 
     expect(response.statusCode).toBe(400);
-    expect(response.body).toEqual({ error: "Supabase auth exchange failed" });
+    expect(response.body).toEqual({ error: "A server error occurred" });
   });
 
   it("returns a fallback error when Supabase callback success is malformed", async () => {
