@@ -73,7 +73,7 @@ import {
 import { invokeLLM } from "./_core/llm";
 import Stripe from "stripe"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { countiesRouter } from "./routers/counties";
-import { enforceRateLimit } from "./_core/rateLimit";
+import { enforceRateLimit, checkRateLimit } from "./_core/rateLimit";
 import {
   PRICING_TIERS,
   getTierByFilingMethod,
@@ -365,11 +365,21 @@ export const appRouter = router({
         }>(res, "Registration failed. Please try again.");
 
         const hasSession = typeof data.access_token === "string" && data.access_token.length > 0;
-        const userId = hasSession ? data.user?.id : data.id;
-
-        if (!hasSession || !userId) {
-          // Email confirmation required — user must confirm via email then sign in.
+        if (!hasSession) {
+          // No access_token → Supabase issued the User shape, meaning email
+          // confirmation is required. The user must confirm and then sign in.
           return { success: true, requiresConfirmation: true } as const;
+        }
+
+        const userId = data.user?.id;
+        if (!userId) {
+          // Session present but no user id — malformed Supabase response.
+          // Surface as a server error rather than silently telling the user
+          // to "check their email" (which would never arrive).
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message: "Registration failed. Please try again.",
+          });
         }
 
         const { upsertUser } = await import("./db");
@@ -387,12 +397,36 @@ export const appRouter = router({
      * Used by the Login page when a user gets "Email not confirmed" on signin.
      * We always return success: true regardless of Supabase's response so we
      * don't leak whether the email is registered (account-enumeration defense).
+     *
+     * Rate-limited along two dimensions to prevent abuse:
+     *  • per IP — caps an attacker triggering many resends from one source.
+     *  • per target email — caps inbox spam at a single victim across IPs.
      */
     resendConfirmation: publicProcedure
       .input(z.object({
         email: z.string().trim().toLowerCase().email(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Per-IP budget: caps a single source spamming many emails.
+        enforceRateLimit(ctx, { scope: "auth.resendConfirmation.ip", max: 5, windowMs: 15 * 60 * 1000 });
+        // Per-email budget (independent of caller IP): prevents an attacker
+        // rotating IPs from carpet-bombing one inbox. Override the rate-limit
+        // identity with the target email so the bucket is scoped by recipient.
+        const emailExceeded = checkRateLimit(
+          {
+            headers: ctx.req.headers as Record<string, string | string[] | undefined>,
+            ip: ctx.req.ip,
+            socket: ctx.req.socket,
+            userId: input.email,
+          },
+          { scope: "auth.resendConfirmation.email", max: 3, windowMs: 15 * 60 * 1000 }
+        );
+        if (emailExceeded) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: "Too many resend attempts for this email. Please wait a few minutes and try again.",
+          });
+        }
         await fetchSupabaseAuth("/auth/v1/resend", {
           type: "signup",
           email: input.email,
