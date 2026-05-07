@@ -599,12 +599,18 @@ export const appRouter = router({
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve analysis." });
         }
       }),
-    // Payment status check for a submission
-    getPaymentStatus: publicProcedure
+    // Payment status check for a submission. Requires authentication +
+    // ownership: previously this was a publicProcedure that any caller could
+    // poll to enumerate submission ids and learn their payment state.
+    getPaymentStatus: protectedProcedure
       .input(z.object({ submissionId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
         if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
 
         // Free tier ("none") doesn't require payment
         if (submission.filingMethod === "none") {
@@ -1492,6 +1498,14 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const submission = await getPropertySubmissionById(input.submissionId);
         if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
+
+        // Ownership: only the submitter (matched by email) or an admin can
+        // queue a report job. Without this, any authenticated user could
+        // queue jobs against another user's submissionId, polluting the
+        // queue and consuming compute budget.
+        if (submission.email !== ctx.user.email && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not your submission" });
+        }
 
         const analysis = await getPropertyAnalysisBySubmissionId(input.submissionId);
         if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
