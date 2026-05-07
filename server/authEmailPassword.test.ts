@@ -47,7 +47,7 @@ async function caller(cookies: CookieCall[] = []) {
 }
 
 describe("email/password auth", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     process.env = {
       ...originalEnv,
@@ -56,6 +56,10 @@ describe("email/password auth", () => {
       JWT_SECRET: "x".repeat(40),
       DATABASE_URL: "",
     };
+    // Resend confirmation is rate-limited; clear the in-memory buckets so
+    // tests don't leak budget state into one another.
+    const { __resetRateLimiterForTests } = await import("./_core/rateLimit");
+    __resetRateLimiterForTests();
   });
 
   afterEach(() => {
@@ -100,9 +104,12 @@ describe("email/password auth", () => {
   });
 
   it("does not create an app session when signup requires email confirmation", async () => {
+    // When email confirmation is enabled, Supabase /auth/v1/signup returns a
+    // bare User object (no access_token, no session wrapper).
     mockSupabase({
-      user: { id: "pending-user", email: "pending@example.com" },
-      session: null,
+      id: "pending-user",
+      email: "pending@example.com",
+      confirmation_sent_at: "2024-01-01T00:00:00Z",
     });
     const cookies: CookieCall[] = [];
 
@@ -118,10 +125,16 @@ describe("email/password auth", () => {
     expect(cookies).toHaveLength(0);
   });
 
-  it("creates an app session after signup when Supabase returns a session", async () => {
+  it("creates an app session after signup when Supabase auto-confirms (no email confirmation)", async () => {
+    // When email confirmation is disabled, Supabase /auth/v1/signup returns a
+    // full Session: { access_token, refresh_token, user: {...}, ... } — there
+    // is no top-level `session` wrapper.
     mockSupabase({
+      access_token: "supabase-access-token",
+      token_type: "bearer",
+      expires_in: 3600,
+      refresh_token: "supabase-refresh-token",
       user: { id: "confirmed-user", email: "confirmed@example.com" },
-      session: { access_token: "supabase-session" },
     });
     const cookies: CookieCall[] = [];
 
@@ -136,6 +149,71 @@ describe("email/password auth", () => {
     expect(res).toEqual({ success: true, requiresConfirmation: false });
     expect(cookies).toHaveLength(1);
     expect(cookies[0].name).toBe(COOKIE_NAME);
+  });
+
+  it("rejects malformed Supabase signup responses (session present but no user id)", async () => {
+    // Defensive: if Supabase ever returns an access_token without a user.id,
+    // we should fail loudly rather than silently telling the user to "check
+    // their email" (which would never arrive).
+    mockSupabase({
+      access_token: "supabase-access-token",
+      token_type: "bearer",
+      // user object missing id
+      user: { email: "broken@example.com" },
+    });
+
+    await expect(
+      (await caller()).auth.signup({
+        email: "Broken@Example.com",
+        password: "secret123",
+        name: "Broken Owner",
+      })
+    ).rejects.toMatchObject({
+      message: "Registration failed. Please try again.",
+    });
+  });
+
+  it("resendConfirmation always succeeds without leaking whether the email is registered", async () => {
+    // Even when Supabase reports an error (e.g. user not found), we return
+    // success: true so callers cannot enumerate registered accounts.
+    const fetchMock = mockSupabase({ msg: "user not found" }, false);
+
+    const res = await (await caller()).auth.resendConfirmation({
+      email: "anyone@example.com",
+    });
+
+    expect(res).toEqual({ success: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://supabase.test/auth/v1/resend",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ type: "signup", email: "anyone@example.com" }),
+      })
+    );
+  });
+
+  it("rate-limits resendConfirmation per IP", async () => {
+    // Per-IP cap is 5 / 15min. After 5 successful calls, the 6th should 429.
+    mockSupabase({}, true);
+    const c = await caller();
+    for (let i = 0; i < 5; i++) {
+      await c.auth.resendConfirmation({ email: `x${i}@example.com` });
+    }
+    await expect(
+      c.auth.resendConfirmation({ email: "x6@example.com" })
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+  });
+
+  it("rate-limits resendConfirmation per target email", async () => {
+    // Per-email cap is 3 / 15min — same address from any caller.
+    mockSupabase({}, true);
+    const c = await caller();
+    for (let i = 0; i < 3; i++) {
+      await c.auth.resendConfirmation({ email: "victim@example.com" });
+    }
+    await expect(
+      c.auth.resendConfirmation({ email: "victim@example.com" })
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
   });
 
   it("surfaces Supabase auth error messages", async () => {

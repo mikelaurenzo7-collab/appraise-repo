@@ -21,6 +21,7 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [showResend, setShowResend] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -29,7 +30,12 @@ export default function Login() {
       await utils.auth.me.invalidate();
       navigate(returnTo);
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => {
+      setError(e.message);
+      // Detect Supabase's "Email not confirmed" response so we can offer to
+      // resend the confirmation message instead of leaving the user stuck.
+      setShowResend(/email.*not.*confirm/i.test(e.message));
+    },
   });
 
   const signupMut = trpc.auth.signup.useMutation({
@@ -37,6 +43,7 @@ export default function Login() {
       if (data.requiresConfirmation) {
         setInfo("Check your email for a confirmation link, then sign in.");
         setTab("signin");
+        setPassword("");
       } else {
         await utils.auth.me.invalidate();
         navigate(returnTo);
@@ -45,12 +52,28 @@ export default function Login() {
     onError: (e) => setError(e.message),
   });
 
-  const busy = signinMut.isPending || signupMut.isPending;
+  const resendMut = trpc.auth.resendConfirmation.useMutation({
+    onSuccess: () => {
+      setInfo("Confirmation email sent. Please check your inbox.");
+      setError(null);
+      setShowResend(false);
+    },
+    onError: () => {
+      // Even on failure, show a neutral message — we don't want to leak whether
+      // the email is registered.
+      setInfo("If that email is registered, a confirmation link has been sent.");
+      setError(null);
+      setShowResend(false);
+    },
+  });
+
+  const busy = signinMut.isPending || signupMut.isPending || resendMut.isPending;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setInfo(null);
+    setShowResend(false);
     if (tab === "signin") {
       signinMut.mutate({ email, password });
     } else {
@@ -170,9 +193,19 @@ export default function Login() {
             </div>
 
             {error && (
-              <p className="text-red-300 text-sm bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2.5">
-                {error}
-              </p>
+              <div className="text-red-300 text-sm bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2.5 space-y-2">
+                <p>{error}</p>
+                {showResend && email && (
+                  <button
+                    type="button"
+                    onClick={() => resendMut.mutate({ email })}
+                    disabled={resendMut.isPending}
+                    className="text-[#A78BFA] underline underline-offset-2 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold"
+                  >
+                    {resendMut.isPending ? "Sending…" : "Resend confirmation email"}
+                  </button>
+                )}
+              </div>
             )}
             {info && (
               <p className="text-emerald-300 text-sm bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2.5">
