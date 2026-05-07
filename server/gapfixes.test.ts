@@ -173,7 +173,7 @@ describe("cache TTL helpers", () => {
 describe("appeal outcome recording pipeline", () => {
   it("schema defines appeal_outcomes with all financial fields", async () => {
     const schemaSource = await import("fs").then((fs) =>
-      fs.readFileSync("drizzle/schema.ts", "utf-8")
+      fs.readFileSync("drizzle/schema.pg.ts", "utf-8")
     );
     // Core table
     expect(schemaSource).toContain('appealOutcomes');
@@ -187,7 +187,7 @@ describe("appeal outcome recording pipeline", () => {
     expect(schemaSource).toContain('contingencyFeeEarned');
 
     // Contingency fee uses decimal for precision
-    expect(schemaSource).toContain('decimal("contingencyFeeEarned"');
+    expect(schemaSource).toContain('decimal("contingency_fee_earned"');
   });
 
   it("admin.recordOutcome router endpoint exists and validates input", async () => {
