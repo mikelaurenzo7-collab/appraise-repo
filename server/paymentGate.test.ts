@@ -124,6 +124,7 @@ describe("Payment Gate Enforcement", () => {
         id: 1,
         filingMethod: "none",
         address: "123 Main St",
+        email: normalUser.email,
       });
       const router = await loadRouter();
       const caller = router.createCaller(makeCtx(normalUser));
@@ -137,6 +138,7 @@ describe("Payment Gate Enforcement", () => {
         id: 1,
         filingMethod: "poa",
         address: "123 Main St",
+        email: normalUser.email,
       });
       mockGetFilingTierBySubmission.mockResolvedValue(null);
       const router = await loadRouter();
@@ -151,6 +153,7 @@ describe("Payment Gate Enforcement", () => {
         id: 1,
         filingMethod: "poa",
         address: "123 Main St",
+        email: normalUser.email,
       });
       mockGetFilingTierBySubmission.mockResolvedValue({
         id: 1,
@@ -162,6 +165,20 @@ describe("Payment Gate Enforcement", () => {
       const result = await caller.properties.getPaymentStatus({ submissionId: 1 });
       expect(result.requiresPayment).toBe(true);
       expect(result.paymentStatus).toBe("paid");
+    });
+
+    it("forbids reading another user's payment status", async () => {
+      mockGetSubmissionById.mockResolvedValue({
+        id: 1,
+        filingMethod: "poa",
+        address: "123 Main St",
+        email: "someone-else@example.com",
+      });
+      const router = await loadRouter();
+      const caller = router.createCaller(makeCtx(normalUser));
+      await expect(
+        caller.properties.getPaymentStatus({ submissionId: 1 })
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
 
@@ -253,6 +270,22 @@ describe("Payment Gate Enforcement", () => {
       const caller = router.createCaller(makeCtx(adminUser));
       const result = await caller.payments.generateReport({ submissionId: 1 });
       expect(result.url).toBeDefined();
+    });
+  });
+
+  describe("payments.generateReportAsync ownership gate", () => {
+    it("forbids queueing a report job for another user's submission", async () => {
+      mockGetSubmissionById.mockResolvedValue({
+        id: 1,
+        filingMethod: "poa",
+        address: "123 Main St",
+        email: "someone-else@example.com",
+      });
+      const router = await loadRouter();
+      const caller = router.createCaller(makeCtx(normalUser));
+      await expect(
+        caller.payments.generateReportAsync({ submissionId: 1 })
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
 });

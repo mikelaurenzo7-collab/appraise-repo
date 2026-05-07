@@ -25,13 +25,33 @@ function getStripe(): Stripe {
   _stripe = new Stripe(key);
   return _stripe;
 }
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
-
 /**
  * Stripe webhook handler for payment events
  * Endpoint: POST /api/stripe/webhook
+ *
+ * Refuses to start if STRIPE_WEBHOOK_SECRET is missing. With an empty
+ * secret, Stripe's HMAC-SHA256 signature check still runs but accepts
+ * any payload an attacker can hash with the empty key — i.e. forged
+ * webhooks would be processed as real payments. This used to default
+ * to "" via `process.env.STRIPE_WEBHOOK_SECRET || ""`, which on Vercel
+ * (where validateEnvOrExit doesn't run) silently shipped to production.
  */
 export function registerStripeWebhook(app: express.Application) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    log.warn(
+      "[StripeWebhook] STRIPE_WEBHOOK_SECRET is not configured — webhook disabled. Set the env var to enable Stripe events."
+    );
+    app.post(
+      "/api/stripe/webhook",
+      express.raw({ type: "application/json" }),
+      (_req: Request, res: Response) => {
+        res.status(503).json({ error: "Stripe webhook is not configured" });
+      }
+    );
+    return;
+  }
+
   app.post(
     "/api/stripe/webhook",
     express.raw({ type: "application/json" }),
