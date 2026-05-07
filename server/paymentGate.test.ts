@@ -92,7 +92,7 @@ const adminUser: User = {
   role: "admin",
 };
 
-function makeCtx(user: User): TrpcContext {
+function makeCtx(user: User | null): TrpcContext {
   return {
     user,
     req: {
@@ -179,6 +179,16 @@ describe("Payment Gate Enforcement", () => {
       await expect(
         caller.properties.getPaymentStatus({ submissionId: 1 })
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects unauthenticated callers with UNAUTHORIZED", async () => {
+      // Regression guard: if this procedure is ever accidentally demoted back
+      // to publicProcedure, this test will fail loudly.
+      const router = await loadRouter();
+      const caller = router.createCaller(makeCtx(null));
+      await expect(
+        caller.properties.getPaymentStatus({ submissionId: 1 })
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     });
   });
 
@@ -286,6 +296,14 @@ describe("Payment Gate Enforcement", () => {
       await expect(
         caller.payments.generateReportAsync({ submissionId: 1 })
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects unauthenticated callers with UNAUTHORIZED", async () => {
+      const router = await loadRouter();
+      const caller = router.createCaller(makeCtx(null));
+      await expect(
+        caller.payments.generateReportAsync({ submissionId: 1 })
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     });
   });
 });

@@ -38,9 +38,15 @@ function getStripe(): Stripe {
  */
 export function registerStripeWebhook(app: express.Application) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  // Both secrets are required for signature verification: getStripe() needs
+  // STRIPE_SECRET_KEY, and constructEvent needs STRIPE_WEBHOOK_SECRET. If
+  // either is missing, refuse to mount the real handler so misconfiguration
+  // surfaces as a clear 503 instead of a per-request "signature verification
+  // failed" 400 (which getStripe() throwing would produce).
+  if (!webhookSecret || !stripeSecretKey) {
     log.warn(
-      "[StripeWebhook] STRIPE_WEBHOOK_SECRET is not configured — webhook disabled. Set the env var to enable Stripe events."
+      "[StripeWebhook] Stripe webhook config missing (STRIPE_WEBHOOK_SECRET and/or STRIPE_SECRET_KEY) — webhook disabled."
     );
     app.post(
       "/api/stripe/webhook",

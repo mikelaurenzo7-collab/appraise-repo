@@ -80,7 +80,7 @@ describe("Stripe webhook registration", () => {
     expect(res.body).toEqual({ error: "Stripe webhook is not configured" });
   });
 
-  it("attaches the real signature-verifying handler when STRIPE_WEBHOOK_SECRET is set", async () => {
+  it("attaches the real signature-verifying handler when both secrets are set", async () => {
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_value";
     process.env.STRIPE_SECRET_KEY = "sk_test_value";
 
@@ -96,5 +96,27 @@ describe("Stripe webhook registration", () => {
     );
     expect(res.statusCode).toBe(400);
     expect(res.body).toEqual({ error: "Missing signature" });
+  });
+
+  it("returns 503 when STRIPE_SECRET_KEY is missing even with STRIPE_WEBHOOK_SECRET set", async () => {
+    // Without the API key, getStripe() throws inside constructEvent and the
+    // request would surface as a misleading 400 "signature verification
+    // failed". The registration gate must catch this misconfiguration up
+    // front so it shows as the same loud 503 as the missing-webhook-secret
+    // case.
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_value";
+    delete process.env.STRIPE_SECRET_KEY;
+
+    const app = await buildApp();
+    const handler = getRouteHandler(app, "/api/stripe/webhook", "post");
+    expect(handler).toBeTruthy();
+
+    const res = makeRes();
+    await handler!(
+      { headers: {}, body: Buffer.from("{}") } as unknown as Request,
+      res as unknown as Response,
+    );
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({ error: "Stripe webhook is not configured" });
   });
 });
