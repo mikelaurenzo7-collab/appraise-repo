@@ -459,10 +459,10 @@ export default function AnalysisResults() {
               <ScoreGauge score={submission?.appealStrengthScore || 0} />
               <div className="mt-4 text-center">
                 <div className="text-xs text-[#64748B]">
-                  {analysis?.recommendedApproach === "automated_express"
-                    ? "We recommend Automated Express (same-day portal filing)"
-                    : analysis?.recommendedApproach === "automated_standard" || analysis?.recommendedApproach === "poa"
-                    ? "We recommend Automated Standard (certified mail filing)"
+                  {analysis?.recommendedApproach === "automated_express" || analysis?.recommendedApproach === "poa"
+                    ? "We recommend Automated Express (USPS Certified Mail)"
+                    : analysis?.recommendedApproach === "automated_standard"
+                    ? "We recommend Automated Standard (USPS First-Class Mail)"
                     : analysis?.recommendedApproach === "pro-se"
                     ? "We recommend Pro Se Guided filing"
                     : "Appeal may not be recommended"}

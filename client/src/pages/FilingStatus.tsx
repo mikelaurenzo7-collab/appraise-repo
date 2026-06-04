@@ -252,9 +252,9 @@ export default function FilingStatus() {
                         </span>
                         {filing.filingMethod && filing.filingMethod !== "none" && (
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#EDE9FE] text-[#6D28D9]">
-                            {filing.filingMethod === "automated_express"
+                            {(filing.filingMethod === "automated_express" || filing.filingMethod === "poa")
                               ? "Automated Express"
-                              : (filing.filingMethod === "automated_standard" || filing.filingMethod === "poa")
+                              : filing.filingMethod === "automated_standard"
                               ? "Automated Standard"
                               : "Pro Se Guided"}
                           </span>
