@@ -2,7 +2,7 @@
  * SSE Broadcaster — decoupled from server index to avoid circular dependencies
  *
  * Usage: analysisJob calls broadcastAnalysisUpdate() which stores messages
- * in a queue. The SSE endpoint in server/index.ts reads from this queue.
+ * in a queue. The SSE endpoint in server/_core/index.ts reads from this queue.
  */
 
 type SSEMessage = { event: string; data: unknown; timestamp: number };
