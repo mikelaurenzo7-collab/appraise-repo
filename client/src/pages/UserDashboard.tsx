@@ -34,6 +34,7 @@ import { Copy, CheckCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { formatCurrencyShorthand, formatDate } from "@/lib/formatters";
 
 type SubmissionStatus =
   | "pending"
@@ -308,9 +309,7 @@ export default function UserDashboard() {
               <span className="text-sm">Est. Savings</span>
             </div>
             <div className="text-3xl font-bold text-amber-500">
-              {stats.totalSavings > 0
-                ? `$${(stats.totalSavings / 1000).toFixed(0)}k`
-                : "—"}
+              {formatCurrencyShorthand(stats.totalSavings)}
             </div>
           </Card>
         </div>
@@ -424,19 +423,19 @@ export default function UserDashboard() {
                             <div>
                               <div className="text-xs text-muted-foreground mb-1">Assessed</div>
                               <div className="font-bold text-foreground">
-                                {sub.assessedValue ? `$${(sub.assessedValue / 1000).toFixed(0)}k` : "—"}
+                                {formatCurrencyShorthand(sub.assessedValue)}
                               </div>
                             </div>
                             <div>
                               <div className="text-xs text-muted-foreground mb-1">AI Estimate</div>
                               <div className="font-bold text-purple-400">
-                                {sub.marketValue ? `$${(sub.marketValue / 1000).toFixed(0)}k` : "—"}
+                                {formatCurrencyShorthand(sub.marketValue)}
                               </div>
                             </div>
                             <div>
                               <div className="text-xs text-muted-foreground mb-1">Potential Savings</div>
                               <div className="font-bold text-green-400">
-                                {sub.potentialSavings ? `$${(sub.potentialSavings / 1000).toFixed(0)}k` : "—"}
+                                {formatCurrencyShorthand(sub.potentialSavings)}
                               </div>
                             </div>
                           </div>
@@ -465,11 +464,17 @@ export default function UserDashboard() {
                       {/* Filing method + deadline */}
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
                         <span className="capitalize">
-                          {sub.filingMethod === "automated_express" ? "Automated Express" : (sub.filingMethod === "automated_standard" || sub.filingMethod === "poa") ? "Automated Standard" : sub.filingMethod === "pro-se" ? "Pro Se Guided" : "Free Analysis"}
+                          {sub.filingMethod === "automated_express" || sub.filingMethod === "poa"
+                            ? "Automated Express"
+                            : sub.filingMethod === "automated_standard"
+                            ? "Automated Standard"
+                            : sub.filingMethod === "pro-se"
+                            ? "Pro Se Guided"
+                            : "Free Analysis"}
                         </span>
                         {sub.appealDeadline && (
                           <span className="text-amber-500 font-medium">
-                            Deadline: {new Date(sub.appealDeadline).toLocaleDateString()}
+                            Deadline: {formatDate(sub.appealDeadline)}
                           </span>
                         )}
                       </div>
