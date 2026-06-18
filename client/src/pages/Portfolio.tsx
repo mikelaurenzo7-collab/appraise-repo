@@ -16,16 +16,7 @@ import { ManusLoginButton } from "@/components/ManusLoginButton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
-
-function formatCurrency(v: number | null | undefined) {
-  if (!v) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
-}
-
-function formatDate(d: Date | string | null | undefined) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
+import { formatCurrency, formatDate } from "@/lib/formatters";
 
 const PROPERTY_TYPE_ICONS: Record<string, React.ReactNode> = {
   residential: <HomeIcon size={16} />,

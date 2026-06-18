@@ -80,20 +80,28 @@ export async function syncJurisdictionRules() {
 }
 
 /**
- * Fetch latest rules from authoritative sources
- * This is a placeholder that returns empty array
- * In production, this would integrate with state APIs
+ * Fetch latest rules from authoritative sources.
+ * Currently a framework placeholder; returns an empty array.
+ * In production, this will integrate with State Dept of Revenue APIs.
  */
 async function fetchLatestRules(): Promise<SyncSource[]> {
-  // TODO: Implement actual API calls to state tax boards
-  // Example:
-  // const ilRules = await fetchIllinoisRules();
-  // const txRules = await fetchTexasRules();
-  // const caRules = await fetchCaliforniaRules();
-  // return [...ilRules, ...txRules, ...caRules];
+  try {
+    // NOTE: This is where we would call specific state fetchers
+    // once API access is provisioned for each jurisdiction.
+    // Example:
+    // const [il, tx, ca] = await Promise.all([
+    //   fetchIllinoisRules(),
+    //   fetchTexasRules(),
+    //   fetchCaliforniaRules()
+    // ]);
+    // return [...il, ...tx, ...ca];
 
-  log.info("[Sync] Placeholder: No external API sources configured yet");
-  return [];
+    log.info("[Sync] Pipeline is active but no external API sources are configured yet.");
+    return [];
+  } catch (err) {
+    log.error("[Sync] Failed to fetch latest rules from external sources:", { err });
+    return []; // Return empty instead of throwing to prevent cron failure
+  }
 }
 
 /**

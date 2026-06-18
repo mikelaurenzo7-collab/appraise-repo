@@ -43,6 +43,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { Lock, CreditCard } from "lucide-react";
 import { toast } from "sonner";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 
 function ScoreGauge({ score }: { score: number }) {
   const color =
@@ -82,11 +83,6 @@ function ScoreGauge({ score }: { score: number }) {
       </span>
     </div>
   );
-}
-
-function formatCurrency(value: number | null | undefined): string {
-  if (!value) return "N/A";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 }
 
 export default function AnalysisResults() {
@@ -459,10 +455,10 @@ export default function AnalysisResults() {
               <ScoreGauge score={submission?.appealStrengthScore || 0} />
               <div className="mt-4 text-center">
                 <div className="text-xs text-[#64748B]">
-                  {analysis?.recommendedApproach === "automated_express"
+                  {analysis?.recommendedApproach === "automated_express" || analysis?.recommendedApproach === "poa"
                     ? "We recommend Automated Express (same-day portal filing)"
-                    : analysis?.recommendedApproach === "automated_standard" || analysis?.recommendedApproach === "poa"
-                    ? "We recommend Automated Standard (certified mail filing)"
+                    : analysis?.recommendedApproach === "automated_standard"
+                    ? "We recommend Automated Standard (USPS mail filing)"
                     : analysis?.recommendedApproach === "pro-se"
                     ? "We recommend Pro Se Guided filing"
                     : "Appeal may not be recommended"}
@@ -1195,7 +1191,7 @@ export default function AnalysisResults() {
               }`} />
               <div>
                 <div className="font-semibold text-[#0F172A] mb-1">
-                  Appeal Deadline: {new Date(submission.appealDeadline).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                  Appeal Deadline: {formatDate(submission.appealDeadline, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                 </div>
                 <div className="text-sm text-[#64748B]">
                   {Math.ceil((new Date(submission.appealDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days remaining to file your appeal.

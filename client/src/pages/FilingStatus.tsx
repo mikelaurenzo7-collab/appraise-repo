@@ -22,6 +22,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { formatDate } from "@/lib/formatters";
 
 type SubmissionStatus =
   | "pending"
@@ -127,13 +128,6 @@ const STATUS_META: Record<
     Icon: AlertCircle,
   },
 };
-
-function formatDate(value: Date | null | undefined) {
-  if (!value) return null;
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString();
-}
 
 export default function FilingStatus() {
   usePageMeta({
@@ -252,9 +246,9 @@ export default function FilingStatus() {
                         </span>
                         {filing.filingMethod && filing.filingMethod !== "none" && (
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#EDE9FE] text-[#6D28D9]">
-                            {filing.filingMethod === "automated_express"
+                            {filing.filingMethod === "automated_express" || filing.filingMethod === "poa"
                               ? "Automated Express"
-                              : (filing.filingMethod === "automated_standard" || filing.filingMethod === "poa")
+                              : filing.filingMethod === "automated_standard"
                               ? "Automated Standard"
                               : "Pro Se Guided"}
                           </span>
@@ -508,9 +502,9 @@ export default function FilingStatus() {
                           {selectedFiling.filingJob.lobExpectedDeliveryDate && (
                             <div className="text-xs text-[#64748B] mt-1">
                               Expected{" "}
-                              {new Date(
+                              {formatDate(
                                 selectedFiling.filingJob.lobExpectedDeliveryDate
-                              ).toLocaleDateString()}
+                              )}
                             </div>
                           )}
                         </div>
