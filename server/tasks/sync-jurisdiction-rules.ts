@@ -31,12 +31,26 @@ interface SyncSource {
   lastVerifiedAt: Date;
 }
 
+interface SyncResult {
+  success: boolean;
+  updatedCount: number;
+  failedCount: number;
+  errors: string[];
+}
+
 /**
  * Main sync function
  * In production, this would call external APIs to fetch real-time data
  * For now, it's a placeholder that can be extended with actual data sources
  */
-export async function syncJurisdictionRules() {
+export async function syncJurisdictionRules(): Promise<SyncResult> {
+  const result: SyncResult = {
+    success: true,
+    updatedCount: 0,
+    failedCount: 0,
+    errors: [],
+  };
+
   try {
     log.info("[Sync] Starting jurisdiction rules sync...");
     const db = await getDb();
@@ -50,32 +64,39 @@ export async function syncJurisdictionRules() {
     
     const updates = await fetchLatestRules();
     
-    let updatedCount = 0;
     for (const update of updates) {
-      await db
-        .update(jurisdictionRules)
-        .set({
-          assessmentRate: update.assessmentRate.toString(),
-          appealDeadlineDays: update.appealDeadlineDays,
-          appealDeadlineType: update.appealDeadlineType,
-          source: update.source,
-          sourceUrl: update.sourceUrl,
-          lastVerifiedAt: update.lastVerifiedAt,
-        })
-        .where(
-          and(
-            eq(jurisdictionRules.state, update.state),
-            eq(jurisdictionRules.county, update.county)
-          )
-        );
-      updatedCount++;
+      try {
+        await db
+          .update(jurisdictionRules)
+          .set({
+            assessmentRate: update.assessmentRate.toString(),
+            appealDeadlineDays: update.appealDeadlineDays,
+            appealDeadlineType: update.appealDeadlineType,
+            source: update.source,
+            sourceUrl: update.sourceUrl,
+            lastVerifiedAt: update.lastVerifiedAt,
+          })
+          .where(
+            and(
+              eq(jurisdictionRules.state, update.state),
+              eq(jurisdictionRules.county, update.county)
+            )
+          );
+        result.updatedCount++;
+      } catch (rowErr) {
+        log.error(`[Sync] Failed to update rule for ${update.state}/${update.county}:`, { err: rowErr });
+        result.failedCount++;
+        result.errors.push(`${update.state}/${update.county}: ${String(rowErr)}`);
+      }
     }
 
-    log.info(`[Sync] Updated ${updatedCount} jurisdiction rules`);
-    return { success: true, updatedCount };
+    log.info(`[Sync] Completed. Updated: ${result.updatedCount}, Failed: ${result.failedCount}`);
+    return result;
   } catch (err) {
-    log.error("[Sync] Error syncing jurisdiction rules:", { err: err });
-    throw err;
+    log.error("[Sync] Fatal error syncing jurisdiction rules:", { err: err });
+    result.success = false;
+    result.errors.push(String(err));
+    return result;
   }
 }
 
@@ -85,15 +106,25 @@ export async function syncJurisdictionRules() {
  * In production, this would integrate with state APIs
  */
 async function fetchLatestRules(): Promise<SyncSource[]> {
-  // TODO: Implement actual API calls to state tax boards
-  // Example:
-  // const ilRules = await fetchIllinoisRules();
-  // const txRules = await fetchTexasRules();
-  // const caRules = await fetchCaliforniaRules();
-  // return [...ilRules, ...txRules, ...caRules];
+  // Plan: Implement actual API calls to state tax boards
+  log.info("[Sync] Triggering state-specific research modules...");
 
-  log.info("[Sync] Placeholder: No external API sources configured yet");
-  return [];
+  const ilRules = await fetchIllinoisRules();
+  log.info(`[Sync] Illinois module returned ${ilRules.length} updates`);
+
+  const txRules = await fetchTexasRules();
+  log.info(`[Sync] Texas module returned ${txRules.length} updates`);
+
+  const caRules = await fetchCaliforniaRules();
+  log.info(`[Sync] California module returned ${caRules.length} updates`);
+
+  const allUpdates = [...ilRules, ...txRules, ...caRules];
+
+  if (allUpdates.length === 0) {
+    log.info("[Sync] No external API updates found (Placeholder Mode)");
+  }
+
+  return allUpdates;
 }
 
 /**
@@ -114,5 +145,15 @@ async function fetchIllinoisRules(): Promise<SyncSource[]> {
 async function fetchTexasRules(): Promise<SyncSource[]> {
   // In production, this would call:
   // GET https://comptroller.texas.gov/api/property-tax
+  return [];
+}
+
+/**
+ * Example: Fetch California rules from Board of Equalization
+ * Placeholder for actual implementation
+ */
+async function fetchCaliforniaRules(): Promise<SyncSource[]> {
+  // In production, this would call:
+  // GET https://www.boe.ca.gov/proptaxes/
   return [];
 }
