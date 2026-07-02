@@ -782,8 +782,8 @@
 - [x] stripeWebhook.ts: update legacy tierMapping to include all 4 new tier IDs
 - [x] AnalysisResults.tsx: remove stale "poa" branch from recommendedApproach display
 - [x] AdminDashboard.tsx: remove stale "poa" branch from filingMethod badge
-- [x] FilingStatus.tsx: update filingMethod type to remove "poa" and clean up display
-- [x] UserDashboard.tsx: clean up "poa" legacy label
+- [x] FilingStatus.tsx: update filingMethod type and mapping (poa -> Automated Express)
+- [x] UserDashboard.tsx: clean up "poa" legacy label and map to Automated Express
 
 ### Visual Polish
 - [x] Pricing.tsx: add visual "Most Popular" / "Best Value" callout to Standard tier card
@@ -804,6 +804,7 @@
 - [x] Create db-jurisdiction-helpers.ts with getJurisdictionRule() and getStateRules() functions
 - [x] Add fallback to DEFAULT_RULE when county not found in DB
 - [x] Create daily sync task framework (sync-jurisdiction-rules.ts) for authoritative sources
+- [x] Refine sync task with structured results and state-specific module placeholders
 - [x] Wire db-jurisdiction-helpers into analysis pipeline (replace hardcoded jurisdictionRules.ts calls)
 - [x] Test Illinois county assessment rates with DB queries (Cook 33%, DuPage 27.5%, Lake 30%, etc.)
 - [x] Backfill all 3,143 US counties with mail-in filing metadata (Phase 3 expansion: 270 counties with online portals)
