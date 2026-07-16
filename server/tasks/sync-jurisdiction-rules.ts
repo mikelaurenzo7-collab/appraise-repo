@@ -85,14 +85,18 @@ export async function syncJurisdictionRules() {
  * In production, this would integrate with state APIs
  */
 async function fetchLatestRules(): Promise<SyncSource[]> {
-  // TODO: Implement actual API calls to state tax boards
-  // Example:
-  // const ilRules = await fetchIllinoisRules();
-  // const txRules = await fetchTexasRules();
-  // const caRules = await fetchCaliforniaRules();
-  // return [...ilRules, ...txRules, ...caRules];
+  /**
+   * Roadmap for Authoritative Sync:
+   * 1. IL: Integrate with IDOR (https://tax.illinois.gov/localgovernment/propertytax.html)
+   *    to pull tentative and final equalization factors.
+   * 2. TX: Query the Texas Comptroller (https://comptroller.texas.gov/taxes/property-tax/)
+   *    for assessment ratio and tax rate updates.
+   * 3. CA: Scrape or API-query BOE (https://www.boe.ca.gov/) for property tax rules.
+   * 4. Multi-State: Integrate with a commercial legal database (e.g., LexisNexis/Thomson Reuters)
+   *    for legislative changes to appeal windows and procedures.
+   */
 
-  log.info("[Sync] Placeholder: No external API sources configured yet");
+  log.info("[Sync] Placeholder: External API sources roadmap defined; awaiting API key provisioning.");
   return [];
 }
 

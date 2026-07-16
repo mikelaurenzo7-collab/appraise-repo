@@ -334,7 +334,7 @@ export default function Home() {
         <div className="container">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-4">
             <StatCard value={40} suffix="%" label="of U.S. homes are over-assessed" start={statsSection.visible} />
-            <StatCard value={65} suffix="+ counties" label="live with automated portal filing" start={statsSection.visible} />
+            <StatCard value={269} suffix="+ counties" label="live with automated portal filing" start={statsSection.visible} />
             <StatCard value={4} suffix=" min" label="median filing time, end-to-end" start={statsSection.visible} />
             <StatCard value={60} suffix="-day" label="money-back guarantee on every filing" start={statsSection.visible} />
           </div>
@@ -544,10 +544,10 @@ export default function Home() {
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: "Portal counties", value: "65+" },
-                  { label: "Total counties", value: "153" },
+                  { label: "Portal counties", value: "269+" },
+                  { label: "Total counties", value: "270" },
                   { label: "Avg. filing time", value: "3m 47s" },
-                  { label: "States covered", value: "22" },
+                  { label: "States covered", value: "39" },
                 ].map((stat) => (
                   <div key={stat.label} className="p-4 rounded-lg border border-white/10 bg-white/5">
                     <div className="font-data text-xl font-medium text-[#7C3AED]">{stat.value}</div>
